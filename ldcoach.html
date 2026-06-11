@@ -1,0 +1,2016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BOOST Hub — Dermorepubliq</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230E2841'/><polygon points='58,8 26,55 46,55 39,92 74,45 54,45' fill='%23E97132'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy:#0E2841;--blue:#156082;--blue-dk:#104d6a;--blue-lt:#E8F4FA;
+      --accent:#E97132;--accent-dk:#c85e22;--light:#EEF4F7;--light-dk:#dde8ee;
+      --border:#D0DDE5;--white:#FFFFFF;--text:#1A2D3F;--muted:#5A7A8E;
+      --green:#1A6B34;--green-lt:#E6F4EB;--red:#B91C1C;--red-lt:#FEE2E2;
+      --amber:#A05A0A;--amber-lt:#FEF0E0;
+      --font:'Figtree',sans-serif;--font-heading:'Sora',sans-serif;
+      --sidebar-w:224px;--sidebar-cw:52px;--topbar-h:52px;--radius:6px;
+      --shadow:0 1px 4px rgba(14,40,65,.10);--shadow-md:0 4px 16px rgba(14,40,65,.14);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font);background:var(--light);color:var(--text);font-size:13.5px;line-height:1.5}
+    button{font-family:var(--font);cursor:pointer}
+    input,select,textarea{font-family:var(--font)}
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+    /* HEADING FONT — applied to all titles, stat values, brand name */
+    .page-title,.modal-title,.stat-value,.card-title,.topbar-title,
+    .sidebar-appname,.login-title,.loading-logo{font-family:var(--font-heading)}
+
+    /* LOADING */
+    #loading-screen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:12px}
+    .loading-logo{font-size:22px;font-weight:700;color:white;letter-spacing:-.5px}
+    .loading-sub{font-size:12px;color:rgba(255,255,255,.4)}
+    .spinner{width:28px;height:28px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* FIRST RUN */
+    #first-run{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy);padding:20px}
+    .first-run-card{background:white;border-radius:10px;padding:36px;max-width:420px;width:100%;text-align:center}
+
+    /* LOGIN */
+    #login-screen{min-height:100vh;display:none;align-items:center;justify-content:center;background:var(--navy);padding:20px}
+    .login-card{background:white;border-radius:10px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 8px 40px rgba(0,0,0,.25)}
+    .login-logo{font-size:11px;font-weight:600;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+    .login-title{font-size:22px;font-weight:700;color:var(--navy);margin-bottom:6px}
+    .login-sub{font-size:12px;color:var(--muted);margin-bottom:24px}
+
+    /* APP */
+    #app{display:none;height:100vh}
+    .app-layout{display:flex;height:100%}
+
+    /* SIDEBAR */
+    #sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--navy);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;transition:width .22s ease,min-width .22s ease}
+    #sidebar.collapsed{width:var(--sidebar-cw);min-width:var(--sidebar-cw);overflow:visible}
+    .sidebar-header{padding:13px 12px 11px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;gap:8px}
+    .sidebar-logo-text{flex:1;min-width:0;overflow:hidden;transition:opacity .18s,max-width .22s;max-width:200px}
+    #sidebar.collapsed .sidebar-logo-text{opacity:0;max-width:0;pointer-events:none}
+    .sidebar-brand{font-size:10px;font-weight:600;letter-spacing:1.5px;color:rgba(255,255,255,.35);text-transform:uppercase;margin-bottom:1px;white-space:nowrap}
+    .sidebar-appname{font-size:14px;font-weight:700;color:white;white-space:nowrap;letter-spacing:-.2px}
+    .sidebar-collapse-btn{background:none;border:none;color:rgba(255,255,255,.3);cursor:pointer;padding:5px;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:color .15s,background .15s;margin-left:auto}
+    .sidebar-collapse-btn:hover{color:rgba(255,255,255,.8);background:rgba(255,255,255,.08)}
+    #sidebar.collapsed .sidebar-collapse-btn{margin-left:0}
+    #sidebar.collapsed .sidebar-collapse-btn .chevron-icon{transform:rotate(180deg)}
+    /* When collapsed: same header height, bolt centered, chevron hidden */
+    #sidebar.collapsed .sidebar-header{padding:13px 0 12px;justify-content:center}
+    #sidebar.collapsed .sidebar-collapse-btn{display:none}
+    .sidebar-bolt-icon{cursor:pointer;border-radius:6px;transition:opacity .15s;flex-shrink:0}
+    .sidebar-bolt-icon:hover{opacity:.75}
+    /* Nav spacer — pushes Settings section to bottom */
+    #nav-menu{display:flex;flex-direction:column;flex:1}
+    .nav-spacer{flex:1;min-height:8px}
+    #sidebar.collapsed .nav-spacer{flex:1}
+    .chevron-icon{transition:transform .22s ease;display:block}
+    .nav-section-label{font-size:10px;font-weight:600;letter-spacing:1px;color:rgba(255,255,255,.3);text-transform:uppercase;padding:14px 16px 4px;white-space:nowrap;overflow:hidden;transition:opacity .15s,height .22s,padding .22s}
+    #sidebar.collapsed .nav-section-label{opacity:0;height:0;padding:0;overflow:hidden}
+    .nav-item{display:flex;align-items:center;gap:9px;padding:9px 14px;color:rgba(255,255,255,.6);cursor:pointer;border-left:3px solid transparent;transition:all .15s;font-size:13px;font-weight:500;user-select:none;position:relative;white-space:nowrap}
+    .nav-item:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.9)}
+    .nav-item.active{background:rgba(21,96,130,.35);color:white;border-left-color:var(--accent)}
+    .nav-label{overflow:hidden;transition:opacity .15s,max-width .22s;max-width:180px}
+    #sidebar.collapsed .nav-label{opacity:0;max-width:0}
+    #sidebar.collapsed .nav-item{padding:10px 0;justify-content:center;border-left-color:transparent!important}
+    #sidebar.collapsed .nav-item.active{border-left-color:transparent!important}
+    #sidebar.collapsed .nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:22px;background:var(--accent);border-radius:0 2px 2px 0}
+    .nav-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;opacity:.7;transition:opacity .15s}
+    .nav-item:hover .nav-icon,.nav-item.active .nav-icon{opacity:1}
+    /* Tooltip when collapsed */
+    #sidebar.collapsed .nav-item::after{content:attr(data-label);position:absolute;left:calc(var(--sidebar-cw) + 8px);top:50%;transform:translateY(-50%);background:rgba(10,32,54,.96);color:white;padding:5px 11px;border-radius:5px;font-size:12px;font-weight:500;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:600;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+    #sidebar.collapsed .nav-item:hover::after{opacity:1}
+    .sidebar-footer{padding:11px 14px;border-top:1px solid rgba(255,255,255,.08);transition:padding .22s}
+    #sidebar.collapsed .sidebar-footer{padding:11px 0}
+    .user-pill{display:flex;align-items:center;gap:8px;transition:justify-content .22s}
+    #sidebar.collapsed .user-pill{justify-content:center}
+    .user-info{flex:1;min-width:0;overflow:hidden;transition:opacity .15s,max-width .22s;max-width:160px}
+    #sidebar.collapsed .user-info{opacity:0;max-width:0}
+    .user-name{font-size:12.5px;font-weight:600;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .user-role-label{font-size:10.5px;color:rgba(255,255,255,.4)}
+    .logout-btn{background:none;border:none;color:rgba(255,255,255,.3);padding:4px 5px;border-radius:4px;display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s,opacity .15s,max-width .22s}
+    .logout-btn:hover{color:rgba(255,255,255,.8);background:rgba(255,255,255,.08)}
+    #sidebar.collapsed .logout-btn{opacity:0;max-width:0;padding:0;overflow:hidden;pointer-events:none}
+
+    /* MAIN */
+    #main-wrapper{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+    #topbar{height:var(--topbar-h);background:white;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0;box-shadow:var(--shadow)}
+    .topbar-title{font-size:15px;font-weight:600;color:var(--navy);flex:1}
+    #content{flex:1;overflow-y:auto;padding:20px}
+
+    /* VIEWS */
+    .view{display:none;animation:fadeIn .15s ease}
+    .view.active{display:block}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+    /* PAGE HEADER */
+    .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:12px}
+    .page-title{font-size:17px;font-weight:700;color:var(--navy)}
+    .page-sub{font-size:12px;color:var(--muted);margin-top:1px}
+
+    /* CARDS */
+    .card{background:white;border-radius:var(--radius);border:1px solid var(--border);padding:16px}
+    .card-title{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:12px}
+
+    /* STATS */
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+    .stat-card{background:white;border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+    .stat-label{font-size:10.5px;font-weight:600;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
+    .stat-value{font-size:26px;font-weight:700;color:var(--navy);line-height:1.1}
+    .stat-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+    /* GRID */
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+    /* TABLE */
+    .table-wrap{overflow-x:auto;border-radius:var(--radius)}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    thead th{background:var(--light);color:var(--muted);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+    tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+    tbody tr:last-child td{border-bottom:none}
+    tbody tr:hover{background:var(--light)}
+
+    /* RESIZABLE + SORTABLE COLUMNS */
+    .rt-table th{position:relative;user-select:none;overflow:hidden}
+    .col-rh{position:absolute;right:0;top:0;height:100%;width:6px;cursor:col-resize;z-index:2;transition:background .1s}
+    .col-rh:hover,.col-rh.dragging{background:rgba(21,96,130,.22)}
+    th.sortable{cursor:pointer}
+    th.sortable:hover{background:var(--light-dk)!important;color:var(--text)!important}
+    .sort-ind{font-size:9px;margin-left:3px;opacity:.35;vertical-align:middle;pointer-events:none;font-style:normal}
+    .sort-ind.on{opacity:1;color:var(--blue)}
+
+    /* BADGES */
+    .badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+    .badge-director{background:#EDE9FE;color:#5B21B6}
+    .badge-coach{background:var(--blue-lt);color:var(--blue)}
+    .badge-coachee{background:var(--light);color:var(--muted)}
+    .badge-active{background:var(--green-lt);color:var(--green)}
+    .badge-inactive{background:var(--red-lt);color:var(--red)}
+
+    /* BUTTONS */
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);font-size:13px;font-weight:500;border:none;cursor:pointer;transition:all .15s;white-space:nowrap}
+    .btn-primary{background:var(--blue);color:white}
+    .btn-primary:hover{background:var(--blue-dk)}
+    .btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+    .btn-ghost:hover{background:var(--light)}
+    .btn-danger{background:var(--red-lt);color:var(--red);border:1px solid #FCA5A5}
+    .btn-danger:hover{background:#FECACA}
+    .btn-success{background:var(--green-lt);color:var(--green);border:1px solid #6EE7A0}
+    .btn-sm{padding:4px 10px;font-size:12px}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+
+    /* FORMS */
+    .form-group{margin-bottom:14px}
+    .form-label{display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:5px}
+    .form-control{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:var(--radius);font-size:13.5px;color:var(--text);background:white;transition:border-color .15s}
+    .form-control:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(21,96,130,.1)}
+    .form-control:disabled{background:var(--light);color:var(--muted)}
+    .form-hint{font-size:11px;color:var(--muted);margin-top:3px}
+    .form-error-msg{font-size:11.5px;color:var(--red);margin-top:4px;display:none}
+
+    /* TOGGLE */
+    .toggle{position:relative;width:40px;height:22px;flex-shrink:0;display:inline-block}
+    .toggle input{opacity:0;width:0;height:0}
+    .toggle-slider{position:absolute;cursor:pointer;inset:0;background:var(--border);border-radius:22px;transition:.2s}
+    .toggle-slider:before{content:'';position:absolute;height:16px;width:16px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.2s}
+    input:checked + .toggle-slider{background:var(--blue)}
+    input:checked + .toggle-slider:before{transform:translateX(18px)}
+
+    /* ROLE CHECKS */
+    .role-checks{display:flex;gap:14px;flex-wrap:wrap;margin-top:4px}
+    .role-check{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:500}
+    .role-check input[type="checkbox"]{width:15px;height:15px;cursor:pointer;accent-color:var(--blue)}
+
+    /* MODALS */
+    .modal-overlay{position:fixed;inset:0;background:rgba(14,40,65,.55);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
+    .modal-box{background:white;border-radius:10px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-md)}
+    .modal-box.sm{max-width:380px}
+    .modal-header{padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:white;z-index:1}
+    .modal-title{font-size:15px;font-weight:600;color:var(--navy)}
+    .modal-close{background:none;border:none;font-size:18px;color:var(--muted);cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1}
+    .modal-close:hover{background:var(--light);color:var(--text)}
+    .modal-body{padding:20px}
+    .modal-footer{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+
+    /* TOAST */
+    #toast-container{position:fixed;bottom:20px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+    .toast{padding:10px 16px;border-radius:var(--radius);font-size:13px;font-weight:500;color:white;box-shadow:var(--shadow-md);animation:slideIn .2s ease;max-width:340px;line-height:1.4}
+    .toast-success{background:var(--green)}
+    .toast-error{background:var(--red)}
+    .toast-info{background:var(--blue)}
+    @keyframes slideIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+    /* EMPTY STATE */
+    .empty-state{text-align:center;padding:40px 20px;color:var(--muted)}
+    .empty-icon{font-size:34px;margin-bottom:8px}
+    .empty-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px}
+    .empty-sub{font-size:12px}
+
+    /* AVATAR */
+    .avatar{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:white;flex-shrink:0;background:var(--blue)}
+    .avatar-sm{width:28px;height:28px;font-size:11px}
+    .avatar-md{width:34px;height:34px;font-size:13px}
+
+    /* NOTICE */
+    .notice{padding:10px 14px;border-radius:var(--radius);font-size:12.5px;margin-top:10px}
+    .notice-amber{background:var(--amber-lt);color:var(--amber)}
+
+    /* COACHEE GRID */
+    .coachee-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+    .coachee-card{background:white;border:1px solid var(--border);border-radius:var(--radius);padding:14px;transition:box-shadow .15s}
+    .coachee-card:hover{box-shadow:var(--shadow)}
+
+    /* INFO ROWS */
+    .info-row{display:flex;align-items:baseline;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+    .info-row:last-child{border-bottom:none}
+    .info-label{font-size:11px;font-weight:600;color:var(--muted);min-width:110px;flex-shrink:0}
+
+    /* MOBILE */
+    @media(max-width:768px){
+      #sidebar{position:fixed;z-index:200;height:100vh;width:0;min-width:0;overflow:hidden}
+      #sidebar.open{width:var(--sidebar-w);min-width:var(--sidebar-w)}
+      #sidebar.collapsed{width:0;min-width:0}
+      #menu-toggle{display:block!important}
+      .sidebar-collapse-btn{display:none}
+      .stats-grid{grid-template-columns:1fr 1fr}
+      .grid-2{grid-template-columns:1fr}
+      #content{padding:14px}
+    }
+
+    /* ── PHASE 2: QUILL ─────────────────────────────────────── */
+    .ql-toolbar{border-radius:var(--radius) var(--radius) 0 0!important;border-color:var(--border)!important;background:var(--light)}
+    .ql-container{border-radius:0 0 var(--radius) var(--radius)!important;border-color:var(--border)!important;font-family:var(--font)!important;font-size:13.5px!important}
+    .ql-editor{min-height:100px;padding:10px 12px}
+    .ql-editor.ql-blank::before{color:var(--muted);font-style:normal}
+
+    /* ── PHASE 2: ACTION PLAN TABLE ─────────────────────────── */
+    .ap-table{width:100%;border-collapse:collapse}
+    .ap-table th{background:var(--light);color:var(--muted);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border:1px solid var(--border);text-align:left}
+    .ap-table td{padding:4px 6px;border:1px solid var(--border);vertical-align:middle}
+    .ap-cell{width:100%;border:none;background:transparent;font-family:var(--font);font-size:13px;color:var(--text);padding:5px 6px}
+    .ap-cell:focus{outline:none;background:var(--blue-lt);border-radius:3px}
+    .ap-cell[type=date]{min-width:130px}
+
+    /* ── PHASE 2: SIGNATURE ─────────────────────────────────── */
+    #sig-canvas{max-width:100%;width:100%;height:140px;cursor:crosshair;border:1px solid var(--border);border-radius:var(--radius);background:white;display:block;touch-action:none}
+    .sig-tab-btn{padding:6px 14px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:500;color:var(--muted);transition:color .15s,border-color .15s}
+    .sig-tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+
+    /* ── PHASE 2: SESSION STATUS BADGES ─────────────────────── */
+    .badge-draft{background:var(--light);color:var(--muted)}
+    .badge-pending{background:var(--amber-lt);color:var(--amber)}
+    .badge-completed{background:var(--green-lt);color:var(--green)}
+
+    /* ── PHASE 2: SESSION LIST ───────────────────────────────── */
+    .session-row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+    .session-row:last-child{border-bottom:none}
+    .session-meta{flex:1;min-width:0}
+    .session-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .session-sub{font-size:11.5px;color:var(--muted);margin-top:1px}
+
+    /* ── PHASE 2: FORM SECTION HEADERS ──────────────────────── */
+    .section-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  </style>
+  <!-- Phase 2 libraries -->
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.quilljs.com/1.3.7/quill.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="loading-logo">BOOST Hub</div>
+  <div class="spinner"></div>
+  <div class="loading-sub">Dermorepubliq Learning &amp; Development</div>
+</div>
+
+<!-- FIRST RUN -->
+<div id="first-run" style="display:none">
+  <div class="first-run-card">
+    <div style="font-size:36px;margin-bottom:12px">🚀</div>
+    <div style="font-size:20px;font-weight:700;color:var(--navy);margin-bottom:8px">Initialize BOOST Hub</div>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:24px">First-time setup. This will create your Director profile and initialize the app database.</p>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="initApp()">Initialize App</button>
+    <div id="first-run-msg" style="margin-top:12px;font-size:12px;color:var(--muted)"></div>
+  </div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <svg width="40" height="40" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100" height="100" rx="22" fill="#0E2841"/>
+        <polygon points="58,8 26,55 46,55 39,92 74,45 54,45" fill="#E97132"/>
+      </svg>
+      <div>
+        <div class="login-logo">Dermorepubliq L&amp;D</div>
+        <div class="login-title" style="margin-bottom:0">BOOST Hub</div>
+      </div>
+    </div>
+    <div class="login-sub">Sign in to your account</div>
+    <form id="login-form">
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" id="login-email" class="form-control" placeholder="you@dermorepubliq.com" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" id="login-password" class="form-control" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required autocomplete="current-password">
+      </div>
+      <div id="login-error" class="form-error-msg" style="margin-bottom:10px"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center" id="login-btn">Sign In</button>
+    </form>
+    <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">Forgot your password? Contact your L&amp;D Director.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="app-layout">
+
+    <!-- SIDEBAR -->
+    <nav id="sidebar">
+      <div class="sidebar-header">
+        <svg class="sidebar-bolt-icon" width="30" height="30" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" onclick="goHome()" title="Go to home">
+          <rect width="100" height="100" rx="22" fill="#1a3a5c"/>
+          <polygon points="58,8 26,55 46,55 39,92 74,45 54,45" fill="#E97132"/>
+        </svg>
+        <div class="sidebar-logo-text">
+          <div class="sidebar-brand">Dermorepubliq L&amp;D</div>
+          <div class="sidebar-appname">BOOST Hub</div>
+        </div>
+        <button class="sidebar-collapse-btn" onclick="toggleSidebarCollapse()" title="Collapse sidebar">
+          <svg class="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <div id="nav-menu"></div>
+      <div class="sidebar-footer">
+        <div class="user-pill">
+          <div class="avatar avatar-sm" id="sb-avatar">--</div>
+          <div class="user-info">
+            <div class="user-name" id="sb-name">—</div>
+            <div class="user-role-label" id="sb-role">—</div>
+          </div>
+          <button class="logout-btn" title="Sign out" onclick="doLogout()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- MAIN -->
+    <div id="main-wrapper">
+      <header id="topbar">
+        <button id="menu-toggle" style="display:none;background:none;border:none;font-size:20px;cursor:pointer;color:var(--navy);margin-right:4px" onclick="toggleSidebar()">&#9776;</button>
+        <div class="topbar-title" id="topbar-title">Dashboard</div>
+        <div id="topbar-actions"></div>
+      </header>
+
+      <div id="content">
+
+        <!-- DIRECTOR: DASHBOARD -->
+        <div class="view" id="view-dashboard">
+          <div class="page-header">
+            <div><div class="page-title">Dashboard</div><div class="page-sub">Overview of coaching activity</div></div>
+          </div>
+          <div class="stats-grid" id="db-stats"></div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-title">Recent Sessions</div>
+              <div id="db-recent">
+                <div class="empty-state"><div class="empty-icon">&#128203;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Sessions will appear here once coaches begin recording.</div></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-title">Coaches &amp; Their Teams</div>
+              <div id="db-teams"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DIRECTOR: USER MANAGEMENT -->
+        <div class="view" id="view-users">
+          <div class="page-header">
+            <div><div class="page-title">User Management</div><div class="page-sub">Manage users, roles, and coach assignments</div></div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost" onclick="openCsvImport()">&#8679; Import CSV</button>
+              <button class="btn btn-primary" onclick="openUserModal()">+ Add User</button>
+            </div>
+          </div>
+          <div class="card" style="padding:0">
+            <div class="table-wrap">
+              <table id="users-table" class="rt-table">
+                <thead>
+                  <tr>
+                    <th data-sort="name" style="min-width:150px">Name</th>
+                    <th data-sort="employeeId" style="min-width:110px">Employee ID</th>
+                    <th style="min-width:170px">Email</th>
+                    <th data-sort="position" style="min-width:130px">Position</th>
+                    <th style="min-width:110px">Roles</th>
+                    <th style="min-width:100px">Coach</th>
+                    <th data-sort="active" style="min-width:80px">Status</th>
+                    <th style="min-width:130px">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="users-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- DIRECTOR: ALL SESSIONS -->
+        <div class="view" id="view-all-sessions">
+          <div class="page-header">
+            <div><div class="page-title">All Sessions</div><div class="page-sub">All coaching records across the team</div></div>
+          </div>
+          <div class="card">
+            <div id="all-sessions-list">
+              <div class="empty-state"><div class="empty-icon">&#128194;</div><div class="empty-title">No sessions recorded yet</div><div class="empty-sub">Coaching sessions will appear here once coaches start recording.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DIRECTOR: SETTINGS -->
+        <div class="view" id="view-settings">
+          <div class="page-header">
+            <div><div class="page-title">Settings</div><div class="page-sub">App configuration and administration</div></div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">Email Notifications</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px">
+              <div>
+                <div style="font-size:13px;font-weight:500">Enable email notifications</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px">Notify coaches and coachees when sessions are submitted or acknowledged</div>
+              </div>
+              <label class="toggle"><input type="checkbox" id="setting-email-notif" onchange="saveSettings()"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="notice notice-amber" style="margin-top:14px">&#9888;&#65039; Email notifications are <strong>off by default</strong>. Enable only when you are ready to go live.</div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">Data Backup</div>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Export all app data as a JSON file. This is your manual backup and serves as the migration export for IT when moving to Linode.</p>
+            <button class="btn btn-ghost" onclick="exportBackup()">&#11015; Export JSON Backup</button>
+            <div id="last-export-label" style="margin-top:10px;font-size:11.5px;color:var(--muted)">Last export: Never</div>
+          </div>
+          <div class="card">
+            <div class="card-title">About</div>
+            <div class="info-row"><span class="info-label">Version</span><span>BOOST Hub v1.2 — Phase 2</span></div>
+            <div class="info-row"><span class="info-label">Department</span><span>Dermorepubliq Learning &amp; Development</span></div>
+            <div class="info-row"><span class="info-label">Firebase Project</span><span>ldcoach-83aed</span></div>
+            <div class="info-row"><span class="info-label">Hosting</span><span>GitHub Pages (pending setup)</span></div>
+            <div class="info-row"><span class="info-label">Build Phase</span><span>Phase 2 of 5</span></div>
+          </div>
+        </div>
+
+        <!-- COACH: MY TEAM -->
+        <div class="view" id="view-coach-home">
+          <div class="page-header">
+            <div><div class="page-title">My Team</div><div class="page-sub">Your coachees and their coaching progress</div></div>
+            <button class="btn btn-primary" onclick="navigateTo('coach-new-session')">+ New Session</button>
+          </div>
+          <div id="coach-coachee-grid"></div>
+        </div>
+
+        <!-- COACH: NEW/EDIT SESSION (Phase 2) -->
+        <div class="view" id="view-coach-new-session">
+          <div class="page-header" style="flex-wrap:wrap;gap:8px">
+            <div>
+              <div class="page-title" id="session-form-title">New Coaching Session</div>
+              <div class="page-sub" id="session-form-sub">Record a coaching conversation</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn-ghost" id="pdf-btn" onclick="generatePDF()" style="display:none">&#11015; Export PDF</button>
+            </div>
+          </div>
+          <div id="sf-status-bar" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:var(--radius);font-size:12.5px"></div>
+
+          <!-- Coachee Picker (shown when no coachee pre-selected) -->
+          <div id="sf-coachee-picker" style="display:none" class="card" style="margin-bottom:12px">
+            <div style="margin-bottom:12px" class="section-head">Select Coachee</div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Coachee <span style="color:var(--red)">*</span></label>
+              <select id="sf-coachee-select" class="form-control" onchange="onCoacheeSelected()">
+                <option value="">— Select coachee —</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Section 1: Session Details -->
+          <div class="card" style="margin-bottom:12px">
+            <div class="section-head">Session Details</div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Employee Name</label>
+                <input type="text" id="sf-employee-name" class="form-control" disabled>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Role / Position</label>
+                <input type="text" id="sf-employee-role" class="form-control" disabled>
+              </div>
+            </div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Department</label>
+                <input type="text" id="sf-department" class="form-control">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Coach</label>
+                <input type="text" id="sf-coach-name" class="form-control" disabled>
+              </div>
+            </div>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Session Date <span style="color:var(--red)">*</span></label>
+                <input type="date" id="sf-session-date" class="form-control">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Last Coaching Session</label>
+                <input type="date" id="sf-last-session" class="form-control">
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Focus Area -->
+          <div class="card" style="margin-bottom:12px">
+            <div class="section-head">Focus Area <span style="color:var(--red);font-weight:400;font-size:11px;text-transform:none;letter-spacing:0">required</span></div>
+            <div class="role-checks" style="margin-bottom:10px">
+              <label class="role-check"><input type="checkbox" id="fa-interpersonal" value="interpersonal"> Interpersonal Skills</label>
+              <label class="role-check"><input type="checkbox" id="fa-performance" value="performance"> Performance &amp; Productivity</label>
+              <label class="role-check"><input type="checkbox" id="fa-others" value="others" onchange="toggleFocusOther()"> Others</label>
+            </div>
+            <div id="fa-others-wrap" style="display:none">
+              <input type="text" id="fa-others-text" class="form-control" placeholder="Specify other focus area...">
+            </div>
+          </div>
+
+          <!-- Section 3: Key Observations -->
+          <div class="card" style="margin-bottom:12px">
+            <div class="section-head">Key Observations <span style="color:var(--red);font-weight:400;font-size:11px;text-transform:none;letter-spacing:0">required</span></div>
+            <div id="sf-observations-editor"></div>
+          </div>
+
+          <!-- Section 4: Goal Setting -->
+          <div class="card" style="margin-bottom:12px">
+            <div class="section-head">Goal Setting <span style="color:var(--red);font-weight:400;font-size:11px;text-transform:none;letter-spacing:0">required</span></div>
+            <div id="sf-goals-editor"></div>
+          </div>
+
+          <!-- Section 5: Action Plan -->
+          <div class="card" style="margin-bottom:12px">
+            <div class="section-head">Action Plan &amp; Next Steps</div>
+            <div class="table-wrap" style="margin-bottom:8px">
+              <table class="ap-table" id="action-plan-table">
+                <thead>
+                  <tr>
+                    <th style="min-width:220px">Action</th>
+                    <th style="min-width:200px">Support / Resources Needed</th>
+                    <th style="min-width:130px">Due Date</th>
+                    <th style="width:46px"></th>
+                  </tr>
+                </thead>
+                <tbody id="action-plan-tbody"></tbody>
+              </table>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="ap-add-btn" onclick="addActionRow()">+ Add Row</button>
+          </div>
+
+          <!-- Section 6: Next Coaching Session -->
+          <div class="card" style="margin-bottom:12px">
+            <div class="section-head">Next Coaching Session</div>
+            <div style="max-width:240px">
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Date</label>
+                <input type="date" id="sf-next-session" class="form-control">
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 7: Coach Signature -->
+          <div class="card" style="margin-bottom:12px">
+            <div class="section-head">Coach Signature</div>
+            <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)">
+              <button class="sig-tab-btn active" id="sig-tab-draw" onclick="switchSigTab('draw')">Draw</button>
+              <button class="sig-tab-btn" id="sig-tab-upload" onclick="switchSigTab('upload')">Upload Image</button>
+            </div>
+            <div id="sig-draw-wrap">
+              <canvas id="sig-canvas"></canvas>
+              <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="clearSignature()">Clear</button>
+            </div>
+            <div id="sig-upload-wrap" style="display:none">
+              <input type="file" id="sig-upload-input" accept="image/*" class="form-control" style="margin-bottom:8px" onchange="loadSigImage(this)">
+              <div id="sig-upload-preview" style="display:none"><img id="sig-preview-img" style="max-height:120px;border:1px solid var(--border);border-radius:var(--radius)"></div>
+            </div>
+            <div class="notice notice-amber" style="margin-top:10px">&#9888;&#65039; Signatures are stored on this device only and will not transfer to other devices or browsers.</div>
+          </div>
+
+          <!-- Bottom action bar -->
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:16px 0 24px">
+            <span id="pdf-status" style="font-size:12px;color:var(--muted);margin-right:auto"></span>
+            <button class="btn btn-ghost" id="session-save-draft-btn" onclick="saveDraft()">Save Draft</button>
+            <button class="btn btn-primary" id="session-submit-btn" onclick="submitSession()">Submit Session</button>
+          </div>
+        </div>
+
+        <!-- COACH: MY SESSIONS -->
+        <div class="view" id="view-coach-sessions">
+          <div class="page-header">
+            <div><div class="page-title">My Sessions</div><div class="page-sub">Sessions you have recorded</div></div>
+            <button class="btn btn-primary" onclick="newSessionFromNav()">+ New Session</button>
+          </div>
+          <div class="card">
+            <div id="coach-sessions-list">
+              <div class="empty-state"><div class="empty-icon">&#128203;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Start by recording a new coaching session with one of your coachees.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- COACHEE: MY COACHING -->
+        <div class="view" id="view-my-coaching">
+          <div class="page-header">
+            <div><div class="page-title">My Coaching Sessions</div><div class="page-sub">Sessions shared with you for review and acknowledgement</div></div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">My Coach</div>
+            <div id="coachee-coach-info"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Sessions</div>
+            <div class="empty-state"><div class="empty-icon">&#128172;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Your coaching sessions will appear here once your coach records one.</div></div>
+          </div>
+        </div>
+
+      </div><!-- #content -->
+    </div><!-- #main-wrapper -->
+  </div><!-- .app-layout -->
+</div><!-- #app -->
+
+<!-- MODAL: USER -->
+<div id="modal-user" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-user')">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="mu-title">Add User</div>
+      <button class="modal-close" onclick="closeModal('modal-user')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mu-uid">
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">First Name <span style="color:var(--red)">*</span></label>
+          <input type="text" id="mu-firstname" class="form-control" placeholder="e.g. Sandra">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Last Name <span style="color:var(--red)">*</span></label>
+          <input type="text" id="mu-lastname" class="form-control" placeholder="e.g. Barlao">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Employee ID</label>
+        <input type="text" id="mu-empid" class="form-control" placeholder="e.g. 240301-081">
+        <div class="form-hint">From your HR/payroll system</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email Address <span style="color:var(--red)">*</span></label>
+        <input type="email" id="mu-email" class="form-control" placeholder="name@dermorepubliq.com">
+        <div class="form-hint" id="mu-email-hint">A password setup link will be sent to this email.</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Position / Title</label>
+        <input type="text" id="mu-position" class="form-control" placeholder="e.g. Instructional Designer">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Roles <span style="color:var(--red)">*</span></label>
+        <div class="role-checks">
+          <label class="role-check"><input type="checkbox" id="role-director" value="director" onchange="updateCoachField()"> Director</label>
+          <label class="role-check"><input type="checkbox" id="role-coach" value="coach" onchange="updateCoachField()"> Coach</label>
+          <label class="role-check"><input type="checkbox" id="role-coachee" value="coachee" onchange="updateCoachField()"> Coachee</label>
+        </div>
+      </div>
+      <div class="form-group" id="mu-coach-group" style="display:none">
+        <label class="form-label">Assigned Coach <span style="color:var(--red)">*</span></label>
+        <select id="mu-coach" class="form-control">
+          <option value="">— Select coach —</option>
+        </select>
+      </div>
+      <div class="form-group" id="mu-active-group" style="display:none">
+        <label class="form-label">Account Status</label>
+        <div style="display:flex;align-items:center;gap:10px">
+          <label class="toggle"><input type="checkbox" id="mu-active" checked><span class="toggle-slider"></span></label>
+          <span style="font-size:13px;color:var(--text)">Active</span>
+        </div>
+      </div>
+      <div id="mu-error" class="form-error-msg"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-user')">Cancel</button>
+      <button class="btn btn-primary" id="mu-save-btn" onclick="saveUser()">Create User</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CSV IMPORT -->
+<div id="modal-csv" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-csv')">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-header">
+      <div class="modal-title">Import Users via CSV</div>
+      <button class="modal-close" onclick="closeModal('modal-csv')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Upload a CSV file to add multiple users at once. Download the template to get started.</p>
+      <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="downloadCsvTemplate()">&#11015; Download Template</button>
+
+      <div id="csv-drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius);padding:28px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:14px" onclick="document.getElementById('csv-file-input').click()" ondragover="csvDragOver(event)" ondrop="csvDrop(event)">
+        <div style="font-size:24px;margin-bottom:6px">&#128196;</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text)">Click to browse or drag &amp; drop your CSV</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:3px">Accepts .csv files only</div>
+        <input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="parseCsv(this.files[0])">
+      </div>
+
+      <div id="csv-preview" style="display:none">
+        <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:8px" id="csv-preview-label"></div>
+        <div class="table-wrap" style="max-height:260px;overflow-y:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th>Name</th><th>Email</th><th>Position</th><th>Roles</th><th>Coach Email</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="csv-preview-tbody"></tbody>
+          </table>
+        </div>
+        <div id="csv-error-summary" style="margin-top:10px;font-size:12px;color:var(--red);display:none"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-csv')">Cancel</button>
+      <button class="btn btn-primary" id="csv-import-btn" style="display:none" onclick="runCsvImport()">Import Users</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CONFIRM -->
+<div id="modal-confirm" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-confirm')">
+  <div class="modal-box sm">
+    <div class="modal-header">
+      <div class="modal-title" id="mc-title">Confirm</div>
+      <button class="modal-close" onclick="closeModal('modal-confirm')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p id="mc-msg" style="font-size:13.5px;color:var(--text);line-height:1.6"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-confirm')">Cancel</button>
+      <button class="btn btn-danger" id="mc-action-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<script type="module">
+import { initializeApp }
+  from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+         sendPasswordResetEmail, createUserWithEmailAndPassword }
+  from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc,
+         collection, getDocs, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+// ── Firebase ─────────────────────────────────────────────────
+const FC = {
+  apiKey:"AIzaSyBSMtqXwh5B4IVFYljsWUFoLGZXR__dy5I",
+  authDomain:"ldcoach-83aed.firebaseapp.com",
+  projectId:"ldcoach-83aed",
+  storageBucket:"ldcoach-83aed.firebasestorage.app",
+  messagingSenderId:"76382262371",
+  appId:"1:76382262371:web:088a19c58064a0fe2e5456"
+};
+const primaryApp   = initializeApp(FC);
+const auth         = getAuth(primaryApp);
+const db           = getFirestore(primaryApp);
+// Secondary app: create users without signing out the Director
+const secondaryApp = initializeApp(FC, 'secondary');
+const auth2        = getAuth(secondaryApp);
+
+// ── State ────────────────────────────────────────────────────
+let currentUser    = null;
+let currentProfile = null;
+let allUsers       = [];
+let appSettings    = { emailNotifications: false };
+
+// ── Auth listener ────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    currentUser = user;
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid));
+      if (snap.exists()) {
+        currentProfile = { uid: user.uid, ...snap.data() };
+        if (!currentProfile.active) {
+          toast('Your account has been deactivated. Contact your L&D Director.', 'error');
+          await signOut(auth); return;
+        }
+        await loadSettings();
+        renderSidebar();
+        showApp();
+        navigateTo(defaultView());
+      } else {
+        if (user.email === 'sbarlao@dermorepubliq.com') {
+          hideAll();
+          document.getElementById('first-run').style.display = 'flex';
+        } else {
+          toast('Account profile not found. Contact your L&D Director.', 'error');
+          await signOut(auth);
+        }
+      }
+    } catch (e) {
+      toast('Error loading profile: ' + e.message, 'error');
+      await signOut(auth);
+    }
+  } else {
+    currentUser = null; currentProfile = null;
+    showLogin();
+  }
+});
+
+// ── First-run ────────────────────────────────────────────────
+window.initApp = async function () {
+  const msg = document.getElementById('first-run-msg');
+  msg.textContent = 'Initializing...';
+  try {
+    await setDoc(doc(db, 'users', currentUser.uid), {
+      firstName:'Sandra Abegail', lastName:'Barlao',
+      email:'sbarlao@dermorepubliq.com',
+      employeeId:'240301-081',
+      position:'Learning & Development Director',
+      roles:['director','coachee'], coachId:null,
+      active:true, createdAt:serverTimestamp()
+    });
+    await setDoc(doc(db, 'settings', 'app'), {
+      emailNotifications:false, createdAt:serverTimestamp()
+    });
+    currentProfile = {
+      uid:currentUser.uid, firstName:'Sandra Abegail', lastName:'Barlao',
+      email:'sbarlao@dermorepubliq.com',
+      position:'Learning & Development Director',
+      roles:['director','coachee'], coachId:null, active:true
+    };
+    appSettings = { emailNotifications:false };
+    renderSidebar(); showApp(); navigateTo('dashboard');
+    toast('App initialized! Go to User Management to add your team.', 'success');
+  } catch (e) { msg.textContent = 'Error: ' + e.message; }
+};
+
+// ── Login ────────────────────────────────────────────────────
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const btn      = document.getElementById('login-btn');
+  const errEl    = document.getElementById('login-error');
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  errEl.style.display = 'none';
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    errEl.textContent = authErr(err.code);
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+});
+
+function authErr(code) {
+  if (['auth/user-not-found','auth/wrong-password','auth/invalid-credential'].includes(code))
+    return 'Incorrect email or password.';
+  if (code === 'auth/too-many-requests') return 'Too many attempts. Try again later.';
+  return 'Sign in failed. Please try again.';
+}
+
+window.doLogout = () => signOut(auth);
+window.goHome = () => {
+  const sb = document.getElementById('sidebar');
+  if (sb.classList.contains('collapsed')) toggleSidebarCollapse(); // expand first
+  if (currentProfile) navigateTo(defaultView());
+};
+
+// ── Screen helpers ───────────────────────────────────────────
+function hideAll() {
+  ['loading-screen','login-screen','app','first-run'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+function showLogin() {
+  hideAll();
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-btn').disabled = false;
+  document.getElementById('login-btn').textContent = 'Sign In';
+  document.getElementById('login-error').style.display = 'none';
+}
+function showApp() {
+  hideAll();
+  document.getElementById('app').style.display = 'block';
+}
+
+// ── Navigation ───────────────────────────────────────────────
+const VIEWS = {
+  'dashboard':         { el:'view-dashboard',        label:'Dashboard',       load:loadDashboard },
+  'users':             { el:'view-users',             label:'User Management', load:loadUsers },
+  'all-sessions':      { el:'view-all-sessions',      label:'All Sessions',    load:null },
+  'settings':          { el:'view-settings',          label:'Settings',        load:loadSettingsView },
+  'coach-home':        { el:'view-coach-home',        label:'My Team',         load:loadCoachHome },
+  'coach-new-session': { el:'view-coach-new-session', label:'New Session',     load:null },
+  'coach-sessions':    { el:'view-coach-sessions',    label:'My Sessions',     load:null },
+  'my-coaching':       { el:'view-my-coaching',       label:'My Coaching',     load:loadMyCoaching },
+};
+
+function defaultView() {
+  const r = currentProfile.roles || [];
+  if (r.includes('director')) return 'dashboard';
+  if (r.includes('coach'))    return 'coach-home';
+  return 'my-coaching';
+}
+
+window.navigateTo = function (view) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const v = VIEWS[view]; if (!v) return;
+  document.getElementById(v.el).classList.add('active');
+  document.getElementById('topbar-title').textContent = v.label;
+  const ni = document.querySelector('.nav-item[data-view="' + view + '"]');
+  if (ni) ni.classList.add('active');
+  if (v.load) v.load();
+  if (window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+};
+
+// ── Nav icons (single-colour SVG, no emojis) ─────────────────
+const NAV_ICONS = {
+  dashboard: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>',
+  users:     '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  sessions:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+  settings:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  team:      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  clipboard: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
+  coaching:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+};
+
+// ── Sidebar ──────────────────────────────────────────────────
+function renderSidebar() {
+  const roles = currentProfile.roles || [];
+  let html = '';
+  // Primary nav — no section label
+  if (roles.includes('director')) {
+    html += ni('dashboard',    NAV_ICONS.dashboard, 'Dashboard');
+    html += ni('all-sessions', NAV_ICONS.sessions,  'All Sessions');
+  }
+  if (roles.includes('coach')) {
+    html += '<div class="nav-section-label">Coaching</div>';
+    html += ni('coach-home',     NAV_ICONS.team,      'My Team');
+    html += ni('coach-sessions', NAV_ICONS.clipboard, 'My Sessions');
+  }
+  if (roles.includes('coachee')) {
+    html += '<div class="nav-section-label">My Development</div>';
+    html += ni('my-coaching', NAV_ICONS.coaching, roles.length > 1 ? 'My Coaching' : 'My Sessions');
+  }
+  // Admin section — pushed to bottom
+  if (roles.includes('director')) {
+    html += '<div class="nav-spacer"></div>';
+    html += '<div class="nav-section-label">Admin</div>';
+    html += ni('settings', NAV_ICONS.settings, 'Settings');
+    html += ni('users',    NAV_ICONS.users,    'User Management');
+  }
+  document.getElementById('nav-menu').innerHTML = html;
+  document.getElementById('sb-avatar').textContent = ini(currentProfile.firstName, currentProfile.lastName);
+  document.getElementById('sb-name').textContent   = currentProfile.firstName + ' ' + currentProfile.lastName;
+  document.getElementById('sb-role').textContent   = (currentProfile.roles||[]).map(cap).join(' · ');
+}
+
+function ni(view, icon, label) {
+  return '<div class="nav-item" data-view="' + view + '" data-label="' + label + '" onclick="navigateTo(\'' + view + '\')">'
+       + '<span class="nav-icon">' + icon + '</span><span class="nav-label">' + label + '</span></div>';
+}
+
+// loadDashboard defined below (Phase 2 version with live session count)
+
+function statCard(label, value, sub) {
+  return '<div class="stat-card"><div class="stat-label">' + label + '</div>'
+       + '<div class="stat-value">' + value + '</div>'
+       + '<div class="stat-sub">' + sub + '</div></div>';
+}
+
+// ── User management ──────────────────────────────────────────
+const usersSortState = { col: null, dir: 'asc' };
+let usersTableReady  = false;
+async function refreshUsers() {
+  const snap = await getDocs(collection(db, 'users'));
+  allUsers = snap.docs.map(d => ({ uid:d.id, ...d.data() }));
+}
+
+async function loadUsers() {
+  document.getElementById('users-tbody').innerHTML =
+    '<tr><td colspan="8"><div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Loading...</div></td></tr>';
+  await refreshUsers();
+  renderUsersTable();
+  if (!usersTableReady) {
+    initRtTable('users-table', usersSortState, renderUsersTable);
+    usersTableReady = true;
+  }
+}
+
+function renderUsersTable() {
+  const tbody = document.getElementById('users-tbody');
+  if (!allUsers.length) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">&#128101;</div><div class="empty-title">No users yet</div><div class="empty-sub">Add your first user to get started.</div></div></td></tr>';
+    return;
+  }
+  let rows = [...allUsers];
+  if (usersSortState.col) {
+    rows.sort((a, b) => {
+      const va = rtSortKey(a, usersSortState.col);
+      const vb = rtSortKey(b, usersSortState.col);
+      return usersSortState.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+    });
+  }
+  tbody.innerHTML = rows.map(u => {
+    const coach     = allUsers.find(c => c.uid === u.coachId);
+    const coachName = coach ? coach.firstName + ' ' + coach.lastName : '—';
+    const badges    = (u.roles||[]).map(r => '<span class="badge badge-' + r + '" style="margin-right:3px">' + cap(r) + '</span>').join('');
+    const isSelf    = u.uid === currentUser.uid;
+    return '<tr>'
+      + '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar avatar-sm">' + ini(u.firstName,u.lastName) + '</div><span style="font-weight:500">' + esc(u.firstName) + ' ' + esc(u.lastName) + '</span></div></td>'
+      + '<td>' + esc(u.employeeId||'—') + '</td>'
+      + '<td style="font-size:12px">' + esc(u.email) + '</td>'
+      + '<td>' + esc(u.position||'—') + '</td>'
+      + '<td>' + badges + '</td>'
+      + '<td>' + esc(coachName) + '</td>'
+      + '<td><span class="badge badge-' + (u.active!==false?'active':'inactive') + '">' + (u.active!==false?'Active':'Inactive') + '</span></td>'
+      + '<td><div style="display:flex;gap:5px">'
+      + '<button class="btn btn-ghost btn-sm" onclick="openUserModal(\'' + u.uid + '\')">Edit</button>'
+      + (!isSelf ? '<button class="btn btn-danger btn-sm" onclick="confirmDeactivate(\'' + u.uid + '\',\'' + esc(u.firstName+' '+u.lastName) + '\','+u.active+')">'+((u.active!==false)?'Deactivate':'Reactivate')+'</button>' : '')
+      + '</div></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function rtSortKey(u, col) {
+  if (col === 'name')       return ((u.firstName||'') + ' ' + (u.lastName||'')).toLowerCase();
+  if (col === 'employeeId') return (u.employeeId||'').toLowerCase();
+  if (col === 'position')   return (u.position||'').toLowerCase();
+  if (col === 'active')     return u.active!==false ? 'a' : 'z';
+  return '';
+}
+
+function initRtTable(tableId, sortState, renderFn) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  const ths = table.querySelectorAll('thead th');
+  ths.forEach(th => {
+    const col = th.dataset.sort;
+    if (col) {
+      th.classList.add('sortable');
+      const ind = document.createElement('em');
+      ind.className = 'sort-ind'; ind.textContent = '↕';
+      th.appendChild(ind);
+      th.addEventListener('click', (e) => {
+        if (e.target.classList.contains('col-rh')) return;
+        if (sortState.col === col) { sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc'; }
+        else { sortState.col = col; sortState.dir = 'asc'; }
+        ths.forEach(t => { const i = t.querySelector('.sort-ind'); if (i) { i.textContent='↕'; i.classList.remove('on'); } });
+        ind.textContent = sortState.dir === 'asc' ? '↑' : '↓'; ind.classList.add('on');
+        renderFn();
+      });
+    }
+    const rh = document.createElement('div'); rh.className = 'col-rh';
+    th.appendChild(rh);
+    let startX, startW;
+    rh.addEventListener('mousedown', (e) => {
+      e.stopPropagation(); startX = e.pageX; startW = th.offsetWidth; rh.classList.add('dragging');
+      const onMove = ev => { th.style.minWidth = Math.max(60, startW + ev.pageX - startX) + 'px'; };
+      const onUp   = () => { rh.classList.remove('dragging'); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); };
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+    });
+  });
+}
+
+// ── Modal helpers ────────────────────────────────────────────
+window.closeModal = id => document.getElementById(id).style.display = 'none';
+window.overlayClose = (e, id) => { if (e.target.id === id) closeModal(id); };
+
+// ── User Modal ───────────────────────────────────────────────
+window.openUserModal = function(uid) {
+  if (!allUsers.length) return;
+  const coaches = allUsers.filter(u => (u.roles||[]).includes('coach'));
+  const coachSel = document.getElementById('mu-coach');
+  coachSel.innerHTML = '<option value="">— Select coach —</option>'
+    + coaches.map(c => '<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
+  ['mu-firstname','mu-lastname','mu-empid','mu-email','mu-position'].forEach(id => document.getElementById(id).value = '');
+  ['role-director','role-coach','role-coachee'].forEach(id => document.getElementById(id).checked = false);
+  document.getElementById('mu-uid').value = '';
+  document.getElementById('mu-error').style.display = 'none';
+  document.getElementById('mu-active-group').style.display = 'none';
+  document.getElementById('mu-email').disabled = false;
+  document.getElementById('mu-email-hint').textContent = 'A password reset link will be sent to this email.';
+
+  if (uid) {
+    const u = allUsers.find(x => x.uid === uid); if (!u) return;
+    document.getElementById('mu-title').textContent        = 'Edit User';
+    document.getElementById('mu-save-btn').textContent     = 'Save Changes';
+    document.getElementById('mu-uid').value                = uid;
+    document.getElementById('mu-firstname').value          = u.firstName || '';
+    document.getElementById('mu-lastname').value           = u.lastName  || '';
+    document.getElementById('mu-empid').value              = u.employeeId || '';
+    document.getElementById('mu-email').value              = u.email || '';
+    document.getElementById('mu-email').disabled           = true;
+    document.getElementById('mu-email-hint').textContent   = 'Email cannot be changed after creation.';
+    document.getElementById('mu-position').value           = u.position || '';
+    (u.roles||[]).forEach(r => { const el = document.getElementById('role-'+r); if (el) el.checked = true; });
+    if (u.coachId) coachSel.value = u.coachId;
+    document.getElementById('mu-active-group').style.display = 'block';
+    document.getElementById('mu-active').checked = u.active !== false;
+  } else {
+    document.getElementById('mu-title').textContent    = 'Add User';
+    document.getElementById('mu-save-btn').textContent = 'Create User';
+  }
+  updateCoachField();
+  document.getElementById('modal-user').style.display = 'flex';
+};
+
+window.updateCoachField = function() {
+  document.getElementById('mu-coach-group').style.display =
+    document.getElementById('role-coachee').checked ? 'block' : 'none';
+};
+
+window.saveUser = async function() {
+  const btn    = document.getElementById('mu-save-btn');
+  const errEl  = document.getElementById('mu-error');
+  errEl.style.display = 'none';
+  const uid       = document.getElementById('mu-uid').value;
+  const firstName = document.getElementById('mu-firstname').value.trim();
+  const lastName  = document.getElementById('mu-lastname').value.trim();
+  const email     = document.getElementById('mu-email').value.trim();
+  const empId     = document.getElementById('mu-empid').value.trim();
+  const position  = document.getElementById('mu-position').value.trim();
+  const roles     = ['director','coach','coachee'].filter(r => document.getElementById('role-'+r).checked);
+  const coachId   = (document.getElementById('mu-coach-group').style.display !== 'none')
+                    ? (document.getElementById('mu-coach').value || null) : null;
+
+  if (!firstName || !lastName) { showErr(errEl,'First and last name required.'); return; }
+  if (!uid && !email)           { showErr(errEl,'Email required.'); return; }
+  if (!roles.length)            { showErr(errEl,'At least one role required.'); return; }
+  if (roles.includes('coachee') && !coachId) { showErr(errEl,'Please assign a coach.'); return; }
+
+  btn.disabled = true; btn.textContent = uid ? 'Saving…' : 'Creating…';
+  try {
+    if (uid) {
+      const active = document.getElementById('mu-active').checked;
+      await updateDoc(doc(db,'users',uid), { firstName,lastName,employeeId:empId,position,roles,coachId,active,updatedAt:serverTimestamp() });
+      toast('User updated.','success');
+    } else {
+      const cred = await createUserWithEmailAndPassword(auth2, email, 'Boost2024!');
+      await setDoc(doc(db,'users',cred.user.uid), { firstName,lastName,email,employeeId:empId,position,roles,coachId,active:true,createdAt:serverTimestamp() });
+      await sendPasswordResetEmail(auth2, email);
+      await signOut(auth2);
+      toast('User created. Password setup email sent.','success');
+    }
+    closeModal('modal-user');
+    await loadUsers();
+  } catch(e) { showErr(errEl, e.message); btn.disabled=false; btn.textContent=uid?'Save Changes':'Create User'; }
+};
+
+function showErr(el, msg) { el.textContent = msg; el.style.display = 'block'; }
+
+window.confirmDeactivate = function(uid, name, active) {
+  document.getElementById('mc-title').textContent = active ? 'Deactivate User' : 'Reactivate User';
+  document.getElementById('mc-msg').textContent   = active
+    ? 'Deactivate ' + name + '? They will no longer be able to sign in.'
+    : 'Reactivate ' + name + '? They will be able to sign in again.';
+  const btn = document.getElementById('mc-action-btn');
+  btn.textContent = active ? 'Deactivate' : 'Reactivate';
+  btn.className   = active ? 'btn btn-danger' : 'btn btn-success';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await updateDoc(doc(db,'users',uid), { active:!active, updatedAt:serverTimestamp() });
+      closeModal('modal-confirm');
+      toast((active?'Deactivated':'Reactivated') + ' ' + name + '.','success');
+      await loadUsers();
+    } catch(e) { toast('Error: '+e.message,'error'); btn.disabled=false; }
+  };
+  document.getElementById('modal-confirm').style.display = 'flex';
+};
+
+// ── CSV Import ───────────────────────────────────────────────
+window.openCsvImport = function() {
+  document.getElementById('modal-csv').style.display = 'flex';
+  document.getElementById('csv-preview').style.display = 'none';
+  document.getElementById('csv-import-btn').style.display = 'none';
+  document.getElementById('csv-file-input').value = '';
+};
+window.csvDragOver = e => e.preventDefault();
+window.csvDrop    = e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) parseCsv(f); };
+window.downloadCsvTemplate = function() {
+  const data = 'firstName,lastName,email,employeeId,position,roles,coachEmail\nJuan,dela Cruz,jdelacruz@dermorepubliq.com,240401-001,Sales Associate,coachee,coach@dermorepubliq.com\n';
+  const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(new Blob([data],{type:'text/csv'})),download:'boost_users_template.csv'});
+  a.click();
+};
+
+let csvParsed = [];
+window.parseCsv = function(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split('\n').filter(l => l.trim());
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z]/g,''));
+    csvParsed = [];
+    let errCount = 0;
+    const tbody = document.getElementById('csv-preview-tbody');
+    tbody.innerHTML = '';
+    lines.slice(1).forEach((line, i) => {
+      const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g,''));
+      const row = {}; headers.forEach((h,idx) => row[h] = cols[idx]||'');
+      const roles = (row.roles||'').split(';').map(r=>r.trim()).filter(Boolean);
+      const err = (!row.firstname||!row.email) ? 'Missing name or email' : '';
+      if (err) errCount++;
+      csvParsed.push({...row, roles, _err:err});
+      tbody.innerHTML += '<tr style="'+(err?'background:var(--red-lt)':'')+'"><td>'+(i+1)+'</td><td>'+esc((row.firstname||'')+' '+(row.lastname||''))+'</td><td style="font-size:12px">'+esc(row.email||'')+'</td><td>'+esc(row.position||'')+'</td><td>'+roles.join(', ')+'</td><td style="font-size:12px">'+esc(row.coacheid||row.coachemail||'')+'</td><td>'+(err?'<span style="color:var(--red);font-size:11px">'+err+'</span>':'<span style="color:var(--green)">OK</span>')+'</td></tr>';
+    });
+    document.getElementById('csv-preview-label').textContent = csvParsed.length + ' row(s)' + (errCount ? ', ' + errCount + ' error(s)' : ' — ready to import');
+    document.getElementById('csv-preview').style.display = 'block';
+    document.getElementById('csv-import-btn').style.display = errCount ? 'none' : 'inline-flex';
+    const errEl = document.getElementById('csv-error-summary');
+    errEl.style.display = errCount ? 'block' : 'none';
+    errEl.textContent = errCount + ' row(s) have errors. Fix and re-upload.';
+  };
+  reader.readAsText(file);
+};
+
+window.runCsvImport = async function() {
+  const btn = document.getElementById('csv-import-btn');
+  btn.disabled = true; btn.textContent = 'Importing…';
+  let ok = 0, fail = 0;
+  for (const row of csvParsed) {
+    if (row._err) continue;
+    try {
+      const roles = row.roles.length ? row.roles : ['coachee'];
+      let coachId = null;
+      const ce = (row.coachemail||'').toLowerCase();
+      if (ce) { const c = allUsers.find(u => (u.email||'').toLowerCase()===ce); if (c) coachId = c.uid; }
+      const cred = await createUserWithEmailAndPassword(auth2, row.email, 'Boost2024!');
+      await setDoc(doc(db,'users',cred.user.uid), { firstName:row.firstname||'',lastName:row.lastname||'',email:row.email,employeeId:row.employeeid||'',position:row.position||'',roles,coachId,active:true,createdAt:serverTimestamp() });
+      await sendPasswordResetEmail(auth2, row.email);
+      await signOut(auth2);
+      ok++;
+    } catch(e) { fail++; console.error('CSV import error', row.email, e); }
+  }
+  closeModal('modal-csv');
+  toast(ok + ' user(s) imported' + (fail ? ', ' + fail + ' failed' : '') + '.', ok?'success':'error');
+  await loadUsers();
+  btn.disabled = false; btn.textContent = 'Import Users';
+};
+
+// ── Settings ─────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const snap = await getDoc(doc(db,'settings','app'));
+    if (snap.exists()) appSettings = snap.data();
+  } catch(e) {}
+}
+
+async function loadSettingsView() {
+  document.getElementById('setting-email-notif').checked = !!appSettings.emailNotifications;
+  const ts = appSettings.lastExport;
+  const last = ts ? new Date(ts.seconds*1000).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : 'Never';
+  document.getElementById('last-export-label').textContent = 'Last export: ' + last;
+}
+
+window.saveSettings = async function() {
+  appSettings.emailNotifications = document.getElementById('setting-email-notif').checked;
+  try {
+    await updateDoc(doc(db,'settings','app'), { emailNotifications:appSettings.emailNotifications });
+    toast('Settings saved.','success');
+  } catch(e) { toast('Error saving settings.','error'); }
+};
+
+window.exportBackup = async function() {
+  try {
+    await refreshUsers();
+    const sessSnap = await getDocs(collection(db,'sessions'));
+    const sessions = sessSnap.docs.map(d => ({id:d.id,...d.data()}));
+    const payload  = { exportedAt:new Date().toISOString(), users:allUsers, sessions };
+    const a = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})),
+      download: 'boosthub_backup_'+new Date().toISOString().slice(0,10)+'.json'
+    });
+    a.click();
+    await updateDoc(doc(db,'settings','app'),{lastExport:serverTimestamp()});
+    document.getElementById('last-export-label').textContent = 'Last export: Today';
+    toast('Backup exported.','success');
+  } catch(e) { toast('Error: '+e.message,'error'); }
+};
+
+// ── Coach Home ───────────────────────────────────────────────
+async function loadCoachHome() {
+  if (!allUsers.length) await refreshUsers();
+  const myCoachees = allUsers.filter(u => u.coachId === currentUser.uid && u.active !== false);
+  const grid = document.getElementById('coach-coachee-grid');
+  if (!myCoachees.length) {
+    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128101;</div><div class="empty-title">No coachees assigned</div><div class="empty-sub">Contact your L&D Director to get coachees assigned to your roster.</div></div>';
+    return;
+  }
+  grid.innerHTML = '<div class="coachee-grid">' + myCoachees.map(c =>
+    '<div class="coachee-card">'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+    + '<div class="avatar avatar-md">'+ini(c.firstName,c.lastName)+'</div>'
+    + '<div><div style="font-weight:600;font-size:13.5px">'+esc(c.firstName)+' '+esc(c.lastName)+'</div>'
+    + '<div style="font-size:11.5px;color:var(--muted)">'+esc(c.position||'')+'</div></div></div>'
+    + '<button class="btn btn-primary btn-sm" style="width:100%;justify-content:center" onclick="startNewSession(\''+c.uid+'\')">+ New Session</button>'
+    + '</div>'
+  ).join('') + '</div>';
+}
+
+// ── My Coaching (coachee) ─────────────────────────────────────
+async function loadMyCoaching() {
+  if (!allUsers.length) await refreshUsers();
+  const coach = currentProfile.coachId ? allUsers.find(u => u.uid === currentProfile.coachId) : null;
+  document.getElementById('coachee-coach-info').innerHTML = coach
+    ? '<div style="display:flex;align-items:center;gap:10px;padding:4px 0"><div class="avatar avatar-md">'+ini(coach.firstName,coach.lastName)+'</div><div><div style="font-weight:600">'+esc(coach.firstName)+' '+esc(coach.lastName)+'</div><div style="font-size:12px;color:var(--muted)">'+esc(coach.position||'Coach')+'</div></div></div>'
+    : '<div style="padding:12px 0;font-size:13px;color:var(--muted)">No coach assigned yet.</div>';
+}
+
+// ── Sidebar ───────────────────────────────────────────────────
+window.toggleSidebarCollapse = function() {
+  const collapsed = document.getElementById('sidebar').classList.toggle('collapsed');
+  localStorage.setItem('sb-collapsed', collapsed ? '1' : '0');
+};
+window.toggleSidebar = function() { document.getElementById('sidebar').classList.toggle('open'); };
+if (localStorage.getItem('sb-collapsed') === '1') document.getElementById('sidebar').classList.add('collapsed');
+
+// ── Utilities ─────────────────────────────────────────────────
+function cap(s)    { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+function ini(f, l) { return (((f||'')[0]||'') + ((l||'')[0]||'')).toUpperCase() || '?'; }
+function esc(s)    { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Toast ──────────────────────────────────────────────────────
+window.toast = function(msg, type='info', dur=3500) {
+  const t = Object.assign(document.createElement('div'), {className:'toast toast-'+type, textContent:msg});
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(() => { t.style.cssText='opacity:0;transition:opacity .3s'; setTimeout(()=>t.remove(),300); }, dur);
+};
+function toast(m,t,d){ window.toast(m,t,d); }
+
+// ── Dashboard (updated for real session count) ────────────────
+async function loadDashboard() {
+  await refreshUsers();
+  const active   = allUsers.filter(u => u.active!==false);
+  const coaches  = allUsers.filter(u => (u.roles||[]).includes('coach'));
+  const coachees = allUsers.filter(u => (u.roles||[]).includes('coachee'));
+  let sessionCount = 0;
+  try {
+    const ss = await getDocs(collection(db,'sessions'));
+    sessionCount = ss.docs.filter(d => d.data().status && d.data().status !== 'draft').length;
+  } catch(e) {}
+  document.getElementById('db-stats').innerHTML =
+    statCard('Active Users', active.length, allUsers.length+' registered') +
+    statCard('Coaches', coaches.length, 'Active coaches') +
+    statCard('Coachees', coachees.length, 'Being coached') +
+    statCard('Sessions', sessionCount, 'Submitted sessions');
+  const teamsHtml = coaches.map(coach => {
+    const mine = coachees.filter(c => c.coachId === coach.uid);
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">'
+      + '<div class="avatar avatar-sm">'+ini(coach.firstName,coach.lastName)+'</div>'
+      + '<div style="flex:1"><div style="font-size:13px;font-weight:600">'+esc(coach.firstName)+' '+esc(coach.lastName)+'</div>'
+      + '<div style="font-size:11px;color:var(--muted)">'+mine.length+' coachee'+(mine.length!==1?'s':'')+'</div></div></div>';
+  }).join('') || '<div class="empty-state" style="padding:20px"><div class="empty-sub">No coaches yet</div></div>';
+  document.getElementById('db-teams').innerHTML = teamsHtml;
+  // Recent sessions in dashboard
+  try {
+    const ss = await getDocs(collection(db,'sessions'));
+    const recent = ss.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(s => s.status && s.status !== 'draft')
+      .sort((a,b)=>(b.sessionDate||'').localeCompare(a.sessionDate||'')).slice(0,5);
+    if (recent.length) {
+      document.getElementById('db-recent').innerHTML = recent.map(s => {
+        const coachee = allUsers.find(u=>u.uid===s.coacheeId);
+        const coach   = allUsers.find(u=>u.uid===s.coachId);
+        const d = s.sessionDate ? new Date(s.sessionDate).toLocaleDateString('en-PH',{month:'short',day:'numeric'}) : '—';
+        return '<div class="session-row"><div class="avatar avatar-sm">'+(coachee?ini(coachee.firstName,coachee.lastName):'?')+'</div>'
+          + '<div class="session-meta"><div class="session-name">'+(coachee?esc(coachee.firstName+' '+coachee.lastName):'Unknown')+'</div>'
+          + '<div class="session-sub">'+d+' · Coach: '+(coach?esc(coach.firstName+' '+coach.lastName):'—')+'</div></div>'
+          + '<span class="badge badge-'+s.status+'">'+statusLabel(s.status)+'</span></div>';
+      }).join('');
+    }
+  } catch(e) {}
+}
+
+// ── All Sessions (director) ───────────────────────────────────
+async function loadAllSessions() {
+  const container = document.getElementById('all-sessions-list');
+  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
+  try {
+    const snap = await getDocs(collection(db,'sessions'));
+    if (!allUsers.length) await refreshUsers();
+    const sessions = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(b.sessionDate||'').localeCompare(a.sessionDate||''));
+    if (!sessions.length) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><div class="empty-title">No sessions recorded yet</div><div class="empty-sub">Coaching sessions will appear here once coaches start recording.</div></div>';
+      return;
+    }
+    container.innerHTML = '<div class="table-wrap"><table class="rt-table"><thead><tr>'
+      + '<th style="min-width:160px">Name</th>'
+      + '<th style="min-width:180px">Focus Area</th>'
+      + '<th style="min-width:120px">Session Date</th>'
+      + '<th style="min-width:140px">Coach</th>'
+      + '<th style="min-width:90px">Status</th>'
+      + '<th style="width:70px"></th>'
+      + '</tr></thead><tbody>'
+      + sessions.map(s => {
+          const coachee   = allUsers.find(u=>u.uid===s.coacheeId);
+          const coach     = allUsers.find(u=>u.uid===s.coachId);
+          const cName     = coachee ? coachee.firstName+' '+coachee.lastName : 'Unknown';
+          const coachName = coach   ? coach.firstName+' '+coach.lastName     : '—';
+          const d = s.sessionDate ? new Date(s.sessionDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+          const focus = (s.focusAreas||[]).map(f=>focusLabel(f)).join(', ')||'—';
+          return '<tr>'
+            + '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar avatar-sm">'+(coachee?ini(coachee.firstName,coachee.lastName):'?')+'</div><span style="font-weight:500">'+esc(cName)+'</span></div></td>'
+            + '<td style="font-size:12.5px">'+esc(focus)+'</td>'
+            + '<td style="font-size:12.5px">'+esc(d)+'</td>'
+            + '<td style="font-size:12.5px">'+esc(coachName)+'</td>'
+            + '<td><span class="badge badge-'+(s.status||'draft')+'">'+statusLabel(s.status)+'</span></td>'
+            + '<td><button class="btn btn-ghost btn-sm" onclick="openExistingSession(\''+s.id+'\')">'+(s.status==='draft'&&s.coachId===currentUser.uid?'Edit':'View')+'</button></td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+  } catch(e) { container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error: '+esc(e.message)+'</div></div>'; }
+}
+
+// ── Coach Sessions list ───────────────────────────────────────
+async function loadCoachSessions() {
+  const container = document.getElementById('coach-sessions-list');
+  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
+  try {
+    const snap = await getDocs(collection(db,'sessions'));
+    if (!allUsers.length) await refreshUsers();
+    const sessions = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(s => s.coachId === currentUser.uid)
+      .sort((a,b)=>(b.sessionDate||'').localeCompare(a.sessionDate||''));
+    if (!sessions.length) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128203;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Start a new coaching session from My Team.</div></div>';
+      return;
+    }
+    container.innerHTML = '<div class="table-wrap"><table class="rt-table"><thead><tr>'
+      + '<th style="min-width:160px">Name</th>'
+      + '<th style="min-width:180px">Focus Area</th>'
+      + '<th style="min-width:120px">Session Date</th>'
+      + '<th style="min-width:140px">Coach</th>'
+      + '<th style="min-width:90px">Status</th>'
+      + '<th style="width:70px"></th>'
+      + '</tr></thead><tbody>'
+      + sessions.map(s => {
+          const coachee   = allUsers.find(u=>u.uid===s.coacheeId);
+          const coachUser = allUsers.find(u=>u.uid===s.coachId);
+          const cName     = coachee   ? coachee.firstName+' '+coachee.lastName     : 'Unknown';
+          const coachName = coachUser ? coachUser.firstName+' '+coachUser.lastName : '—';
+          const d = s.sessionDate ? new Date(s.sessionDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+          const focus = (s.focusAreas||[]).map(f=>focusLabel(f)).join(', ')||'—';
+          return '<tr>'
+            + '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar avatar-sm">'+(coachee?ini(coachee.firstName,coachee.lastName):'?')+'</div><span style="font-weight:500">'+esc(cName)+'</span></div></td>'
+            + '<td style="font-size:12.5px">'+esc(focus)+'</td>'
+            + '<td style="font-size:12.5px">'+esc(d)+'</td>'
+            + '<td style="font-size:12.5px">'+esc(coachName)+'</td>'
+            + '<td><span class="badge badge-'+(s.status||'draft')+'">'+statusLabel(s.status)+'</span></td>'
+            + '<td><button class="btn btn-ghost btn-sm" onclick="openExistingSession(\''+s.id+'\')">'+(s.status==='draft'?'Edit':'View')+'</button></td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+  } catch(e) { container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading.</div></div>'; }
+}
+
+function statusLabel(s) {
+  return s === 'draft' ? 'Draft' : s === 'pending' ? 'Pending Acknowledgement' : s === 'completed' ? 'Completed' : (s||'—');
+}
+function focusLabel(f) {
+  return f === 'interpersonal' ? 'Interpersonal' : f === 'performance' ? 'Performance & Productivity' : f === 'others' ? 'Others' : f;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PHASE 2 — COACHING SESSION FORM
+// ═══════════════════════════════════════════════════════════════
+
+let currentSessionId       = null;
+let currentSessionCoacheeId = null;
+let quillObs  = null;
+let quillGoals = null;
+let sigPad    = null;
+let actionRowCount = 0;
+
+// Entry points
+window.startNewSession = function(coacheeId) {
+  currentSessionId = null;
+  currentSessionCoacheeId = coacheeId;
+  navigateTo('coach-new-session');
+};
+
+window.newSessionFromNav = function() {
+  currentSessionId = null;
+  currentSessionCoacheeId = null;
+  navigateTo('coach-new-session');
+};
+
+window.openExistingSession = function(sessionId) {
+  currentSessionId = sessionId;
+  currentSessionCoacheeId = null;
+  navigateTo('coach-new-session');
+};
+
+// Main loader
+async function loadSessionForm() {
+  // Unlock form first
+  unlockSessionForm();
+
+  // Init Quill once
+  if (!quillObs) {
+    quillObs = new Quill('#sf-observations-editor', {
+      theme:'snow',
+      placeholder:'Describe what was observed during the coaching conversation…',
+      modules:{ toolbar:[['bold','italic','underline'],[{list:'bullet'},{list:'ordered'}]] }
+    });
+    quillGoals = new Quill('#sf-goals-editor', {
+      theme:'snow',
+      placeholder:'What goals were set for the coachee?',
+      modules:{ toolbar:[['bold','italic','underline'],[{list:'bullet'},{list:'ordered'}]] }
+    });
+  }
+
+  // Init signature pad once
+  if (!sigPad) {
+    const canvas = document.getElementById('sig-canvas');
+    sigPad = new SignaturePad(canvas, { penColor:'#1A2D3F' });
+    resizeSigCanvas();
+    window.addEventListener('resize', resizeSigCanvas);
+  }
+
+  // Reset form
+  document.getElementById('sf-session-date').value  = new Date().toISOString().slice(0,10);
+  document.getElementById('sf-last-session').value  = '';
+  document.getElementById('sf-next-session').value  = '';
+  document.getElementById('sf-department').value    = 'Learning & Development';
+  document.getElementById('sf-employee-name').value = '';
+  document.getElementById('sf-employee-role').value = '';
+  document.getElementById('sf-coach-name').value    = currentProfile.firstName + ' ' + currentProfile.lastName;
+  ['fa-interpersonal','fa-performance','fa-others'].forEach(id => document.getElementById(id).checked = false);
+  document.getElementById('fa-others-text').value   = '';
+  document.getElementById('fa-others-wrap').style.display = 'none';
+  quillObs.setText(''); quillGoals.setText('');
+  initActionPlan([{action:'',support:'',dueDate:''},{action:'',support:'',dueDate:''}]);
+  document.getElementById('pdf-btn').style.display  = 'none';
+  document.getElementById('pdf-status').textContent = '';
+  document.getElementById('session-save-draft-btn').style.display = 'inline-flex';
+  document.getElementById('session-submit-btn').style.display     = 'inline-flex';
+  document.getElementById('sf-status-bar').style.display = 'none';
+  document.getElementById('sf-coachee-picker').style.display = 'none';
+  document.getElementById('ap-add-btn').style.display = 'inline-flex';
+
+  // Restore saved sig
+  const savedSig = localStorage.getItem('boost-sig-' + currentUser.uid);
+  if (savedSig && sigPad) { sigPad.clear(); sigPad.fromDataURL(savedSig); }
+  else if (sigPad) { sigPad.clear(); }
+
+  if (!allUsers.length) await refreshUsers();
+
+  if (currentSessionId) {
+    await loadExistingSession(currentSessionId);
+  } else if (currentSessionCoacheeId) {
+    document.getElementById('session-form-title').textContent = 'New Coaching Session';
+    document.getElementById('session-form-sub').textContent   = 'Record a coaching conversation';
+    fillCoacheeInfo(currentSessionCoacheeId);
+    await fetchLastSessionDate(currentSessionCoacheeId);
+  } else {
+    document.getElementById('session-form-title').textContent = 'New Coaching Session';
+    document.getElementById('session-form-sub').textContent   = 'Select a coachee to begin';
+    showCoacheePicker();
+  }
+}
+
+function fillCoacheeInfo(uid) {
+  const c = allUsers.find(u => u.uid === uid);
+  if (!c) return;
+  document.getElementById('sf-employee-name').value = c.firstName + ' ' + c.lastName;
+  document.getElementById('sf-employee-role').value = c.position || '';
+}
+
+function showCoacheePicker() {
+  const myCoachees = allUsers.filter(u => u.coachId === currentUser.uid && u.active !== false);
+  const sel = document.getElementById('sf-coachee-select');
+  sel.innerHTML = '<option value="">— Select coachee —</option>'
+    + myCoachees.map(c => '<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
+  document.getElementById('sf-coachee-picker').style.display = 'block';
+}
+
+window.onCoacheeSelected = async function() {
+  const uid = document.getElementById('sf-coachee-select').value;
+  if (!uid) return;
+  currentSessionCoacheeId = uid;
+  document.getElementById('sf-coachee-picker').style.display = 'none';
+  fillCoacheeInfo(uid);
+  await fetchLastSessionDate(uid);
+  initActionPlan([{action:'',support:'',dueDate:''},{action:'',support:'',dueDate:''}]);
+};
+
+async function fetchLastSessionDate(coacheeId) {
+  try {
+    const snap = await getDocs(collection(db,'sessions'));
+    const last = snap.docs.map(d=>({...d.data()}))
+      .filter(s => s.coacheeId === coacheeId && s.status !== 'draft' && s.sessionDate)
+      .sort((a,b) => b.sessionDate.localeCompare(a.sessionDate));
+    if (last.length) document.getElementById('sf-last-session').value = last[0].sessionDate;
+  } catch(e) {}
+}
+
+async function loadExistingSession(sessionId) {
+  try {
+    const snap = await getDoc(doc(db,'sessions',sessionId));
+    if (!snap.exists()) { toast('Session not found.','error'); return; }
+    const s = snap.data();
+    currentSessionCoacheeId = s.coacheeId;
+    fillCoacheeInfo(s.coacheeId);
+    const coachee = allUsers.find(u=>u.uid===s.coacheeId);
+    const cName   = coachee ? coachee.firstName+' '+coachee.lastName : 'Coachee';
+
+    document.getElementById('sf-session-date').value  = s.sessionDate || '';
+    document.getElementById('sf-last-session').value  = s.lastSessionDate || '';
+    document.getElementById('sf-department').value    = s.department || 'Learning & Development';
+    document.getElementById('sf-next-session').value  = s.nextSessionDate || '';
+
+    const coachUser = allUsers.find(u=>u.uid===s.coachId);
+    if (coachUser) document.getElementById('sf-coach-name').value = coachUser.firstName+' '+coachUser.lastName;
+
+    (s.focusAreas||[]).forEach(fa => { const el=document.getElementById('fa-'+fa); if(el) el.checked=true; });
+    if ((s.focusAreas||[]).includes('others')) {
+      document.getElementById('fa-others-wrap').style.display = 'block';
+      document.getElementById('fa-others-text').value = s.focusOther || '';
+    }
+    quillObs.root.innerHTML   = s.keyObservations || '';
+    quillGoals.root.innerHTML = s.goalSetting || '';
+    initActionPlan(s.actionPlan && s.actionPlan.length ? s.actionPlan : [{action:'',support:'',dueDate:''},{action:'',support:'',dueDate:''}]);
+
+    if (s.coachSignature && sigPad) { sigPad.clear(); sigPad.fromDataURL(s.coachSignature); }
+
+    const isLocked = s.status === 'pending' || s.status === 'completed';
+    document.getElementById('pdf-btn').style.display = 'inline-flex';
+
+    if (s.status === 'draft') {
+      document.getElementById('session-form-title').textContent = 'Edit Session — ' + cName;
+      document.getElementById('session-form-sub').textContent   = 'Draft — not yet submitted';
+    } else if (s.status === 'pending') {
+      document.getElementById('session-form-title').textContent = 'Session — ' + cName;
+      document.getElementById('session-form-sub').textContent   = 'Submitted';
+      setStatusBar('Pending Acknowledgement', 'amber');
+      document.getElementById('session-save-draft-btn').style.display = 'none';
+      document.getElementById('session-submit-btn').style.display     = 'none';
+      lockSessionForm();
+    } else if (s.status === 'completed') {
+      document.getElementById('session-form-title').textContent = 'Session — ' + cName;
+      document.getElementById('session-form-sub').textContent   = 'Completed';
+      setStatusBar('Acknowledged and completed by coachee', 'green');
+      document.getElementById('session-save-draft-btn').style.display = 'none';
+      document.getElementById('session-submit-btn').style.display     = 'none';
+      lockSessionForm();
+    }
+  } catch(e) { toast('Error loading session: '+e.message,'error'); }
+}
+
+function setStatusBar(msg, color) {
+  const bar = document.getElementById('sf-status-bar');
+  bar.style.cssText = 'display:block;margin-bottom:12px;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;font-weight:500;'
+    + (color==='green' ? 'background:var(--green-lt);color:var(--green)' : 'background:var(--amber-lt);color:var(--amber)');
+  bar.textContent = msg;
+}
+
+// ── Focus area ────────────────────────────────────────────────
+window.toggleFocusOther = function() {
+  document.getElementById('fa-others-wrap').style.display =
+    document.getElementById('fa-others').checked ? 'block' : 'none';
+};
+function getFocusAreas() {
+  return ['interpersonal','performance','others'].filter(id => document.getElementById('fa-'+id).checked);
+}
+
+// ── Action Plan ───────────────────────────────────────────────
+function initActionPlan(rows) {
+  actionRowCount = 0;
+  document.getElementById('action-plan-tbody').innerHTML = '';
+  rows.forEach(r => addActionRow(r));
+}
+
+window.addActionRow = function(data) {
+  data = data || {};
+  const id = ++actionRowCount;
+  const tr = document.createElement('tr');
+  tr.id = 'ap-row-'+id;
+  tr.innerHTML =
+    '<td><input class="ap-cell" placeholder="Describe the action…" value="'+esc(data.action||'')+'" id="ap-action-'+id+'"></td>'
+  + '<td><input class="ap-cell" placeholder="Support or resources needed…" value="'+esc(data.support||'')+'" id="ap-support-'+id+'"></td>'
+  + '<td><input class="ap-cell" type="date" value="'+(data.dueDate||'')+'" id="ap-due-'+id+'"></td>'
+  + '<td style="text-align:center"><button class="btn btn-ghost btn-sm" style="color:var(--red);padding:3px 7px" onclick="deleteActionRow('+id+')" title="Remove">&#10005;</button></td>';
+  document.getElementById('action-plan-tbody').appendChild(tr);
+};
+
+window.deleteActionRow = function(id) {
+  const tbody = document.getElementById('action-plan-tbody');
+  if (tbody.children.length <= 1) { toast('Keep at least one action row.','error'); return; }
+  const r = document.getElementById('ap-row-'+id); if (r) r.remove();
+};
+
+function getActionPlan() {
+  return Array.from(document.querySelectorAll('#action-plan-tbody tr')).map(tr => {
+    const id = tr.id.replace('ap-row-','');
+    return {
+      action:  (document.getElementById('ap-action-'+id)||{value:''}).value.trim(),
+      support: (document.getElementById('ap-support-'+id)||{value:''}).value.trim(),
+      dueDate: (document.getElementById('ap-due-'+id)||{value:''}).value
+    };
+  }).filter(r => r.action || r.support || r.dueDate);
+}
+
+// ── Signature Pad ─────────────────────────────────────────────
+function resizeSigCanvas() {
+  const canvas = document.getElementById('sig-canvas');
+  if (!canvas || !sigPad) return;
+  const ratio = Math.max(window.devicePixelRatio||1,1);
+  const data  = sigPad.toData();
+  canvas.width  = canvas.offsetWidth  * ratio;
+  canvas.height = canvas.offsetHeight * ratio;
+  canvas.getContext('2d').scale(ratio,ratio);
+  sigPad.clear();
+  if (data && data.length) sigPad.fromData(data);
+}
+
+window.clearSignature = function() {
+  if (sigPad) { sigPad.clear(); localStorage.removeItem('boost-sig-'+currentUser.uid); }
+};
+
+window.switchSigTab = function(tab) {
+  document.getElementById('sig-draw-wrap').style.display   = tab==='draw'   ? 'block' : 'none';
+  document.getElementById('sig-upload-wrap').style.display = tab==='upload' ? 'block' : 'none';
+  document.getElementById('sig-tab-draw').className   = 'sig-tab-btn' + (tab==='draw'   ? ' active' : '');
+  document.getElementById('sig-tab-upload').className = 'sig-tab-btn' + (tab==='upload' ? ' active' : '');
+};
+
+window.loadSigImage = function(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('sig-preview-img').src = e.target.result;
+    document.getElementById('sig-upload-preview').style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+};
+
+function getSignatureBase64() {
+  if (document.getElementById('sig-upload-wrap').style.display !== 'none') {
+    const src = document.getElementById('sig-preview-img').src;
+    return src && src.startsWith('data:') ? src : null;
+  }
+  if (sigPad && !sigPad.isEmpty()) {
+    const sig = sigPad.toDataURL('image/png');
+    localStorage.setItem('boost-sig-'+currentUser.uid, sig);
+    return sig;
+  }
+  return null;
+}
+
+// ── Build session data ────────────────────────────────────────
+function buildSessionData(status) {
+  return {
+    coacheeId:         currentSessionCoacheeId,
+    coachId:           currentUser.uid,
+    sessionDate:       document.getElementById('sf-session-date').value,
+    lastSessionDate:   document.getElementById('sf-last-session').value,
+    department:        document.getElementById('sf-department').value,
+    focusAreas:        getFocusAreas(),
+    focusOther:        document.getElementById('fa-others-text').value,
+    keyObservations:   quillObs  ? quillObs.root.innerHTML  : '',
+    goalSetting:       quillGoals? quillGoals.root.innerHTML: '',
+    actionPlan:        getActionPlan(),
+    nextSessionDate:   document.getElementById('sf-next-session').value,
+    coachSignature:    getSignatureBase64() || '',
+    employeeReflection:'',
+    coacheeSignature:  '',
+    status
+  };
+}
+
+// ── Save Draft ────────────────────────────────────────────────
+window.saveDraft = async function() {
+  if (!currentSessionCoacheeId) { toast('Please select a coachee first.','error'); return; }
+  const btn = document.getElementById('session-save-draft-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const data = buildSessionData('draft');
+    if (currentSessionId) {
+      await updateDoc(doc(db,'sessions',currentSessionId), {...data, updatedAt:serverTimestamp()});
+    } else {
+      const ref = doc(collection(db,'sessions'));
+      await setDoc(ref, {...data, createdAt:serverTimestamp(), updatedAt:serverTimestamp()});
+      currentSessionId = ref.id;
+    }
+    toast('Draft saved.','success');
+    document.getElementById('pdf-btn').style.display = 'inline-flex';
+  } catch(e) { toast('Error: '+e.message,'error'); }
+  btn.disabled = false; btn.textContent = 'Save Draft';
+};
+
+// ── Submit Session ────────────────────────────────────────────
+window.submitSession = async function() {
+  if (!currentSessionCoacheeId)                    { toast('Please select a coachee first.','error'); return; }
+  if (!getFocusAreas().length)                     { toast('Please select at least one focus area.','error'); return; }
+  if (!document.getElementById('sf-session-date').value) { toast('Session date is required.','error'); return; }
+  if (!quillObs || quillObs.getText().trim()==='') { toast('Key Observations are required.','error'); return; }
+  if (!quillGoals||quillGoals.getText().trim()===''){toast('Goal Setting is required.','error'); return; }
+
+  document.getElementById('mc-title').textContent = 'Submit Session';
+  document.getElementById('mc-msg').textContent   = 'Once submitted, the session will be locked and sent to the coachee for acknowledgement. Continue?';
+  const mcBtn = document.getElementById('mc-action-btn');
+  mcBtn.className = 'btn btn-primary'; mcBtn.textContent = 'Submit';
+  mcBtn.disabled  = false;
+  const doSubmit  = async () => {
+    mcBtn.removeEventListener('click', doSubmit);
+    closeModal('modal-confirm');
+    const btn = document.getElementById('session-submit-btn');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+    try {
+      const data = {...buildSessionData('pending'), submittedAt:serverTimestamp()};
+      if (currentSessionId) {
+        await updateDoc(doc(db,'sessions',currentSessionId), {...data, updatedAt:serverTimestamp()});
+      } else {
+        const ref = doc(collection(db,'sessions'));
+        await setDoc(ref, {...data, createdAt:serverTimestamp(), updatedAt:serverTimestamp()});
+        currentSessionId = ref.id;
+      }
+      toast('Session submitted. Awaiting coachee acknowledgement.','success');
+      document.getElementById('session-save-draft-btn').style.display = 'none';
+      btn.style.display = 'none';
+      document.getElementById('pdf-btn').style.display = 'inline-flex';
+      setStatusBar('Pending Acknowledgement', 'amber');
+      lockSessionForm();
+    } catch(e) { toast('Error: '+e.message,'error'); btn.disabled=false; btn.textContent='Submit Session'; }
+  };
+  mcBtn.addEventListener('click', doSubmit);
+  document.getElementById('modal-confirm').style.display = 'flex';
+};
+
+// ── Lock / Unlock form ────────────────────────────────────────
+function lockSessionForm() {
+  ['sf-session-date','sf-last-session','sf-department','sf-next-session'].forEach(id => {
+    const el=document.getElementById(id); if(el) el.disabled=true;
+  });
+  ['fa-interpersonal','fa-performance','fa-others','fa-others-text'].forEach(id => {
+    const el=document.getElementById(id); if(el) el.disabled=true;
+  });
+  if (quillObs)   quillObs.enable(false);
+  if (quillGoals) quillGoals.enable(false);
+  document.querySelectorAll('#action-plan-tbody input').forEach(el => el.disabled=true);
+  document.querySelectorAll('#action-plan-tbody button').forEach(el => el.style.display='none');
+  document.getElementById('ap-add-btn').style.display='none';
+  if (sigPad) sigPad.off();
+  document.querySelectorAll('#sig-canvas,#sig-tab-draw,#sig-tab-upload,#sig-upload-input,[onclick="clearSignature()"]').forEach(el => { if(el) el.style.pointerEvents='none'; el.style.opacity='0.6'; });
+}
+
+function unlockSessionForm() {
+  ['sf-session-date','sf-last-session','sf-department','sf-next-session','fa-others-text'].forEach(id => {
+    const el=document.getElementById(id); if(el) el.disabled=false;
+  });
+  ['fa-interpersonal','fa-performance','fa-others'].forEach(id => {
+    const el=document.getElementById(id); if(el) el.disabled=false;
+  });
+  if (quillObs)   quillObs.enable(true);
+  if (quillGoals) quillGoals.enable(true);
+  if (sigPad) sigPad.on();
+  document.querySelectorAll('#sig-canvas,#sig-tab-draw,#sig-tab-upload,#sig-upload-input,[onclick="clearSignature()"]').forEach(el => { if(el){ el.style.pointerEvents=''; el.style.opacity=''; } });
+}
+
+// ── PDF Generation ────────────────────────────────────────────
+window.generatePDF = async function() {
+  const btn = document.getElementById('pdf-btn');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  try {
+    let sessionData = null;
+    if (currentSessionId) {
+      const snap = await getDoc(doc(db,'sessions',currentSessionId));
+      if (snap.exists()) sessionData = snap.data();
+    }
+    if (!sessionData) sessionData = buildSessionData(currentSessionId ? 'draft' : 'draft');
+    if (!allUsers.length) await refreshUsers();
+    const coachee = allUsers.find(u=>u.uid===(sessionData.coacheeId||currentSessionCoacheeId));
+    const coach   = allUsers.find(u=>u.uid===currentUser.uid)||currentProfile;
+    const pdfEl   = buildPdfElement(sessionData, coachee, coach);
+    document.body.appendChild(pdfEl);
+    const cName = coachee ? coachee.lastName : 'Unknown';
+    const dStr  = (sessionData.sessionDate||'').replace(/-/g,'');
+    await html2pdf().set({
+      margin:[12,12,12,12],
+      filename:'CoachingLog_'+cName+'_'+dStr+'.pdf',
+      image:{type:'jpeg',quality:0.98},
+      html2canvas:{scale:2,useCORS:true,logging:false},
+      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
+    }).from(pdfEl).save();
+    document.body.removeChild(pdfEl);
+    toast('PDF exported.','success');
+  } catch(e) { toast('PDF error: '+e.message,'error'); console.error(e); }
+  btn.disabled = false; btn.textContent = '⬇ Export PDF';
+};
+
+function buildPdfElement(s, coachee, coach) {
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;left:-9999px;top:0;width:186mm;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:8mm';
+  const cName     = coachee ? coachee.firstName+' '+coachee.lastName : '';
+  const coachName = coach   ? coach.firstName+' '+coach.lastName     : '';
+  const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : '';
+  const focusMap  = {interpersonal:'Interpersonal Skills',performance:'Performance & Productivity',others:'Others'};
+  const focusText = (s.focusAreas||[]).map(f=>focusMap[f]||f).join(', ') + (s.focusOther?' — '+s.focusOther:'');
+  const apRows    = (s.actionPlan||[]).length
+    ? (s.actionPlan||[]).map(r=>`<tr><td style="padding:2mm 2.5mm;border:0.5pt solid #D0DDE5;vertical-align:top">${esc(r.action||'')}</td><td style="padding:2mm 2.5mm;border:0.5pt solid #D0DDE5;vertical-align:top">${esc(r.support||'')}</td><td style="padding:2mm 2.5mm;border:0.5pt solid #D0DDE5;vertical-align:top;white-space:nowrap">${esc(r.dueDate||'')}</td></tr>`).join('')
+    : `<tr><td colspan="3" style="padding:3mm;border:0.5pt solid #D0DDE5;color:#5A7A8E;text-align:center">No action items recorded</td></tr>`;
+  div.innerHTML = `
+<div style="border:1.5pt solid #0E2841;padding:5mm">
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm"><tr>
+    <td style="width:22%;vertical-align:middle"><img src="Logo.png" style="max-height:14mm;max-width:100%" onerror="this.remove()"></td>
+    <td style="text-align:center;vertical-align:middle">
+      <div style="font-size:13pt;font-weight:bold;color:#0E2841;letter-spacing:0.5pt">COACHING LOG</div>
+      <div style="font-size:8pt;color:#5A7A8E;margin-top:1mm">Dermorepubliq Corporation — Learning &amp; Development</div>
+    </td>
+    <td style="width:22%;text-align:right;font-size:7pt;color:#5A7A8E;vertical-align:top"><div>HR-TMP-009-1.2-2025</div><div>Page 1 of 2</div></td>
+  </tr></table>
+  <hr style="border:0;border-top:1pt solid #0E2841;margin-bottom:4mm">
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
+    <tr>
+      <td style="width:50%;padding:1.5mm 2mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:0.5mm">EMPLOYEE NAME</div><div style="font-weight:bold">${esc(cName)}</div></td>
+      <td style="width:50%;padding:1.5mm 2mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:0.5mm">ROLE / POSITION</div><div style="font-weight:bold">${esc(coachee?coachee.position||'':'')}</div></td>
+    </tr>
+    <tr>
+      <td style="padding:1.5mm 2mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:0.5mm">DEPARTMENT</div><div style="font-weight:bold">${esc(s.department||'')}</div></td>
+      <td style="padding:1.5mm 2mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:0.5mm">COACH</div><div style="font-weight:bold">${esc(coachName)}</div></td>
+    </tr>
+    <tr>
+      <td style="padding:1.5mm 2mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:0.5mm">SESSION DATE</div><div style="font-weight:bold">${esc(fmtDate(s.sessionDate))}</div></td>
+      <td style="padding:1.5mm 2mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:0.5mm">LAST COACHING SESSION</div><div style="font-weight:bold">${esc(fmtDate(s.lastSessionDate))}</div></td>
+    </tr>
+    <tr><td colspan="2" style="padding:1.5mm 2mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:0.5mm">FOCUS AREA</div><div style="font-weight:bold">${esc(focusText)}</div></td></tr>
+  </table>
+  <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">KEY OBSERVATIONS</div>
+  <div style="padding:0 2.5mm 3mm;min-height:18mm;font-size:8.5pt">${s.keyObservations||'<span style="color:#5A7A8E;font-style:italic">—</span>'}</div>
+  <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">GOAL SETTING</div>
+  <div style="padding:0 2.5mm 3mm;min-height:18mm;font-size:8.5pt">${s.goalSetting||'<span style="color:#5A7A8E;font-style:italic">—</span>'}</div>
+  <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">ACTION PLAN &amp; NEXT STEPS</div>
+  <table style="width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:3mm">
+    <thead><tr style="background:#EEF4F7">
+      <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:42%">Action</th>
+      <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:38%">Support / Resources Needed</th>
+      <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:20%">Due Date</th>
+    </tr></thead>
+    <tbody>${apRows}</tbody>
+  </table>
+  <table style="width:100%;border-collapse:collapse">
+    <tr>
+      <td style="width:50%;padding:0 2mm;vertical-align:top"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:1mm">NEXT COACHING SESSION</div><div style="font-weight:bold;font-size:9.5pt">${esc(fmtDate(s.nextSessionDate))}</div></td>
+      <td style="width:50%;padding:0 2mm;vertical-align:top"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:1mm">COACH SIGNATURE</div>
+        ${s.coachSignature?'<img src="'+s.coachSignature+'" style="max-height:16mm;max-width:70mm">':'<div style="height:16mm;border-bottom:0.5pt solid #D0DDE5"></div>'}
+        <div style="font-size:8pt;margin-top:1mm">${esc(coachName)}</div>
+      </td>
+    </tr>
+  </table>
+  <div style="page-break-before:always;margin-top:5mm">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:3mm">
+      <tr><td style="text-align:right;font-size:7pt;color:#5A7A8E">HR-TMP-009-1.2-2025 · Page 2 of 2</td></tr>
+    </table>
+    <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">EMPLOYEE'S REFLECTION</div>
+    <div style="padding:0 2.5mm;min-height:30mm;font-size:8.5pt">${s.employeeReflection||'<span style="color:#5A7A8E;font-style:italic">To be completed by employee.</span>'}</div>
+    <div style="margin-top:8mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:1mm">EMPLOYEE SIGNATURE &amp; DATE</div>
+      ${s.coacheeSignature?'<img src="'+s.coacheeSignature+'" style="max-height:16mm;max-width:70mm">':'<div style="height:16mm;border-bottom:0.5pt solid #D0DDE5;width:200px"></div>'}
+    </div>
+    <div style="margin-top:8mm;padding-top:2mm;border-top:0.5pt solid #D0DDE5;font-size:7pt;color:#5A7A8E;text-align:center">© Dermorepubliq Corporation · BOOST Hub Coaching Log · Confidential</div>
+  </div>
+</div>`;
+  return div;
+}
+
+// ── Update VIEWS to wire up load functions ────────────────────
+VIEWS['all-sessions']['load']      = loadAllSessions;
+VIEWS['coach-new-session']['load'] = loadSessionForm;
+VIEWS['coach-sessions']['load']    = loadCoachSessions;
+
+</script>
+</body>
+</html>
