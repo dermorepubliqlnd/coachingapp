@@ -605,11 +605,21 @@
           </div>
 
 
+          <!-- Section: Employee Reflection (coachee fills when pending) -->
+          <div class="card" id="coachee-reflection-section" style="display:none;margin-bottom:12px">
+            <div class="section-head">Employee's Reflection</div>
+            <p style="font-size:13px;color:var(--muted);margin:0 0 10px">Share your thoughts and commitments from this session. Required before acknowledging.</p>
+            <textarea id="sf-employee-reflection" class="form-control" rows="4"
+              placeholder="Share your reflections and commitments from this coaching session…"
+              style="resize:vertical;min-height:90px"></textarea>
+          </div>
+
           <!-- Bottom action bar -->
           <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:16px 0 24px">
             <span id="pdf-status" style="font-size:12px;color:var(--muted);margin-right:auto"></span>
             <button class="btn btn-ghost" id="session-save-draft-btn" onclick="saveDraft()">Save Draft</button>
             <button class="btn btn-primary" id="session-submit-btn" onclick="submitSession()">Submit Session</button>
+            <button class="btn btn-primary" id="session-acknowledge-btn" style="display:none" onclick="acknowledgeSession()">Acknowledge &amp; Complete</button>
           </div>
         </div>
 
@@ -667,6 +677,31 @@
             <div class="card-title">Sessions</div>
             <div id="coachee-sessions-list">
               <div class="empty-state"><div class="empty-icon">&#128172;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Your coaching sessions will appear here once your coach records one.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- COACHEE: MY ACTION PLANS -->
+        <div class="view" id="view-my-action-plans">
+          <div class="page-header">
+            <div><div class="page-title">My Action Plans</div><div class="page-sub">Your committed actions and progress from coaching sessions</div></div>
+          </div>
+          <div class="card" style="margin-bottom:12px;padding:12px 16px">
+            <div style="display:flex;gap:10px;align-items:center">
+              <select id="mapl-filter-status" class="form-control" style="max-width:170px" onchange="filterMyActionPlans()">
+                <option value="">All Statuses</option>
+                <option>Not Started</option>
+                <option>In Progress</option>
+                <option>Completed</option>
+                <option>Overdue</option>
+                <option>Carried Over</option>
+                <option>Cancelled</option>
+              </select>
+            </div>
+          </div>
+          <div class="card">
+            <div id="mapl-list">
+              <div class="empty-state"><div class="empty-icon">&#9989;</div><div class="empty-title">No action plans yet</div><div class="empty-sub">Your action items will appear here once your coach submits a session.</div></div>
             </div>
           </div>
         </div>
@@ -1004,6 +1039,7 @@ const VIEWS = {
   'coach-sessions':    { el:'view-coach-sessions',    label:'My Sessions',     load:null },
   'action-plans':      { el:'view-action-plans',      label:'Action Plans',    load:null },
   'my-coaching':       { el:'view-my-coaching',       label:'My Coaching',     load:loadMyCoaching },
+  'my-action-plans':   { el:'view-my-action-plans',   label:'My Action Plans', load:null },
 };
 
 function defaultView() {
@@ -1054,7 +1090,8 @@ function renderSidebar() {
   }
   if (roles.includes('coachee')) {
     html += '<div class="nav-section-label">My Development</div>';
-    html += ni('my-coaching', NAV_ICONS.coaching, roles.length > 1 ? 'My Coaching' : 'My Sessions');
+    html += ni('my-coaching',      NAV_ICONS.coaching,  roles.length > 1 ? 'My Coaching' : 'My Sessions');
+    html += ni('my-action-plans',  NAV_ICONS.checklist, 'My Action Plans');
   }
   // Admin section — pushed to bottom
   if (roles.includes('director')) {
@@ -1682,6 +1719,9 @@ async function loadSessionForm() {
   document.getElementById('pdf-status').textContent = '';
   document.getElementById('session-save-draft-btn').style.display = 'inline-flex';
   document.getElementById('session-submit-btn').style.display     = 'inline-flex';
+  document.getElementById('coachee-reflection-section').style.display = 'none';
+  document.getElementById('session-acknowledge-btn').style.display    = 'none';
+  document.getElementById('sf-employee-reflection').value = '';
   document.getElementById('sf-status-bar').style.display = 'none';
   document.getElementById('sf-coachee-picker').style.display = 'none';
   document.getElementById('ap-add-btn').style.display = 'inline-flex';
@@ -1780,6 +1820,12 @@ async function loadExistingSession(sessionId) {
       document.getElementById('session-save-draft-btn').style.display = 'none';
       document.getElementById('session-submit-btn').style.display     = 'none';
       lockSessionForm();
+      // Show reflection section if current user is the coachee
+      if ((currentProfile.roles||[]).includes('coachee') && currentUser.uid === s.coacheeId) {
+        document.getElementById('coachee-reflection-section').style.display = 'block';
+        if (s.employeeReflection) document.getElementById('sf-employee-reflection').value = s.employeeReflection;
+        document.getElementById('session-acknowledge-btn').style.display = 'inline-flex';
+      }
     } else if (s.status === 'completed') {
       document.getElementById('session-form-title').textContent = 'Session — ' + cName;
       document.getElementById('session-form-sub').textContent   = 'Completed';
@@ -1787,6 +1833,12 @@ async function loadExistingSession(sessionId) {
       document.getElementById('session-save-draft-btn').style.display = 'none';
       document.getElementById('session-submit-btn').style.display     = 'none';
       lockSessionForm();
+      // Show read-only reflection if recorded
+      if (s.employeeReflection) {
+        document.getElementById('coachee-reflection-section').style.display = 'block';
+        const ta = document.getElementById('sf-employee-reflection');
+        ta.value = s.employeeReflection; ta.disabled = true;
+      }
     }
   } catch(e) { toast('Error loading session: '+e.message,'error'); }
 }
@@ -1972,6 +2024,30 @@ function unlockSessionForm() {
   if (quillObs)   quillObs.enable(true);
   if (quillGoals) quillGoals.enable(true);
 }
+
+// ── Coachee Acknowledgement ─────────────────────────────────
+window.acknowledgeSession = async function() {
+  const reflection = (document.getElementById('sf-employee-reflection').value||'').trim();
+  if (!reflection) { toast('Please add your reflection before acknowledging.','error'); return; }
+  const btn = document.getElementById('session-acknowledge-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await updateDoc(doc(db,'sessions',currentSessionId), {
+      employeeReflection: reflection,
+      status: 'completed',
+      acknowledgedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    toast('Session acknowledged — thank you!','success');
+    document.getElementById('coachee-reflection-section').style.display = 'none';
+    document.getElementById('session-acknowledge-btn').style.display = 'none';
+    setStatusBar('Acknowledged and completed','green');
+    document.getElementById('pdf-btn').style.display = 'inline-flex';
+  } catch(e) {
+    toast('Error: '+e.message,'error');
+    btn.disabled = false; btn.textContent = 'Acknowledge & Complete';
+  }
+};
 
 // ── PDF Generation ────────────────────────────────────────────
 window.generatePDF = async function() {
@@ -2199,6 +2275,65 @@ async function loadOpenItemsForCoachee(coacheeId) {
   } catch(e) { panel.style.display='none'; }
 }
 
+// ── My Action Plans (coachee view) ───────────────────────────
+let allMyActionPlans = [];
+
+async function loadMyActionPlans() {
+  const container = document.getElementById('mapl-list');
+  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
+  if (!allUsers.length) await refreshUsers();
+  try {
+    const snap = await getDocs(query(collection(db,'actionPlans'), where('coacheeId','==',currentUser.uid)));
+    allMyActionPlans = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(a.dueDate||'').localeCompare(b.dueDate||''));
+    renderMyActionPlans(allMyActionPlans);
+  } catch(e) { container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading action plans.</div></div>'; }
+}
+
+function renderMyActionPlans(plans) {
+  const container = document.getElementById('mapl-list');
+  if (!plans.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9989;</div><div class="empty-title">No action plans yet</div><div class="empty-sub">Your action items will appear here once your coach submits a session.</div></div>';
+    return;
+  }
+  const statusColor = {'Not Started':'#6B7A8D','In Progress':'var(--blue)','Completed':'var(--green)','Overdue':'var(--red)','Carried Over':'var(--amber)','Cancelled':'#6B7A8D'};
+  const statusBg    = {'Not Started':'var(--light)','In Progress':'var(--blue-lt)','Completed':'var(--green-lt)','Overdue':'#FEE2E2','Carried Over':'var(--amber-lt)','Cancelled':'var(--light)'};
+  const rows = plans.map(p => {
+    const coach = allUsers.find(u=>u.uid===p.coachId);
+    const coachName = coach ? coach.firstName+' '+coach.lastName : '—';
+    const d   = p.sessionDate ? new Date(p.sessionDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+    const due = p.dueDate     ? new Date(p.dueDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})     : '—';
+    const st  = p.status || 'Not Started';
+    const overdue = p.dueDate && !['Completed','Cancelled'].includes(st) && new Date(p.dueDate) < new Date();
+    return '<tr>'
+      + '<td style="font-size:12.5px;white-space:nowrap">'+d+'</td>'
+      + '<td style="font-size:12.5px">'+esc(coachName)+'</td>'
+      + '<td style="font-size:12.5px;max-width:240px">'+esc(p.action||'—')+'</td>'
+      + '<td style="font-size:12px;color:var(--muted);max-width:180px">'+esc(p.support||'—')+'</td>'
+      + '<td style="font-size:12.5px;white-space:nowrap'+(overdue?';color:var(--red);font-weight:600':'')+'">'+(p.dueDate?due:'—')+'</td>'
+      + '<td><span style="font-size:11.5px;padding:3px 9px;border-radius:10px;font-weight:500;background:'+statusBg[st]+';color:'+statusColor[st]+'">'+st+'</span></td>'
+      + '<td style="font-size:12px;color:var(--muted)">'+esc(p.remarks||'—')+'</td>'
+      + '</tr>';
+  }).join('');
+
+  container.innerHTML = '<div class="table-wrap"><table class="rt-table">'
+    + '<thead><tr>'
+    + '<th style="min-width:110px">Session Date</th>'
+    + '<th style="min-width:120px">Coach</th>'
+    + '<th style="min-width:200px">Action</th>'
+    + '<th style="min-width:160px">Support / Resources Needed</th>'
+    + '<th style="min-width:100px">Due Date</th>'
+    + '<th style="min-width:120px">Status</th>'
+    + '<th style="min-width:140px">Remarks</th>'
+    + '</tr></thead>'
+    + '<tbody>'+rows+'</tbody></table></div>';
+}
+
+window.filterMyActionPlans = function() {
+  const status = document.getElementById('mapl-filter-status').value;
+  renderMyActionPlans(status ? allMyActionPlans.filter(p=>(p.status||'Not Started')===status) : allMyActionPlans);
+};
+
 // ── My Profile / E-Signature ─────────────────────────────────
 window.openProfileModal = function() {
   if (!currentProfile) return;
@@ -2249,6 +2384,7 @@ VIEWS['all-sessions']['load']      = loadAllSessions;
 VIEWS['coach-new-session']['load'] = loadSessionForm;
 VIEWS['coach-sessions']['load']    = loadCoachSessions;
 VIEWS['action-plans']['load']      = loadActionPlans;
+VIEWS['my-action-plans']['load']   = loadMyActionPlans;
 </script>
 </body>
 </html>
