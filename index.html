@@ -255,15 +255,12 @@
     /* ── PHASE 2: ACTION PLAN TABLE ─────────────────────────── */
     .ap-table{width:100%;border-collapse:collapse}
     .ap-table th{background:var(--light);color:var(--muted);font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border:1px solid var(--border);text-align:left}
-    .ap-table td{padding:4px 6px;border:1px solid var(--border);vertical-align:middle}
-    .ap-cell{width:100%;border:none;background:transparent;font-family:var(--font);font-size:13px;color:var(--text);padding:5px 6px}
+    .ap-table td{padding:4px 6px;border:1px solid var(--border);vertical-align:top}
+    .ap-cell{width:100%;border:none;background:transparent;font-family:var(--font);font-size:13px;color:var(--text);padding:5px 6px;resize:none;overflow:hidden;line-height:1.5;min-height:32px;display:block;box-sizing:border-box}
     .ap-cell:focus{outline:none;background:var(--blue-lt);border-radius:3px}
-    .ap-cell[type=date]{min-width:130px}
+    .ap-cell[type=date]{min-width:130px;min-height:unset;height:32px}
 
     /* ── PHASE 2: SIGNATURE ─────────────────────────────────── */
-    #sig-canvas{max-width:100%;width:100%;height:140px;cursor:crosshair;border:1px solid var(--border);border-radius:var(--radius);background:white;display:block;touch-action:none}
-    .sig-tab-btn{padding:6px 14px;border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-family:var(--font);font-size:13px;font-weight:500;color:var(--muted);transition:color .15s,border-color .15s}
-    .sig-tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
 
     /* ── PHASE 2: SESSION STATUS BADGES ─────────────────────── */
     .badge-draft{background:var(--light);color:var(--muted)}
@@ -283,7 +280,6 @@
   <!-- Phase 2 libraries -->
   <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
   <script src="https://cdn.quilljs.com/1.3.7/quill.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -357,7 +353,7 @@
       </div>
       <div id="nav-menu"></div>
       <div class="sidebar-footer">
-        <div class="user-pill">
+        <div class="user-pill" onclick="openProfileModal()" style="cursor:pointer" title="My Profile">
           <div class="avatar avatar-sm" id="sb-avatar">--</div>
           <div class="user-info">
             <div class="user-name" id="sb-name">—</div>
@@ -507,6 +503,17 @@
             </div>
           </div>
 
+          <!-- Open Action Items reference panel -->
+          <div id="sf-open-items" style="display:none;margin-bottom:12px">
+            <div class="card" style="border-left:3px solid var(--amber);padding:12px 16px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--amber)">Open Action Items from Previous Sessions</div>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('sf-open-items').style.display='none'" style="font-size:11px;padding:2px 8px">Dismiss</button>
+              </div>
+              <div id="sf-open-items-list"></div>
+            </div>
+          </div>
+
           <!-- Section 1: Session Details -->
           <div class="card" style="margin-bottom:12px">
             <div class="section-head">Session Details</div>
@@ -597,23 +604,6 @@
             </div>
           </div>
 
-          <!-- Section 7: Coach Signature -->
-          <div class="card" style="margin-bottom:12px">
-            <div class="section-head">Coach Signature</div>
-            <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border)">
-              <button class="sig-tab-btn active" id="sig-tab-draw" onclick="switchSigTab('draw')">Draw</button>
-              <button class="sig-tab-btn" id="sig-tab-upload" onclick="switchSigTab('upload')">Upload Image</button>
-            </div>
-            <div id="sig-draw-wrap">
-              <canvas id="sig-canvas"></canvas>
-              <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="clearSignature()">Clear</button>
-            </div>
-            <div id="sig-upload-wrap" style="display:none">
-              <input type="file" id="sig-upload-input" accept="image/*" class="form-control" style="margin-bottom:8px" onchange="loadSigImage(this)">
-              <div id="sig-upload-preview" style="display:none"><img id="sig-preview-img" style="max-height:120px;border:1px solid var(--border);border-radius:var(--radius)"></div>
-            </div>
-            <div class="notice notice-amber" style="margin-top:10px">&#9888;&#65039; Signatures are stored on this device only and will not transfer to other devices or browsers.</div>
-          </div>
 
           <!-- Bottom action bar -->
           <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:16px 0 24px">
@@ -632,6 +622,34 @@
           <div class="card">
             <div id="coach-sessions-list">
               <div class="empty-state"><div class="empty-icon">&#128203;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Start by recording a new coaching session with one of your coachees.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- COACH: ACTION PLANS -->
+        <div class="view" id="view-action-plans">
+          <div class="page-header">
+            <div><div class="page-title">Action Plans</div><div class="page-sub">Track action items across all your coaching sessions</div></div>
+          </div>
+          <div class="card" style="margin-bottom:12px;padding:12px 16px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <select id="apl-filter-coachee" class="form-control" style="max-width:200px" onchange="filterActionPlans()">
+                <option value="">All Team Members</option>
+              </select>
+              <select id="apl-filter-status" class="form-control" style="max-width:170px" onchange="filterActionPlans()">
+                <option value="">All Statuses</option>
+                <option>Not Started</option>
+                <option>In Progress</option>
+                <option>Completed</option>
+                <option>Overdue</option>
+                <option>Carried Over</option>
+                <option>Cancelled</option>
+              </select>
+            </div>
+          </div>
+          <div class="card">
+            <div id="apl-list">
+              <div class="empty-state"><div class="empty-icon">&#9989;</div><div class="empty-title">No action plans yet</div><div class="empty-sub">Action items will appear here once a coaching session is submitted.</div></div>
             </div>
           </div>
         </div>
@@ -657,6 +675,54 @@
     </div><!-- #main-wrapper -->
   </div><!-- .app-layout -->
 </div><!-- #app -->
+
+<!-- MODAL: MY PROFILE / E-SIGNATURE -->
+<div id="modal-profile" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-profile')">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title">My Profile</div>
+      <button class="modal-close" onclick="closeModal('modal-profile')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid-2" style="margin-bottom:16px">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Name</label>
+          <input type="text" id="mp-name" class="form-control" disabled>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Position</label>
+          <input type="text" id="mp-position" class="form-control" disabled>
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Email</label>
+        <input type="email" id="mp-email" class="form-control" disabled>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:4px">
+        <div class="form-label" style="margin-bottom:8px;font-weight:600">E-Signature</div>
+        <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px">Your signature will appear on coaching session PDFs. Upload a clear image on a white or transparent background.</p>
+        <div id="mp-sig-preview" style="display:none;margin-bottom:12px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:#fafafa;text-align:center">
+          <img id="mp-sig-img" style="max-height:80px;max-width:100%">
+          <div style="margin-top:6px">
+            <button class="btn btn-ghost btn-sm" onclick="clearProfileSig()">Remove Signature</button>
+          </div>
+        </div>
+        <div id="mp-sig-empty" style="padding:20px;border:1.5px dashed var(--border);border-radius:var(--radius);text-align:center;color:var(--muted);font-size:13px;margin-bottom:12px">
+          No signature on file
+        </div>
+        <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload Signature Image
+          <input type="file" id="mp-sig-upload" accept="image/*" style="display:none" onchange="previewProfileSig(this)">
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-profile')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProfileSig()">Save</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL: USER -->
 <div id="modal-user" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-user')">
@@ -787,8 +853,8 @@ import { initializeApp }
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
          sendPasswordResetEmail, createUserWithEmailAndPassword }
   from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc,
-         collection, getDocs, serverTimestamp }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc,
+         collection, getDocs, query, where, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
 // ── Firebase ─────────────────────────────────────────────────
@@ -936,6 +1002,7 @@ const VIEWS = {
   'coach-home':        { el:'view-coach-home',        label:'My Team',         load:loadCoachHome },
   'coach-new-session': { el:'view-coach-new-session', label:'New Session',     load:null },
   'coach-sessions':    { el:'view-coach-sessions',    label:'My Sessions',     load:null },
+  'action-plans':      { el:'view-action-plans',      label:'Action Plans',    load:null },
   'my-coaching':       { el:'view-my-coaching',       label:'My Coaching',     load:loadMyCoaching },
 };
 
@@ -967,6 +1034,7 @@ const NAV_ICONS = {
   team:      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
   clipboard: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>',
   coaching:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  checklist: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
 };
 
 // ── Sidebar ──────────────────────────────────────────────────
@@ -982,6 +1050,7 @@ function renderSidebar() {
     html += '<div class="nav-section-label">Coaching</div>';
     html += ni('coach-home',     NAV_ICONS.team,      'My Team');
     html += ni('coach-sessions', NAV_ICONS.clipboard, 'My Sessions');
+    html += ni('action-plans',   NAV_ICONS.checklist, 'Action Plans');
   }
   if (roles.includes('coachee')) {
     html += '<div class="nav-section-label">My Development</div>';
@@ -1555,7 +1624,6 @@ let currentSessionId       = null;
 let currentSessionCoacheeId = null;
 let quillObs  = null;
 let quillGoals = null;
-let sigPad    = null;
 let actionRowCount = 0;
 
 // Entry points
@@ -1596,13 +1664,6 @@ async function loadSessionForm() {
     });
   }
 
-  // Init signature pad once
-  if (!sigPad) {
-    const canvas = document.getElementById('sig-canvas');
-    sigPad = new SignaturePad(canvas, { penColor:'#1A2D3F' });
-    resizeSigCanvas();
-    window.addEventListener('resize', resizeSigCanvas);
-  }
 
   // Reset form
   document.getElementById('sf-session-date').value  = new Date().toISOString().slice(0,10);
@@ -1625,10 +1686,6 @@ async function loadSessionForm() {
   document.getElementById('sf-coachee-picker').style.display = 'none';
   document.getElementById('ap-add-btn').style.display = 'inline-flex';
 
-  // Restore saved sig
-  const savedSig = localStorage.getItem('boost-sig-' + currentUser.uid);
-  if (savedSig && sigPad) { sigPad.clear(); sigPad.fromDataURL(savedSig); }
-  else if (sigPad) { sigPad.clear(); }
 
   if (!allUsers.length) await refreshUsers();
 
@@ -1647,6 +1704,7 @@ async function loadSessionForm() {
 }
 
 function fillCoacheeInfo(uid) {
+  loadOpenItemsForCoachee(uid);
   const c = allUsers.find(u => u.uid === uid);
   if (!c) return;
   document.getElementById('sf-employee-name').value = c.firstName + ' ' + c.lastName;
@@ -1708,7 +1766,6 @@ async function loadExistingSession(sessionId) {
     quillGoals.root.innerHTML = s.goalSetting || '';
     initActionPlan(s.actionPlan && s.actionPlan.length ? s.actionPlan : [{action:'',support:'',dueDate:''},{action:'',support:'',dueDate:''}]);
 
-    if (s.coachSignature && sigPad) { sigPad.clear(); sigPad.fromDataURL(s.coachSignature); }
 
     const isLocked = s.status === 'pending' || s.status === 'completed';
     document.getElementById('pdf-btn').style.display = 'inline-flex';
@@ -1763,11 +1820,16 @@ window.addActionRow = function(data) {
   const tr = document.createElement('tr');
   tr.id = 'ap-row-'+id;
   tr.innerHTML =
-    '<td><input class="ap-cell" placeholder="Describe the action…" value="'+esc(data.action||'')+'" id="ap-action-'+id+'"></td>'
-  + '<td><input class="ap-cell" placeholder="Support or resources needed…" value="'+esc(data.support||'')+'" id="ap-support-'+id+'"></td>'
+    '<td><textarea class="ap-cell" placeholder="Describe the action…" id="ap-action-'+id+'" rows="1">'+esc(data.action||'')+'</textarea></td>'
+  + '<td><textarea class="ap-cell" placeholder="Support or resources needed…" id="ap-support-'+id+'" rows="1">'+esc(data.support||'')+'</textarea></td>'
   + '<td><input class="ap-cell" type="date" value="'+(data.dueDate||'')+'" id="ap-due-'+id+'"></td>'
-  + '<td style="text-align:center"><button class="btn btn-ghost btn-sm" style="color:var(--red);padding:3px 7px" onclick="deleteActionRow('+id+')" title="Remove">&#10005;</button></td>';
+  + '<td style="text-align:center;vertical-align:top;padding-top:8px"><button class="btn btn-ghost btn-sm" style="color:var(--red);padding:3px 7px" onclick="deleteActionRow('+id+')" title="Remove">&#10005;</button></td>';
   document.getElementById('action-plan-tbody').appendChild(tr);
+  // Auto-resize existing content
+  ['ap-action-'+id,'ap-support-'+id].forEach(elId => {
+    const el = document.getElementById(elId);
+    if (el) { el.style.height='auto'; el.style.height=el.scrollHeight+'px'; el.addEventListener('input',()=>{ el.style.height='auto'; el.style.height=el.scrollHeight+'px'; }); }
+  });
 };
 
 window.deleteActionRow = function(id) {
@@ -1787,52 +1849,6 @@ function getActionPlan() {
   }).filter(r => r.action || r.support || r.dueDate);
 }
 
-// ── Signature Pad ─────────────────────────────────────────────
-function resizeSigCanvas() {
-  const canvas = document.getElementById('sig-canvas');
-  if (!canvas || !sigPad) return;
-  const ratio = Math.max(window.devicePixelRatio||1,1);
-  const data  = sigPad.toData();
-  canvas.width  = canvas.offsetWidth  * ratio;
-  canvas.height = canvas.offsetHeight * ratio;
-  canvas.getContext('2d').scale(ratio,ratio);
-  sigPad.clear();
-  if (data && data.length) sigPad.fromData(data);
-}
-
-window.clearSignature = function() {
-  if (sigPad) { sigPad.clear(); localStorage.removeItem('boost-sig-'+currentUser.uid); }
-};
-
-window.switchSigTab = function(tab) {
-  document.getElementById('sig-draw-wrap').style.display   = tab==='draw'   ? 'block' : 'none';
-  document.getElementById('sig-upload-wrap').style.display = tab==='upload' ? 'block' : 'none';
-  document.getElementById('sig-tab-draw').className   = 'sig-tab-btn' + (tab==='draw'   ? ' active' : '');
-  document.getElementById('sig-tab-upload').className = 'sig-tab-btn' + (tab==='upload' ? ' active' : '');
-};
-
-window.loadSigImage = function(input) {
-  const file = input.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('sig-preview-img').src = e.target.result;
-    document.getElementById('sig-upload-preview').style.display = 'block';
-  };
-  reader.readAsDataURL(file);
-};
-
-function getSignatureBase64() {
-  if (document.getElementById('sig-upload-wrap').style.display !== 'none') {
-    const src = document.getElementById('sig-preview-img').src;
-    return src && src.startsWith('data:') ? src : null;
-  }
-  if (sigPad && !sigPad.isEmpty()) {
-    const sig = sigPad.toDataURL('image/png');
-    localStorage.setItem('boost-sig-'+currentUser.uid, sig);
-    return sig;
-  }
-  return null;
-}
 
 // ── Build session data ────────────────────────────────────────
 function buildSessionData(status) {
@@ -1848,7 +1864,6 @@ function buildSessionData(status) {
     goalSetting:       quillGoals? quillGoals.root.innerHTML: '',
     actionPlan:        getActionPlan(),
     nextSessionDate:   document.getElementById('sf-next-session').value,
-    coachSignature:    getSignatureBase64() || '',
     employeeReflection:'',
     coacheeSignature:  '',
     status
@@ -1902,6 +1917,24 @@ window.submitSession = async function() {
         await setDoc(ref, {...data, createdAt:serverTimestamp(), updatedAt:serverTimestamp()});
         currentSessionId = ref.id;
       }
+      // Create action plan log entries
+      const apRows = getActionPlan().filter(r => r.action.trim());
+      for (const row of apRows) {
+        await addDoc(collection(db,'actionPlans'), {
+          sessionId:   currentSessionId,
+          sessionDate: data.sessionDate,
+          coacheeId:   data.coacheeId,
+          coachId:     currentUser.uid,
+          action:      row.action,
+          support:     row.support,
+          dueDate:     row.dueDate,
+          status:      'Not Started',
+          remarks:     '',
+          createdAt:   serverTimestamp(),
+          updatedAt:   serverTimestamp(),
+          updatedBy:   currentUser.uid,
+        });
+      }
       toast('Session submitted. Awaiting coachee acknowledgement.','success');
       document.getElementById('session-save-draft-btn').style.display = 'none';
       btn.style.display = 'none';
@@ -1924,11 +1957,9 @@ function lockSessionForm() {
   });
   if (quillObs)   quillObs.enable(false);
   if (quillGoals) quillGoals.enable(false);
-  document.querySelectorAll('#action-plan-tbody input').forEach(el => el.disabled=true);
+  document.querySelectorAll('#action-plan-tbody input, #action-plan-tbody textarea').forEach(el => el.disabled=true);
   document.querySelectorAll('#action-plan-tbody button').forEach(el => el.style.display='none');
   document.getElementById('ap-add-btn').style.display='none';
-  if (sigPad) sigPad.off();
-  document.querySelectorAll('#sig-canvas,#sig-tab-draw,#sig-tab-upload,#sig-upload-input,[onclick="clearSignature()"]').forEach(el => { if(el) el.style.pointerEvents='none'; el.style.opacity='0.6'; });
 }
 
 function unlockSessionForm() {
@@ -1940,8 +1971,6 @@ function unlockSessionForm() {
   });
   if (quillObs)   quillObs.enable(true);
   if (quillGoals) quillGoals.enable(true);
-  if (sigPad) sigPad.on();
-  document.querySelectorAll('#sig-canvas,#sig-tab-draw,#sig-tab-upload,#sig-upload-input,[onclick="clearSignature()"]').forEach(el => { if(el){ el.style.pointerEvents=''; el.style.opacity=''; } });
 }
 
 // ── PDF Generation ────────────────────────────────────────────
@@ -2033,7 +2062,7 @@ function buildPdfElement(s, coachee, coach) {
   </table>
   <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">COACH'S SIGNATURE</div>
   <div style="padding:2mm 2.5mm 3mm;min-height:20mm">
-    ${s.coachSignature ? '<img src="'+s.coachSignature+'" style="max-height:18mm;max-width:60mm">' : '<span style="color:#5A7A8E;font-style:italic;font-size:8pt">—</span>'}
+    ${coach && coach.signature ? '<img src="'+coach.signature+'" style="max-height:18mm;max-width:60mm">' : '<span style="color:#5A7A8E;font-style:italic;font-size:8pt">—</span>'}
     <div style="font-size:7.5pt;color:#5A7A8E;margin-top:1mm">${esc(coachName)}</div>
   </div>
 </div>
@@ -2061,10 +2090,165 @@ function buildPdfElement(s, coachee, coach) {
   return div;
 }
 
+// ── Action Plan Log ───────────────────────────────────────────
+let allActionPlans = [];
+
+async function loadActionPlans() {
+  if (!allUsers.length) await refreshUsers();
+  const container = document.getElementById('apl-list');
+  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
+
+  // Populate coachee filter from current coach's team
+  const myCoachees = allUsers.filter(u => u.coachId === currentUser.uid);
+  const coacheeSel = document.getElementById('apl-filter-coachee');
+  coacheeSel.innerHTML = '<option value="">All Team Members</option>'
+    + myCoachees.map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
+
+  try {
+    const snap = await getDocs(query(collection(db,'actionPlans'), where('coachId','==',currentUser.uid)));
+    allActionPlans = snap.docs.map(d => ({id:d.id,...d.data()}))
+      .sort((a,b) => (a.dueDate||'').localeCompare(b.dueDate||''));
+    renderActionPlans(allActionPlans);
+  } catch(e) { container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading action plans.</div></div>'; }
+}
+
+function renderActionPlans(plans) {
+  const container = document.getElementById('apl-list');
+  if (!plans.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9989;</div><div class="empty-title">No action plans</div><div class="empty-sub">Action items will appear here once a session is submitted.</div></div>';
+    return;
+  }
+  const statusColor = { 'Not Started':'#6B7A8D','In Progress':'var(--blue)','Completed':'var(--green)','Overdue':'var(--red)','Carried Over':'var(--amber)','Cancelled':'#6B7A8D' };
+  const statusBg    = { 'Not Started':'var(--light)','In Progress':'var(--blue-lt)','Completed':'var(--green-lt)','Overdue':'#FEE2E2','Carried Over':'var(--amber-lt)','Cancelled':'var(--light)' };
+  const rows = plans.map(p => {
+    const coachee = allUsers.find(u=>u.uid===p.coacheeId);
+    const cName   = coachee ? coachee.firstName+' '+coachee.lastName : '—';
+    const d = p.sessionDate ? new Date(p.sessionDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+    const due = p.dueDate   ? new Date(p.dueDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+    const st  = p.status || 'Not Started';
+    const overdue = p.dueDate && p.status !== 'Completed' && p.status !== 'Cancelled' && new Date(p.dueDate) < new Date();
+    const stDisplay = overdue && st === 'Not Started' ? 'Overdue' : st;
+    return '<tr>'
+      + '<td style="font-weight:500;font-size:13px">'+esc(cName)+'</td>'
+      + '<td style="font-size:12.5px;white-space:nowrap">'+d+'</td>'
+      + '<td style="font-size:12.5px;max-width:220px">'+esc(p.action||'—')+'</td>'
+      + '<td style="font-size:12px;color:var(--muted);max-width:180px">'+esc(p.support||'—')+'</td>'
+      + '<td style="font-size:12.5px;white-space:nowrap'+(overdue&&stDisplay==='Overdue'?';color:var(--red);font-weight:600':'')+'">'+(p.dueDate?due:'—')+'</td>'
+      + '<td><select class="apl-status-sel" data-id="'+p.id+'" onchange="updateActionPlan(\''+p.id+'\',\'status\',this.value)" style="border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;background:'+statusBg[st]+';color:'+statusColor[st]+';font-weight:500;cursor:pointer">'
+      + ['Not Started','In Progress','Completed','Overdue','Carried Over','Cancelled'].map(s=>'<option'+(s===st?' selected':'')+'>'+s+'</option>').join('')
+      + '</select></td>'
+      + '<td style="min-width:160px"><input class="apl-remarks-input" data-id="'+p.id+'" value="'+esc(p.remarks||'')+'" placeholder="Add remarks…" onblur="updateActionPlan(\''+p.id+'\',\'remarks\',this.value)" style="width:100%;border:1px solid transparent;border-radius:4px;padding:3px 6px;font-size:12px;background:transparent;font-family:var(--font)" onfocus="this.style.border=\'1px solid var(--blue)\';this.style.background=\'var(--blue-lt)\'" onblur="this.style.border=\'1px solid transparent\';this.style.background=\'transparent\';updateActionPlan(\''+p.id+'\',\'remarks\',this.value)"></td>'
+      + '</tr>';
+  }).join('');
+
+  container.innerHTML = '<div class="table-wrap"><table class="rt-table">'
+    + '<thead><tr>'
+    + '<th style="min-width:130px">Team Member</th>'
+    + '<th style="min-width:110px">Session Date</th>'
+    + '<th style="min-width:200px">Action</th>'
+    + '<th style="min-width:160px">Support / Resources Needed</th>'
+    + '<th style="min-width:100px">Due Date</th>'
+    + '<th style="min-width:140px">Status</th>'
+    + '<th style="min-width:160px">Remarks</th>'
+    + '</tr></thead>'
+    + '<tbody>'+rows+'</tbody></table></div>';
+}
+
+window.filterActionPlans = function() {
+  const coachee = document.getElementById('apl-filter-coachee').value;
+  const status  = document.getElementById('apl-filter-status').value;
+  let filtered  = allActionPlans;
+  if (coachee) filtered = filtered.filter(p => p.coacheeId === coachee);
+  if (status)  filtered = filtered.filter(p => (p.status||'Not Started') === status);
+  renderActionPlans(filtered);
+};
+
+window.updateActionPlan = async function(id, field, value) {
+  try {
+    await updateDoc(doc(db,'actionPlans',id), {
+      [field]: value, updatedAt: serverTimestamp(), updatedBy: currentUser.uid
+    });
+    const item = allActionPlans.find(p=>p.id===id);
+    if (item) item[field] = value;
+  } catch(e) { toast('Could not save: '+e.message,'error'); }
+};
+
+// Open items reference panel for session form
+async function loadOpenItemsForCoachee(coacheeId) {
+  const panel = document.getElementById('sf-open-items');
+  const list  = document.getElementById('sf-open-items-list');
+  if (!coacheeId) { panel.style.display='none'; return; }
+  try {
+    const snap = await getDocs(query(collection(db,'actionPlans'),
+      where('coacheeId','==',coacheeId),
+      where('coachId','==',currentUser.uid)
+    ));
+    const open = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(p => !['Completed','Cancelled'].includes(p.status||'Not Started'));
+    if (!open.length) { panel.style.display='none'; return; }
+    list.innerHTML = open.map(p => {
+      const due = p.dueDate ? new Date(p.dueDate).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : 'No due date';
+      const overdue = p.dueDate && new Date(p.dueDate) < new Date();
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);gap:12px">'
+        + '<div style="font-size:12.5px;flex:1">'+esc(p.action)+'</div>'
+        + '<div style="font-size:11.5px;white-space:nowrap;color:'+(overdue?'var(--red)':'var(--muted)')+'">Due: '+due+'</div>'
+        + '<span style="font-size:11px;padding:2px 7px;border-radius:10px;background:'+(overdue?'#FEE2E2':'var(--amber-lt)')+';color:'+(overdue?'var(--red)':'var(--amber)')+';">'+(p.status||'Not Started')+'</span>'
+        + '</div>';
+    }).join('');
+    panel.style.display = 'block';
+  } catch(e) { panel.style.display='none'; }
+}
+
+// ── My Profile / E-Signature ─────────────────────────────────
+window.openProfileModal = function() {
+  if (!currentProfile) return;
+  document.getElementById('mp-name').value     = (currentProfile.firstName||'')+' '+(currentProfile.lastName||'');
+  document.getElementById('mp-position').value = currentProfile.position||'';
+  document.getElementById('mp-email').value    = currentProfile.email||'';
+  const sig = currentProfile.signature||'';
+  document.getElementById('mp-sig-preview').style.display = sig ? 'block' : 'none';
+  document.getElementById('mp-sig-empty').style.display   = sig ? 'none'  : 'block';
+  if (sig) document.getElementById('mp-sig-img').src = sig;
+  document.getElementById('mp-sig-upload').value = '';
+  document.getElementById('modal-profile').style.display = 'flex';
+};
+window.previewProfileSig = function(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('mp-sig-img').src = e.target.result;
+    document.getElementById('mp-sig-preview').style.display = 'block';
+    document.getElementById('mp-sig-empty').style.display   = 'none';
+  };
+  reader.readAsDataURL(file);
+};
+window.clearProfileSig = function() {
+  document.getElementById('mp-sig-img').src = '';
+  document.getElementById('mp-sig-preview').style.display = 'none';
+  document.getElementById('mp-sig-empty').style.display   = 'block';
+  document.getElementById('mp-sig-upload').value = '';
+};
+window.saveProfileSig = async function() {
+  const btn = document.querySelector('#modal-profile .btn-primary');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const imgSrc = document.getElementById('mp-sig-img').src;
+    const sig = (imgSrc && imgSrc.startsWith('data:')) ? imgSrc : '';
+    await updateDoc(doc(db,'users',currentUser.uid), { signature: sig, updatedAt: serverTimestamp() });
+    currentProfile.signature = sig;
+    const u = allUsers.find(x=>x.uid===currentUser.uid);
+    if (u) u.signature = sig;
+    toast('Profile saved.','success');
+    closeModal('modal-profile');
+  } catch(e) { toast('Error: '+e.message,'error'); }
+  btn.disabled = false; btn.textContent = 'Save';
+};
+
 // ── Wire up lazy-loaded views ────────────────────────────────
 VIEWS['all-sessions']['load']      = loadAllSessions;
 VIEWS['coach-new-session']['load'] = loadSessionForm;
 VIEWS['coach-sessions']['load']    = loadCoachSessions;
+VIEWS['action-plans']['load']      = loadActionPlans;
 </script>
 </body>
 </html>
