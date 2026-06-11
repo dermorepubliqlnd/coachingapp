@@ -647,7 +647,9 @@
           </div>
           <div class="card">
             <div class="card-title">Sessions</div>
-            <div class="empty-state"><div class="empty-icon">&#128172;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Your coaching sessions will appear here once your coach records one.</div></div>
+            <div id="coachee-sessions-list">
+              <div class="empty-state"><div class="empty-icon">&#128172;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Your coaching sessions will appear here once your coach records one.</div></div>
+            </div>
           </div>
         </div>
 
@@ -1343,10 +1345,51 @@ async function loadCoachHome() {
 // ── My Coaching (coachee) ─────────────────────────────────────
 async function loadMyCoaching() {
   if (!allUsers.length) await refreshUsers();
+
+  // Coach info
   const coach = currentProfile.coachId ? allUsers.find(u => u.uid === currentProfile.coachId) : null;
   document.getElementById('coachee-coach-info').innerHTML = coach
     ? '<div style="display:flex;align-items:center;gap:10px;padding:4px 0"><div class="avatar avatar-md">'+ini(coach.firstName,coach.lastName)+'</div><div><div style="font-weight:600">'+esc(coach.firstName)+' '+esc(coach.lastName)+'</div><div style="font-size:12px;color:var(--muted)">'+esc(coach.position||'Coach')+'</div></div></div>'
     : '<div style="padding:12px 0;font-size:13px;color:var(--muted)">No coach assigned yet.</div>';
+
+  // Sessions list — only show submitted/completed sessions to coachee
+  const container = document.getElementById('coachee-sessions-list');
+  container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted)">Loading…</div>';
+  try {
+    const snap = await getDocs(collection(db,'sessions'));
+    const sessions = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(s => s.coacheeId === currentUser.uid && s.status !== 'draft')
+      .sort((a,b)=>(b.sessionDate||'').localeCompare(a.sessionDate||''));
+
+    if (!sessions.length) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128172;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Your coaching sessions will appear here once your coach records one.</div></div>';
+      return;
+    }
+
+    container.innerHTML = '<div class="table-wrap"><table class="rt-table"><thead><tr>'
+      + '<th style="min-width:140px">Coach</th>'
+      + '<th style="min-width:160px">Focus Area</th>'
+      + '<th style="min-width:120px">Session Date</th>'
+      + '<th style="min-width:110px">Status</th>'
+      + '<th style="width:70px"></th>'
+      + '</tr></thead><tbody>'
+      + sessions.map(s => {
+          const coachUser = allUsers.find(u=>u.uid===s.coachId);
+          const coachName = coachUser ? coachUser.firstName+' '+coachUser.lastName : '—';
+          const d = s.sessionDate ? new Date(s.sessionDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+          const focus = (s.focusAreas||[]).map(f=>focusLabel(f)).join(', ')||'—';
+          return '<tr>'
+            + '<td style="font-weight:500">'+esc(coachName)+'</td>'
+            + '<td style="font-size:12.5px">'+esc(focus)+'</td>'
+            + '<td style="font-size:12.5px">'+esc(d)+'</td>'
+            + '<td><span class="badge badge-'+s.status+'">'+statusLabel(s.status)+'</span></td>'
+            + '<td><button class="btn btn-ghost btn-sm" onclick="openExistingSession(\''+s.id+'\')">View</button></td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+  } catch(e) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading sessions.</div></div>';
+  }
 }
 
 // ── Sidebar ───────────────────────────────────────────────────
@@ -1977,40 +2020,4 @@ function buildPdfElement(s, coachee, coach) {
   <table style="width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:3mm">
     <thead><tr style="background:#EEF4F7">
       <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:42%">Action</th>
-      <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:38%">Support / Resources Needed</th>
-      <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:20%">Due Date</th>
-    </tr></thead>
-    <tbody>${apRows}</tbody>
-  </table>
-  <table style="width:100%;border-collapse:collapse">
-    <tr>
-      <td style="width:50%;padding:0 2mm;vertical-align:top"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:1mm">NEXT COACHING SESSION</div><div style="font-weight:bold;font-size:9.5pt">${esc(fmtDate(s.nextSessionDate))}</div></td>
-      <td style="width:50%;padding:0 2mm;vertical-align:top"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:1mm">COACH SIGNATURE</div>
-        ${s.coachSignature?'<img src="'+s.coachSignature+'" style="max-height:16mm;max-width:70mm">':'<div style="height:16mm;border-bottom:0.5pt solid #D0DDE5"></div>'}
-        <div style="font-size:8pt;margin-top:1mm">${esc(coachName)}</div>
-      </td>
-    </tr>
-  </table>
-  <div style="page-break-before:always;margin-top:5mm">
-    <table style="width:100%;border-collapse:collapse;margin-bottom:3mm">
-      <tr><td style="text-align:right;font-size:7pt;color:#5A7A8E">HR-TMP-009-1.2-2025 · Page 2 of 2</td></tr>
-    </table>
-    <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">EMPLOYEE'S REFLECTION</div>
-    <div style="padding:0 2.5mm;min-height:30mm;font-size:8.5pt">${s.employeeReflection||'<span style="color:#5A7A8E;font-style:italic">To be completed by employee.</span>'}</div>
-    <div style="margin-top:8mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:1mm">EMPLOYEE SIGNATURE &amp; DATE</div>
-      ${s.coacheeSignature?'<img src="'+s.coacheeSignature+'" style="max-height:16mm;max-width:70mm">':'<div style="height:16mm;border-bottom:0.5pt solid #D0DDE5;width:200px"></div>'}
-    </div>
-    <div style="margin-top:8mm;padding-top:2mm;border-top:0.5pt solid #D0DDE5;font-size:7pt;color:#5A7A8E;text-align:center">© Dermorepubliq Corporation · BOOST Hub Coaching Log · Confidential</div>
-  </div>
-</div>`;
-  return div;
-}
-
-// ── Update VIEWS to wire up load functions ────────────────────
-VIEWS['all-sessions']['load']      = loadAllSessions;
-VIEWS['coach-new-session']['load'] = loadSessionForm;
-VIEWS['coach-sessions']['load']    = loadCoachSessions;
-
-</script>
-</body>
-</html>
+      <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:38%">
