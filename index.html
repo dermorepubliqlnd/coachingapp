@@ -2020,4 +2020,51 @@ function buildPdfElement(s, coachee, coach) {
   <table style="width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:3mm">
     <thead><tr style="background:#EEF4F7">
       <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:42%">Action</th>
-      <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:38%">
+      <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:38%">Support / Resources Needed</th>
+      <th style="padding:1.5mm 2.5mm;border:0.5pt solid #D0DDE5;text-align:left;width:20%">Due Date</th>
+    </tr></thead>
+    <tbody>${apRows}</tbody>
+  </table>
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
+    <tr>
+      <td style="width:50%;padding:1.5mm 2mm"><div style="font-size:7.5pt;color:#5A7A8E;margin-bottom:0.5mm">NEXT COACHING SESSION</div><div style="font-weight:bold">${esc(fmtDate(s.nextSessionDate))}</div></td>
+      <td style="width:50%;padding:1.5mm 2mm"></td>
+    </tr>
+  </table>
+  <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">COACH'S SIGNATURE</div>
+  <div style="padding:2mm 2.5mm 3mm;min-height:20mm">
+    ${s.coachSignature ? '<img src="'+s.coachSignature+'" style="max-height:18mm;max-width:60mm">' : '<span style="color:#5A7A8E;font-style:italic;font-size:8pt">—</span>'}
+    <div style="font-size:7.5pt;color:#5A7A8E;margin-top:1mm">${esc(coachName)}</div>
+  </div>
+</div>
+<div style="page-break-before:always"></div>
+<div style="border:1.5pt solid #0E2841;padding:5mm;margin-top:8mm">
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm"><tr>
+    <td style="width:22%;vertical-align:middle"><img src="Logo.png" style="max-height:14mm;max-width:100%" onerror="this.remove()"></td>
+    <td style="text-align:center;vertical-align:middle">
+      <div style="font-size:13pt;font-weight:bold;color:#0E2841;letter-spacing:0.5pt">COACHING LOG</div>
+      <div style="font-size:8pt;color:#5A7A8E;margin-top:1mm">Dermorepubliq Corporation — Learning &amp; Development</div>
+    </td>
+    <td style="width:22%;text-align:right;font-size:7pt;color:#5A7A8E;vertical-align:top"><div>HR-TMP-009-1.2-2025</div><div>Page 2 of 2</div></td>
+  </tr></table>
+  <hr style="border:0;border-top:1pt solid #0E2841;margin-bottom:4mm">
+  <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">EMPLOYEE'S REFLECTION</div>
+  <div style="padding:0 2.5mm 3mm;min-height:28mm;font-size:8.5pt">${s.employeeReflection||'<span style="color:#5A7A8E;font-style:italic">To be completed by employee upon acknowledgement.</span>'}</div>
+  <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">EMPLOYEE'S SIGNATURE &amp; DATE</div>
+  <div style="padding:2mm 2.5mm 3mm;min-height:20mm">
+    ${s.coacheeSignature ? '<img src="'+s.coacheeSignature+'" style="max-height:18mm;max-width:60mm">' : '<span style="color:#5A7A8E;font-style:italic;font-size:8pt">—</span>'}
+    <div style="font-size:7.5pt;color:#5A7A8E;margin-top:1mm">${esc(cName)} · ${s.acknowledgedAt ? new Date(s.acknowledgedAt.seconds*1000).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : '—'}</div>
+  </div>
+  <hr style="border:0;border-top:0.5pt solid #D0DDE5;margin:3mm 0">
+  <div style="font-size:7pt;color:#5A7A8E;text-align:center">© ${new Date().getFullYear()} Dermorepubliq Corporation · HR-TMP-009-1.2-2025 · Confidential</div>
+</div>`;
+  return div;
+}
+
+// ── Wire up lazy-loaded views ────────────────────────────────
+VIEWS['all-sessions']['load']      = loadAllSessions;
+VIEWS['coach-new-session']['load'] = loadSessionForm;
+VIEWS['coach-sessions']['load']    = loadCoachSessions;
+</script>
+</body>
+</html>
