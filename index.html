@@ -5345,36 +5345,23 @@ window.downloadFromPreview = async function() {
     const coach   = allUsers.find(u=>u.uid===s.coachId) || currentProfile;
     const cLast  = coachee ? coachee.lastName  : 'Unknown';
     const cFirst = coachee ? coachee.firstName : '';
-    // Show white overlay so user doesn't see the PDF element during capture
-    const _overlay = document.createElement('div');
-    _overlay.style.cssText = 'position:fixed;inset:0;background:white;z-index:99999;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif;font-size:14px;color:#666';
-    _overlay.textContent = 'Generating PDF…';
-    document.body.appendChild(_overlay);
-    // Clone the already-rendered preview element — position it in viewport behind overlay
+    // Get the already-rendered preview HTML and pass as string to html2pdf
+    // (avoids all DOM positioning / z-index / canvas-taint issues)
     const previewContent = document.getElementById('pdf-preview-content');
     const sourceEl = previewContent && previewContent.firstElementChild;
-    let pdfEl;
-    if (sourceEl) {
-      pdfEl = sourceEl.cloneNode(true);
-      pdfEl.style.cssText = 'width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px;position:fixed;top:0;left:0;z-index:99998';
-    } else {
-      pdfEl = buildPdfElement(s, coachee, coach);
-      pdfEl.style.cssText = 'width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px;position:fixed;top:0;left:0;z-index:99998';
-    }
-    document.body.appendChild(pdfEl);
-    await new Promise(r => setTimeout(r, 200));
+    const pdfHtml = sourceEl
+      ? '<div style="width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px">' + sourceEl.innerHTML + '</div>'
+      : null;
+    if (!pdfHtml) { toast('Preview not open — please open the preview first.','error'); btn.disabled=false; btn.innerHTML='&#11015; Download PDF'; return; }
     await html2pdf().set({
       margin:[10,10,10,10],
-      filename:'Coaching Log - '+cFirst+' '+cLast+' - '+(s.sessionDate||''),
+      filename:'Coaching Log - '+cFirst+' '+cLast+' - '+(s.sessionDate||'')+'.pdf',
       image:{type:'jpeg',quality:0.98},
       html2canvas:{scale:2,useCORS:true,logging:false,willReadFrequently:true},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
-    }).from(pdfEl).save();
-    document.body.removeChild(pdfEl);
-    document.body.removeChild(_overlay);
+    }).from(pdfHtml,'string').save();
     toast('PDF downloaded.','success');
   } catch(e) {
-    if (document.body.contains(_overlay)) document.body.removeChild(_overlay);
     toast('PDF error: '+e.message,'error');
   }
   btn.disabled = false; btn.innerHTML = '&#11015; Download PDF';
