@@ -1243,8 +1243,8 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Upload Signature Image
           <input type="file" id="mp-sig-upload" accept="image/*" style="display:none" onchange="previewProfileSig(this)">
-        <div style="font-size:11.5px;color:var(--muted);margin-top:6px">Resized to fit 500×150px. Use a white or transparent background.</div>
         </label>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:6px">Resized to fit 500×150px. Use a white or transparent background.</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -4605,7 +4605,7 @@ window.generatePDF = async function() {
     const cName = coachee ? coachee.lastName : 'Unknown';
     const dStr  = (sessionData.sessionDate||'').replace(/-/g,'');
     await html2pdf().set({
-      margin:[12,12,12,12],
+      margin:[12.7,12.7,12.7,12.7],
       filename:'CoachingLog_'+cName+'_'+dStr+'.pdf',
       image:{type:'jpeg',quality:0.98},
       html2canvas:{scale:2,useCORS:true,logging:false,willReadFrequently:true},
@@ -4629,7 +4629,7 @@ function buildPdfElement(s, coachee, coach) {
     ? (s.actionPlan||[]).map(r=>`<tr><td style="padding:2mm 2.5mm;border:0.5pt solid #D0DDE5;vertical-align:top">${esc(r.action||'')}</td><td style="padding:2mm 2.5mm;border:0.5pt solid #D0DDE5;vertical-align:top">${esc(r.support||'')}</td><td style="padding:2mm 2.5mm;border:0.5pt solid #D0DDE5;vertical-align:top;white-space:nowrap">${esc(r.dueDate||'')}</td></tr>`).join('')
     : `<tr><td colspan="3" style="padding:3mm;border:0.5pt solid #D0DDE5;color:#5A7A8E;text-align:center">No action items recorded</td></tr>`;
   div.innerHTML = `
-<div style="border:1.5pt solid #0E2841;padding:5mm">
+<div style="padding:5mm">
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm"><tr>
     <td style="width:22%;vertical-align:middle;font-size:9pt;font-weight:700;color:#0E2841">DERMOREPUBLIQ<br>L&amp;D</td>
     <td style="text-align:center;vertical-align:middle">
@@ -4679,7 +4679,7 @@ function buildPdfElement(s, coachee, coach) {
   </table>
 </div>
 <div style="page-break-before:always"></div>
-<div style="border:1.5pt solid #0E2841;padding:5mm;margin-top:8mm">
+<div style="padding:5mm">
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm"><tr>
     <td style="width:22%;vertical-align:middle;font-size:9pt;font-weight:700;color:#0E2841">DERMOREPUBLIQ<br>L&amp;D</td>
     <td style="text-align:center;vertical-align:middle">
@@ -5345,23 +5345,19 @@ window.downloadFromPreview = async function() {
     const coach   = allUsers.find(u=>u.uid===s.coachId) || currentProfile;
     const cLast  = coachee ? coachee.lastName  : 'Unknown';
     const cFirst = coachee ? coachee.firstName : '';
-    // Get the already-rendered preview HTML and pass as string to html2pdf
-    // (avoids all DOM positioning / z-index / canvas-taint issues)
-    const previewContent = document.getElementById('pdf-preview-content');
-    const sourceEl = previewContent && previewContent.firstElementChild;
-    const pdfHtml = sourceEl
-      ? '<div style="width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px">' + sourceEl.innerHTML + '</div>'
-      : null;
-    if (!pdfHtml) { toast('Preview not open — please open the preview first.','error'); btn.disabled=false; btn.innerHTML='&#11015; Download PDF'; return; }
+    const pdfEl = buildPdfElement(s, coachee, coach);
+    document.body.appendChild(pdfEl);
     await html2pdf().set({
-      margin:[10,10,10,10],
+      margin:[12.7,12.7,12.7,12.7],
       filename:'Coaching Log - '+cFirst+' '+cLast+' - '+(s.sessionDate||'')+'.pdf',
       image:{type:'jpeg',quality:0.98},
       html2canvas:{scale:2,useCORS:true,logging:false,willReadFrequently:true},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
-    }).from(pdfHtml,'string').save();
+    }).from(pdfEl).save();
+    document.body.removeChild(pdfEl);
     toast('PDF downloaded.','success');
   } catch(e) {
+    if (document.body.contains(pdfEl)) document.body.removeChild(pdfEl);
     toast('PDF error: '+e.message,'error');
   }
   btn.disabled = false; btn.innerHTML = '&#11015; Download PDF';
