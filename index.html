@@ -426,7 +426,12 @@
       </div>
       <div class="form-group">
         <label class="form-label">Password</label>
-        <input type="password" id="login-password" class="form-control" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required autocomplete="current-password">
+        <div style="position:relative">
+          <input type="password" id="login-password" class="form-control" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" required autocomplete="current-password" style="padding-right:38px">
+          <button type="button" onclick="togglePwPeek()" title="Show/hide password" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:0;display:flex;align-items:center" id="pw-peek-btn">
+            <svg id="pw-peek-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
       </div>
       <div id="login-error" class="form-error-msg" style="margin-bottom:10px"></div>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center" id="login-btn">Sign In</button>
@@ -434,10 +439,10 @@
     <div style="margin-top:14px;text-align:center">
       <button type="button" onclick="toggleForgotPw()" id="forgot-pw-link" style="background:none;border:none;color:var(--blue);font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px">Forgot your password?</button>
     </div>
-    <div id="forgot-pw-panel" style="display:none;margin-top:12px;border-top:1px solid rgba(255,255,255,.1);padding-top:14px">
-      <p style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:8px">Enter your email to receive a reset link.</p>
+    <div id="forgot-pw-panel" style="display:none;margin-top:12px;border-top:1px solid var(--border);padding-top:14px">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Enter your email and we'll send you a reset link.</p>
       <input type="email" id="forgot-pw-email" class="form-control" placeholder="your.email@company.com" style="margin-bottom:8px">
-      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;color:white;border-color:rgba(255,255,255,.25)" onclick="sendForgotPwEmail()">Send Reset Link</button>
+      <button type="button" class="btn btn-primary" style="width:100%;justify-content:center" onclick="sendForgotPwEmail()">Send Reset Link</button>
       <div id="forgot-pw-msg" style="font-size:12px;margin-top:6px;text-align:center"></div>
     </div>
   </div>
@@ -1860,6 +1865,17 @@ function authErr(code) {
   return 'Sign in failed. Please try again.';
 }
 
+window.togglePwPeek = function() {
+  const inp = document.getElementById('login-password');
+  const icon = document.getElementById('pw-peek-icon');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  } else {
+    inp.type = 'password';
+    icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  }
+};
 window.doLogout = () => signOut(auth);
 window.goHome = () => {
   const sb = document.getElementById('sidebar');
@@ -5327,15 +5343,26 @@ window.downloadFromPreview = async function() {
     if (!allUsers.length) await refreshUsers();
     const coachee = allUsers.find(u=>u.uid===s.coacheeId);
     const coach   = allUsers.find(u=>u.uid===s.coachId) || currentProfile;
-    const pdfEl   = buildPdfElement(s, coachee, coach);
-    document.body.appendChild(pdfEl);
     const cLast  = coachee ? coachee.lastName  : 'Unknown';
     const cFirst = coachee ? coachee.firstName : '';
+    // Clone the already-rendered preview element (known to render correctly)
+    const previewContent = document.getElementById('pdf-preview-content');
+    const sourceEl = previewContent && previewContent.firstElementChild;
+    let pdfEl;
+    if (sourceEl) {
+      pdfEl = sourceEl.cloneNode(true);
+      pdfEl.style.cssText = 'width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px;position:absolute;top:0;left:0;z-index:-1';
+    } else {
+      pdfEl = buildPdfElement(s, coachee, coach);
+      pdfEl.style.cssText = 'width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px;position:absolute;top:0;left:0;z-index:-1';
+    }
+    document.body.appendChild(pdfEl);
+    await new Promise(r => setTimeout(r, 150));
     await html2pdf().set({
-      margin:[12,12,12,12],
+      margin:[10,10,10,10],
       filename:'Coaching Log - '+cFirst+' '+cLast+' - '+(s.sessionDate||''),
       image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,logging:false,scrollX:0,scrollY:0,windowWidth:794},
+      html2canvas:{scale:2,useCORS:true,logging:false,scrollX:0,scrollY:0},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
     }).from(pdfEl).save();
     document.body.removeChild(pdfEl);
