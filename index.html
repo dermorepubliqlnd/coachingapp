@@ -4602,26 +4602,23 @@ async function _openPdfWindow(sessionId) {
     const cName   = coachee ? coachee.lastName+'_'+(coachee.firstName||'') : 'Unknown';
     const dStr    = (s.sessionDate||'').replace(/-/g,'');
     const title   = 'CoachingLog_'+cName+'_'+dStr;
-    const w = window.open('','_blank');
-    if (!w) { toast('Please allow pop-ups for this site.','error'); return; }
-    w.document.write(\`<!DOCTYPE html><html><head><meta charset="utf-8"><title>\${title}</title>
-<style>
-  body{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;margin:0;padding:0}
-  @media print{@page{size:A4;margin:12.7mm} body{margin:0} .pdf-toolbar{display:none}}
-  @media screen{body{padding:24px;background:#f0f0f0} .pdf-page{background:white;max-width:794px;margin:0 auto;padding:12.7mm;box-shadow:0 2px 12px rgba(0,0,0,.15)}}
-  .pdf-toolbar{position:fixed;top:0;left:0;right:0;background:#0E2841;color:white;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:999;font-family:Arial;font-size:13px}
-  .pdf-toolbar button{background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3);padding:6px 16px;border-radius:5px;cursor:pointer;font-size:13px}
-  .pdf-toolbar button:hover{background:rgba(255,255,255,.25)}
-</style></head><body>
-<div class="pdf-toolbar">
-  <span style="font-weight:700;letter-spacing:.5px">BOOST Hub — Coaching Log</span>
-  <button onclick="window.print()">⬇ Save / Download PDF</button>
-  <button onclick="window.close()" style="margin-left:auto">✕ Close</button>
-</div>
-<div class="pdf-page" style="margin-top:52px">\${pdfEl.innerHTML}</div>
-<script>setTimeout(function(){window.print()},800);<\/script>
-</body></html>\`);
-    w.document.close();
+    const css = '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;margin:0;padding:0}'
+      + '@media print{@page{size:A4;margin:12.7mm}body{margin:0!important}.pdf-toolbar{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important}}'
+      + '@media screen{body{padding:24px;background:#f0f0f0}.pdf-page{background:white;max-width:794px;margin:0 auto;padding:12.7mm;box-shadow:0 2px 12px rgba(0,0,0,.15)}}'
+      + '.pdf-toolbar{position:fixed;top:0;left:0;right:0;background:#0E2841;color:white;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:999;font-family:Arial;font-size:13px}'
+      + '.pdf-toolbar button{background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3);padding:6px 16px;border-radius:5px;cursor:pointer;font-size:13px}';
+    const body = '<div class="pdf-toolbar">'
+      + '<span style="font-weight:700;letter-spacing:.5px">BOOST Hub — Coaching Log</span>'
+      + '<button onclick="window.print()">⬇ Save / Download PDF</button>'
+      + '<button onclick="window.close()" style="margin-left:auto">✕ Close</button>'
+      + '</div>'
+      + '<div class="pdf-page" style="margin-top:52px">'+pdfEl.innerHTML+'</div>'
+      + '<sc'+'ript>setTimeout(function(){window.print()},800);</sc'+'ript>';
+    const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'+css+'</style></head><body>'+body+'</body></html>';
+    const blob = new Blob([fullHtml], {type:'text/html'});
+    const blobUrl = URL.createObjectURL(blob);
+    const w = window.open(blobUrl, '_blank');
+    if (!w) { toast('Please allow pop-ups for this site.','error'); URL.revokeObjectURL(blobUrl); return; }
   } catch(e) { toast('PDF error: '+e.message,'error'); console.error(e); }
 }
 window.generatePDF = function() { return _openPdfWindow(currentSessionId); };
@@ -4687,6 +4684,8 @@ function buildPdfElement(s, coachee, coach) {
       <td style="width:50%;padding:1.5mm 2mm"></td>
     </tr>
   </table>
+  <hr style="border:0;border-top:0.5pt solid #D0DDE5;margin:3mm 0">
+  <div style="font-size:7pt;color:#5A7A8E;text-align:center">© ${new Date().getFullYear()} Dermorepubliq Corporation · HR-TMP-009-1.2-2025 · Confidential</div>
 </div>
 <div style="page-break-before:always"></div>
 <div style="padding:5mm">
