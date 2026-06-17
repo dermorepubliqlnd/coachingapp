@@ -1981,9 +1981,6 @@ function renderSidebar() {
     html += ni('my-coaching',      NAV_ICONS.coaching,  roles.length > 1 ? 'My Coaching' : 'My Sessions');
     html += ni('my-action-plans',  NAV_ICONS.checklist, 'My Action Plans');
   }
-  // My Profile — visible to all
-  html += '<div class="nav-spacer"></div>';
-  html += '<div class="nav-item" data-label="My Profile" onclick="openProfileModal()"><span class="nav-icon">'+NAV_ICONS.profile+'</span><span class="nav-label">My Profile</span></div>';
   // Admin section — pushed to bottom
   if (roles.includes('director')) {
     html += '<div class="nav-spacer"></div>';
@@ -1992,6 +1989,9 @@ function renderSidebar() {
     html += ni('settings', NAV_ICONS.settings, 'Settings');
     html += ni('users',    NAV_ICONS.users,    'User Management');
   }
+  // My Profile — always at the bottom for all roles
+  if (!roles.includes('director')) html += '<div class="nav-spacer"></div>';
+  html += '<div class="nav-item" data-label="My Profile" onclick="openProfileModal()"><span class="nav-icon">'+NAV_ICONS.profile+'</span><span class="nav-label">My Profile</span></div>';
   document.getElementById('nav-menu').innerHTML = html;
   document.getElementById('sb-avatar').textContent = ini(currentProfile.firstName, currentProfile.lastName);
   document.getElementById('sb-name').textContent   = currentProfile.firstName + ' ' + currentProfile.lastName;
@@ -4608,7 +4608,7 @@ window.generatePDF = async function() {
       margin:[12,12,12,12],
       filename:'CoachingLog_'+cName+'_'+dStr+'.pdf',
       image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,allowTaint:true,logging:false,willReadFrequently:true},
+      html2canvas:{scale:2,useCORS:true,logging:false,willReadFrequently:true},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
     }).from(pdfEl).save();
     document.body.removeChild(pdfEl);
@@ -4631,7 +4631,7 @@ function buildPdfElement(s, coachee, coach) {
   div.innerHTML = `
 <div style="border:1.5pt solid #0E2841;padding:5mm">
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm"><tr>
-    <td style="width:22%;vertical-align:middle"><img src="Logo.png" style="max-height:14mm;max-width:100%" onerror="this.style.display='none'"></td>
+    <td style="width:22%;vertical-align:middle;font-size:9pt;font-weight:700;color:#0E2841">DERMOREPUBLIQ<br>L&amp;D</td>
     <td style="text-align:center;vertical-align:middle">
       <div style="font-size:13pt;font-weight:bold;color:#0E2841;letter-spacing:0.5pt">COACHING LOG</div>
       <div style="font-size:8pt;color:#5A7A8E;margin-top:1mm">Dermorepubliq Corporation — Learning &amp; Development</div>
@@ -4681,7 +4681,7 @@ function buildPdfElement(s, coachee, coach) {
 <div style="page-break-before:always"></div>
 <div style="border:1.5pt solid #0E2841;padding:5mm;margin-top:8mm">
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm"><tr>
-    <td style="width:22%;vertical-align:middle"><img src="Logo.png" style="max-height:14mm;max-width:100%" onerror="this.remove()"></td>
+    <td style="width:22%;vertical-align:middle;font-size:9pt;font-weight:700;color:#0E2841">DERMOREPUBLIQ<br>L&amp;D</td>
     <td style="text-align:center;vertical-align:middle">
       <div style="font-size:13pt;font-weight:bold;color:#0E2841;letter-spacing:0.5pt">COACHING LOG</div>
       <div style="font-size:8pt;color:#5A7A8E;margin-top:1mm">Dermorepubliq Corporation — Learning &amp; Development</div>
@@ -5351,10 +5351,10 @@ window.downloadFromPreview = async function() {
     let pdfEl;
     if (sourceEl) {
       pdfEl = sourceEl.cloneNode(true);
-      pdfEl.style.cssText = 'width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px;position:absolute;top:0;left:0;z-index:-1';
+      pdfEl.style.cssText = 'width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px;position:fixed;top:0;left:0;visibility:hidden';
     } else {
       pdfEl = buildPdfElement(s, coachee, coach);
-      pdfEl.style.cssText = 'width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px;position:absolute;top:0;left:0;z-index:-1';
+      pdfEl.style.cssText = 'width:794px;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:30px;position:fixed;top:0;left:0;visibility:hidden';
     }
     document.body.appendChild(pdfEl);
     await new Promise(r => setTimeout(r, 150));
@@ -5362,7 +5362,7 @@ window.downloadFromPreview = async function() {
       margin:[10,10,10,10],
       filename:'Coaching Log - '+cFirst+' '+cLast+' - '+(s.sessionDate||''),
       image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,allowTaint:true,logging:false,willReadFrequently:true},
+      html2canvas:{scale:2,useCORS:true,logging:false,willReadFrequently:true},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
     }).from(pdfEl).save();
     document.body.removeChild(pdfEl);
