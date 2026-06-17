@@ -4586,36 +4586,46 @@ window.acknowledgeSession = async function() {
 };
 
 // ── PDF Generation ────────────────────────────────────────────
-window.generateSessionPDF = function() { return window.generatePDF(); }; // alias for coachee PDF button
-window.generatePDF = async function() {
-  const btn = document.getElementById('pdf-btn');
-  btn.disabled = true; btn.textContent = 'Generating…';
+// ── PDF Generation (print-window approach — reliable across all browsers) ──
+async function _openPdfWindow(sessionId) {
+  const sid = sessionId || currentSessionId;
+  if (!sid) { toast('No session selected.','error'); return; }
   try {
-    let sessionData = null;
-    if (currentSessionId) {
-      const snap = await getDoc(doc(db,'sessions',currentSessionId));
-      if (snap.exists()) sessionData = snap.data();
-    }
-    if (!sessionData) sessionData = buildSessionData(currentSessionId ? 'draft' : 'draft');
     if (!allUsers.length) await refreshUsers();
-    const coachee = allUsers.find(u=>u.uid===(sessionData.coacheeId||currentSessionCoacheeId));
-    const coach   = allUsers.find(u=>u.uid===currentUser.uid)||currentProfile;
-    const pdfEl   = buildPdfElement(sessionData, coachee, coach);
-    document.body.appendChild(pdfEl);
-    const cName = coachee ? coachee.lastName : 'Unknown';
-    const dStr  = (sessionData.sessionDate||'').replace(/-/g,'');
-    await html2pdf().set({
-      margin:[12.7,12.7,12.7,12.7],
-      filename:'CoachingLog_'+cName+'_'+dStr+'.pdf',
-      image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,logging:false,willReadFrequently:true},
-      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
-    }).from(pdfEl).save();
-    document.body.removeChild(pdfEl);
-    toast('PDF exported.','success');
+    let s;
+    const snap = await getDoc(doc(db,'sessions',sid));
+    if (snap.exists()) s = snap.data();
+    if (!s) { toast('Session not found.','error'); return; }
+    const coachee = allUsers.find(u=>u.uid===s.coacheeId);
+    const coach   = allUsers.find(u=>u.uid===(s.coachId||currentUser.uid)) || currentProfile;
+    const pdfEl   = buildPdfElement(s, coachee, coach);
+    const cName   = coachee ? coachee.lastName+'_'+(coachee.firstName||'') : 'Unknown';
+    const dStr    = (s.sessionDate||'').replace(/-/g,'');
+    const title   = 'CoachingLog_'+cName+'_'+dStr;
+    const w = window.open('','_blank');
+    if (!w) { toast('Please allow pop-ups for this site.','error'); return; }
+    w.document.write(\`<!DOCTYPE html><html><head><meta charset="utf-8"><title>\${title}</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;margin:0;padding:0}
+  @media print{@page{size:A4;margin:12.7mm} body{margin:0} .pdf-toolbar{display:none}}
+  @media screen{body{padding:24px;background:#f0f0f0} .pdf-page{background:white;max-width:794px;margin:0 auto;padding:12.7mm;box-shadow:0 2px 12px rgba(0,0,0,.15)}}
+  .pdf-toolbar{position:fixed;top:0;left:0;right:0;background:#0E2841;color:white;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:999;font-family:Arial;font-size:13px}
+  .pdf-toolbar button{background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3);padding:6px 16px;border-radius:5px;cursor:pointer;font-size:13px}
+  .pdf-toolbar button:hover{background:rgba(255,255,255,.25)}
+</style></head><body>
+<div class="pdf-toolbar">
+  <span style="font-weight:700;letter-spacing:.5px">BOOST Hub — Coaching Log</span>
+  <button onclick="window.print()">⬇ Save / Download PDF</button>
+  <button onclick="window.close()" style="margin-left:auto">✕ Close</button>
+</div>
+<div class="pdf-page" style="margin-top:52px">\${pdfEl.innerHTML}</div>
+<script>setTimeout(function(){window.print()},800);<\/script>
+</body></html>\`);
+    w.document.close();
   } catch(e) { toast('PDF error: '+e.message,'error'); console.error(e); }
-  btn.disabled = false; btn.textContent = '⬇ Export PDF';
-};
+}
+window.generatePDF = function() { return _openPdfWindow(currentSessionId); };
+window.generateSessionPDF = function() { return _openPdfWindow(currentSessionId); };
 
 function buildPdfElement(s, coachee, coach) {
   const div = document.createElement('div');
@@ -5332,36 +5342,7 @@ window.openSessionPdfModal = async function(sessionId) {
   } catch(e) { content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Error: '+esc(e.message)+'</div>'; }
 };
 
-window.downloadFromPreview = async function() {
-  if (!_previewSessionId) return;
-  const btn = document.getElementById('pdf-download-btn');
-  btn.disabled = true; btn.textContent = 'Generating…';
-  try {
-    const snap = await getDoc(doc(db,'sessions',_previewSessionId));
-    if (!snap.exists()) { toast('Session not found.','error'); return; }
-    const s = snap.data();
-    if (!allUsers.length) await refreshUsers();
-    const coachee = allUsers.find(u=>u.uid===s.coacheeId);
-    const coach   = allUsers.find(u=>u.uid===s.coachId) || currentProfile;
-    const cLast  = coachee ? coachee.lastName  : 'Unknown';
-    const cFirst = coachee ? coachee.firstName : '';
-    const pdfEl = buildPdfElement(s, coachee, coach);
-    document.body.appendChild(pdfEl);
-    await html2pdf().set({
-      margin:[12.7,12.7,12.7,12.7],
-      filename:'Coaching Log - '+cFirst+' '+cLast+' - '+(s.sessionDate||'')+'.pdf',
-      image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,logging:false,willReadFrequently:true},
-      jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
-    }).from(pdfEl).save();
-    document.body.removeChild(pdfEl);
-    toast('PDF downloaded.','success');
-  } catch(e) {
-    if (document.body.contains(pdfEl)) document.body.removeChild(pdfEl);
-    toast('PDF error: '+e.message,'error');
-  }
-  btn.disabled = false; btn.innerHTML = '&#11015; Download PDF';
-};
+window.downloadFromPreview = function() { return _openPdfWindow(_previewSessionId); };
 
 // ── Return session for review (coachee) ───────────────────────
 window.submitRejection = async function() {
