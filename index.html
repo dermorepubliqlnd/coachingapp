@@ -4608,7 +4608,7 @@ window.generatePDF = async function() {
       margin:[12,12,12,12],
       filename:'CoachingLog_'+cName+'_'+dStr+'.pdf',
       image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,logging:false,scrollX:0,scrollY:0,windowWidth:794},
+      html2canvas:{scale:2,useCORS:true,allowTaint:true,logging:false,willReadFrequently:true},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
     }).from(pdfEl).save();
     document.body.removeChild(pdfEl);
@@ -4619,7 +4619,7 @@ window.generatePDF = async function() {
 
 function buildPdfElement(s, coachee, coach) {
   const div = document.createElement('div');
-  div.style.cssText = 'position:fixed;top:0;left:0;width:186mm;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:8mm;z-index:-1;pointer-events:none';
+  div.style.cssText = 'position:fixed;top:-9999px;left:0;width:186mm;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:8mm';
   const cName     = coachee ? coachee.firstName+' '+coachee.lastName : '';
   const coachName = coach   ? coach.firstName+' '+coach.lastName     : '';
   const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : '';
@@ -4631,7 +4631,7 @@ function buildPdfElement(s, coachee, coach) {
   div.innerHTML = `
 <div style="border:1.5pt solid #0E2841;padding:5mm">
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm"><tr>
-    <td style="width:22%;vertical-align:middle"><img src="Logo.png" style="max-height:14mm;max-width:100%" onerror="this.remove()"></td>
+    <td style="width:22%;vertical-align:middle"><img src="Logo.png" style="max-height:14mm;max-width:100%" onerror="this.style.display='none'"></td>
     <td style="text-align:center;vertical-align:middle">
       <div style="font-size:13pt;font-weight:bold;color:#0E2841;letter-spacing:0.5pt">COACHING LOG</div>
       <div style="font-size:8pt;color:#5A7A8E;margin-top:1mm">Dermorepubliq Corporation — Learning &amp; Development</div>
@@ -5362,7 +5362,7 @@ window.downloadFromPreview = async function() {
       margin:[10,10,10,10],
       filename:'Coaching Log - '+cFirst+' '+cLast+' - '+(s.sessionDate||''),
       image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,logging:false,scrollX:0,scrollY:0},
+      html2canvas:{scale:2,useCORS:true,allowTaint:true,logging:false,willReadFrequently:true},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
     }).from(pdfEl).save();
     document.body.removeChild(pdfEl);
