@@ -100,7 +100,7 @@
     .user-role-label{font-size:10.5px;color:rgba(255,255,255,.4)}
     .logout-btn{background:none;border:none;color:rgba(255,255,255,.3);padding:4px 5px;border-radius:4px;display:flex;align-items:center;justify-content:center;transition:color .15s,background .15s,opacity .15s,max-width .22s}
     .logout-btn:hover{color:rgba(255,255,255,.8);background:rgba(255,255,255,.08)}
-    #sidebar.collapsed .logout-btn{opacity:0;max-width:0;padding:0;overflow:hidden;pointer-events:none}
+    #sidebar.collapsed .logout-btn{opacity:1;color:rgba(255,255,255,.45)}
 
     /* MAIN */
     #main-wrapper{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
@@ -431,7 +431,15 @@
       <div id="login-error" class="form-error-msg" style="margin-bottom:10px"></div>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center" id="login-btn">Sign In</button>
     </form>
-    <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">Forgot your password? Contact your L&amp;D Director.</p>
+    <div style="margin-top:14px;text-align:center">
+      <button type="button" onclick="toggleForgotPw()" id="forgot-pw-link" style="background:none;border:none;color:var(--blue);font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px">Forgot your password?</button>
+    </div>
+    <div id="forgot-pw-panel" style="display:none;margin-top:12px;border-top:1px solid rgba(255,255,255,.1);padding-top:14px">
+      <p style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:8px">Enter your email to receive a reset link.</p>
+      <input type="email" id="forgot-pw-email" class="form-control" placeholder="your.email@company.com" style="margin-bottom:8px">
+      <button type="button" class="btn btn-ghost" style="width:100%;justify-content:center;color:white;border-color:rgba(255,255,255,.25)" onclick="sendForgotPwEmail()">Send Reset Link</button>
+      <div id="forgot-pw-msg" style="font-size:12px;margin-top:6px;text-align:center"></div>
+    </div>
   </div>
 </div>
 
@@ -1162,6 +1170,36 @@
   </div><!-- .app-layout -->
 </div><!-- #app -->
 
+<!-- MODAL: E-SIGNATURE GATE (hard gate, no dismiss) -->
+<div id="modal-sig-gate" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-header" style="border-bottom:1px solid var(--border)">
+      <div class="modal-title">Welcome to BOOST Hub ✦</div>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13.5px;color:var(--text);margin-bottom:4px">One quick thing before you start.</p>
+      <p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px">Your e-signature is required for coaching session PDFs. Please upload a clear image on a white or transparent background — it only takes a moment.</p>
+      <div id="sg-preview" style="display:none;margin-bottom:12px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:#fafafa;text-align:center">
+        <img id="sg-img" style="max-height:80px;max-width:100%">
+        <div style="margin-top:6px"><button class="btn btn-ghost btn-sm" onclick="clearSigGate()">Remove</button></div>
+      </div>
+      <div id="sg-empty" style="padding:24px 16px;border:1.5px dashed var(--border);border-radius:var(--radius);text-align:center;color:var(--muted);font-size:13px;margin-bottom:12px">
+        No signature uploaded yet
+      </div>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Signature Image
+        <input type="file" id="sg-upload" accept="image/*" style="display:none" onchange="previewSigGate(this)">
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px">Resized to fit 500×150px. Use a white or transparent background.</div>
+      </label>
+      <div id="sg-error" style="display:none;color:var(--red);font-size:12px;margin-top:8px">Please upload your signature to continue.</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="sg-save-btn" onclick="saveSigGate()">Save &amp; Continue</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: MY PROFILE / E-SIGNATURE -->
 <div id="modal-profile" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-profile')">
   <div class="modal-box" style="max-width:480px">
@@ -1200,6 +1238,7 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           Upload Signature Image
           <input type="file" id="mp-sig-upload" accept="image/*" style="display:none" onchange="previewProfileSig(this)">
+        <div style="font-size:11.5px;color:var(--muted);margin-top:6px">Resized to fit 500×150px. Use a white or transparent background.</div>
         </label>
       </div>
     </div>
@@ -1283,9 +1322,12 @@
       </div>
       <div id="mu-error" class="form-error-msg"></div>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal('modal-user')">Cancel</button>
-      <button class="btn btn-primary" id="mu-save-btn" onclick="saveUser()">Create User</button>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-ghost" id="mu-reset-btn" style="display:none" onclick="sendUserResetEmail()">Send Reset Email</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="closeModal('modal-user')">Cancel</button>
+        <button class="btn btn-primary" id="mu-save-btn" onclick="saveUser()">Create User</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1745,6 +1787,7 @@ onAuthStateChanged(auth, async (user) => {
           }
         } catch(e) {}
         navigateTo(startView);
+        checkSignatureGate();
       } else {
         if (user.email === 'sbarlao@dermorepubliq.com') {
           hideAll();
@@ -2091,10 +2134,13 @@ window.openUserModal = function(uid) {
     if (u.coachId) coachSel.value = u.coachId;
     document.getElementById('mu-active-group').style.display = 'block';
     document.getElementById('mu-active').checked = u.active !== false;
+    document.getElementById('mu-reset-btn').style.display = 'inline-flex';
+    document.getElementById('mu-reset-btn').dataset.email = u.email || '';
   } else {
     document.getElementById('mu-title').textContent    = 'Add User';
     document.getElementById('mu-save-btn').textContent = 'Create User';
     document.getElementById('mu-save-btn').disabled    = false;
+    document.getElementById('mu-reset-btn').style.display = 'none';
   }
   updateCoachField();
   document.getElementById('modal-user').style.display = 'flex';
@@ -4611,11 +4657,6 @@ function buildPdfElement(s, coachee, coach) {
       <td style="width:50%;padding:1.5mm 2mm"></td>
     </tr>
   </table>
-  <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">COACH'S SIGNATURE</div>
-  <div style="padding:2mm 2.5mm 3mm;min-height:20mm">
-    ${coach && coach.signature ? '<img src="'+coach.signature+'" style="max-height:18mm;max-width:60mm">' : '<span style="color:#5A7A8E;font-style:italic;font-size:8pt">—</span>'}
-    <div style="font-size:7.5pt;color:#5A7A8E;margin-top:1mm">${esc(coachName)}</div>
-  </div>
 </div>
 <div style="page-break-before:always"></div>
 <div style="border:1.5pt solid #0E2841;padding:5mm;margin-top:8mm">
@@ -4630,11 +4671,24 @@ function buildPdfElement(s, coachee, coach) {
   <hr style="border:0;border-top:1pt solid #0E2841;margin-bottom:4mm">
   <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">EMPLOYEE'S COMMITMENT &amp; KEY TAKEAWAY</div>
   <div style="padding:0 2.5mm 3mm;min-height:28mm;font-size:8.5pt">${s.employeeCommitment||s.employeeReflection||'<span style="color:#5A7A8E;font-style:italic">To be completed by employee upon acknowledgement.</span>'}</div>
-  <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">EMPLOYEE'S SIGNATURE &amp; DATE</div>
-  <div style="padding:2mm 2.5mm 3mm;min-height:20mm">
-    ${s.coacheeSignature ? '<img src="'+s.coacheeSignature+'" style="max-height:18mm;max-width:60mm">' : '<span style="color:#5A7A8E;font-style:italic;font-size:8pt">—</span>'}
-    <div style="font-size:7.5pt;color:#5A7A8E;margin-top:1mm">${esc(cName)} · ${s.acknowledgedAt ? new Date(s.acknowledgedAt.seconds*1000).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : '—'}</div>
-  </div>
+  <table style="width:100%;border-collapse:collapse;margin-top:3mm">
+    <tr>
+      <td style="width:50%;padding:0 2mm 0 0;vertical-align:top;border-right:0.5pt solid #D0DDE5">
+        <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">COACH'S SIGNATURE</div>
+        <div style="padding:2mm 2.5mm;min-height:20mm">
+          ${coach && coach.signature ? '<img src="'+coach.signature+'" style="max-height:14mm;max-width:100%;display:block">' : '<div style="color:#5A7A8E;font-style:italic;font-size:8pt;padding-top:4mm">—</div>'}
+        </div>
+        <div style="padding:1mm 2.5mm 2mm;font-size:7.5pt;font-weight:600;color:#0E2841;letter-spacing:.3pt">${esc(coachName).toUpperCase()}</div>
+      </td>
+      <td style="width:50%;padding:0 0 0 3mm;vertical-align:top">
+        <div style="background:#EEF4F7;padding:1.5mm 2.5mm;font-weight:bold;font-size:8.5pt;color:#0E2841;margin-bottom:1.5mm">EMPLOYEE'S SIGNATURE &amp; DATE</div>
+        <div style="padding:2mm 2.5mm;min-height:20mm">
+          ${s.coacheeSignature ? '<img src="'+s.coacheeSignature+'" style="max-height:14mm;max-width:100%;display:block">' : '<div style="color:#5A7A8E;font-style:italic;font-size:8pt;padding-top:4mm">—</div>'}
+        </div>
+        <div style="padding:1mm 2.5mm 2mm;font-size:7.5pt;font-weight:600;color:#0E2841;letter-spacing:.3pt">${esc(cName).toUpperCase()} · ${s.acknowledgedAt ? new Date(s.acknowledgedAt.seconds*1000).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : '—'}</div>
+      </td>
+    </tr>
+  </table>
   <hr style="border:0;border-top:0.5pt solid #D0DDE5;margin:3mm 0">
   <div style="font-size:7pt;color:#5A7A8E;text-align:center">© ${new Date().getFullYear()} Dermorepubliq Corporation · HR-TMP-009-1.2-2025 · Confidential</div>
 </div>`;
@@ -5164,13 +5218,11 @@ window.openProfileModal = function() {
 };
 window.previewProfileSig = function(input) {
   const file = input.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    document.getElementById('mp-sig-img').src = e.target.result;
+  resizeSignatureImage(file, dataUrl => {
+    document.getElementById('mp-sig-img').src = dataUrl;
     document.getElementById('mp-sig-preview').style.display = 'block';
     document.getElementById('mp-sig-empty').style.display   = 'none';
-  };
-  reader.readAsDataURL(file);
+  });
 };
 window.clearProfileSig = function() {
   document.getElementById('mp-sig-img').src = '';
@@ -5747,6 +5799,126 @@ async function flushCarryOvers(sessionId, sessionDate) {
     } catch(e) { console.warn('Carry-over update failed for '+apId, e); }
   }
 }
+
+
+// ── Forgot Password (login screen) ──────────────────────────
+window.toggleForgotPw = function() {
+  const panel = document.getElementById('forgot-pw-panel');
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    const emailVal = document.getElementById('login-email')?.value || '';
+    if (emailVal) document.getElementById('forgot-pw-email').value = emailVal;
+    document.getElementById('forgot-pw-msg').textContent = '';
+  }
+};
+
+window.sendForgotPwEmail = async function() {
+  const email = (document.getElementById('forgot-pw-email').value || '').trim();
+  const msgEl = document.getElementById('forgot-pw-msg');
+  if (!email) { msgEl.style.color='var(--red)'; msgEl.textContent='Please enter your email address.'; return; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    msgEl.style.color='var(--green)';
+    msgEl.textContent='Reset link sent! Check your inbox.';
+  } catch(e) {
+    msgEl.style.color='var(--red)';
+    msgEl.textContent=e.code==='auth/user-not-found'?'No account found with that email.':'Error: '+e.message;
+  }
+};
+
+// ── Send Reset Email from User Management ───────────────────
+window.sendUserResetEmail = async function() {
+  const btn   = document.getElementById('mu-reset-btn');
+  const email = btn.dataset.email;
+  if (!email) { toast('No email on file for this user.','error'); return; }
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await sendPasswordResetEmail(auth, email);
+    toast('Password reset email sent to ' + email + '.', 'success');
+  } catch(e) {
+    toast('Error: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.textContent = orig;
+};
+
+// ── Signature resize utility ────────────────────────────────
+// Caps at MAX_SIG_W × MAX_SIG_H px, preserves aspect ratio, exports as PNG
+function resizeSignatureImage(file, callback) {
+  const MAX_W = 500, MAX_H = 150;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      // Scale down if needed
+      if (w > MAX_W || h > MAX_H) {
+        const scale = Math.min(MAX_W / w, MAX_H / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/png'));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── E-Signature Gate ─────────────────────────────────────────
+function checkSignatureGate() {
+  if (!currentProfile) return;
+  const sig = currentProfile.signature || '';
+  if (!sig || !sig.startsWith('data:')) {
+    document.getElementById('modal-sig-gate').style.display = 'flex';
+  }
+}
+
+window.previewSigGate = function(input) {
+  const file = input.files[0]; if (!file) return;
+  resizeSignatureImage(file, dataUrl => {
+    document.getElementById('sg-img').src = dataUrl;
+    document.getElementById('sg-preview').style.display = 'block';
+    document.getElementById('sg-empty').style.display   = 'none';
+    document.getElementById('sg-error').style.display   = 'none';
+  });
+};
+
+window.clearSigGate = function() {
+  document.getElementById('sg-img').src = '';
+  document.getElementById('sg-preview').style.display = 'none';
+  document.getElementById('sg-empty').style.display   = 'block';
+  document.getElementById('sg-upload').value          = '';
+};
+
+window.saveSigGate = async function() {
+  const imgSrc = document.getElementById('sg-img').src;
+  if (!imgSrc || !imgSrc.startsWith('data:')) {
+    document.getElementById('sg-error').style.display = 'block'; return;
+  }
+  const btn = document.getElementById('sg-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    await updateDoc(doc(db,'users',currentUser.uid), { signature: imgSrc, updatedAt: serverTimestamp() });
+    currentProfile.signature = imgSrc;
+    const u = allUsers.find(x=>x.uid===currentUser.uid);
+    if (u) u.signature = imgSrc;
+    document.getElementById('modal-sig-gate').style.display = 'none';
+    toast('Signature saved!','success');
+    // Sync to My Profile preview if open
+    const mpImg = document.getElementById('mp-sig-img');
+    if (mpImg) { mpImg.src = imgSrc; document.getElementById('mp-sig-preview').style.display='block'; document.getElementById('mp-sig-empty').style.display='none'; }
+  } catch(e) {
+    toast('Error saving signature: '+e.message,'error');
+    btn.disabled = false; btn.textContent = 'Save & Continue';
+  }
+};
 
 // ── Wire up lazy-loaded views ────────────────────────────────
 VIEWS['all-sessions']['load']      = loadAllSessions;
