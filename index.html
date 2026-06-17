@@ -4592,7 +4592,7 @@ window.generatePDF = async function() {
       margin:[12,12,12,12],
       filename:'CoachingLog_'+cName+'_'+dStr+'.pdf',
       image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,logging:false},
+      html2canvas:{scale:2,useCORS:true,logging:false,scrollX:0,scrollY:0,windowWidth:794},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
     }).from(pdfEl).save();
     document.body.removeChild(pdfEl);
@@ -4603,7 +4603,7 @@ window.generatePDF = async function() {
 
 function buildPdfElement(s, coachee, coach) {
   const div = document.createElement('div');
-  div.style.cssText = 'position:absolute;left:-9999px;top:0;width:186mm;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:8mm';
+  div.style.cssText = 'position:fixed;top:0;left:0;width:186mm;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:8mm;z-index:-1;pointer-events:none';
   const cName     = coachee ? coachee.firstName+' '+coachee.lastName : '';
   const coachName = coach   ? coach.firstName+' '+coach.lastName     : '';
   const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : '';
@@ -5335,7 +5335,7 @@ window.downloadFromPreview = async function() {
       margin:[12,12,12,12],
       filename:'Coaching Log - '+cFirst+' '+cLast+' - '+(s.sessionDate||''),
       image:{type:'jpeg',quality:0.98},
-      html2canvas:{scale:2,useCORS:true,logging:false},
+      html2canvas:{scale:2,useCORS:true,logging:false,scrollX:0,scrollY:0,windowWidth:794},
       jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
     }).from(pdfEl).save();
     document.body.removeChild(pdfEl);
