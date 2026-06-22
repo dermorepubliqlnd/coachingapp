@@ -3855,6 +3855,7 @@ let currentSessionCode      = null;
 let _sessionForceViewOnly   = false;
 let _pendingFlowType        = null; // set when flow type chosen from dropdown before coachee
 let _acknowledgingSession   = false; // race condition guard
+let _sendingPrepRequest     = false; // prevent double-send on prep request
 let quillObs  = null;
 let quillGoals = null;
 let actionRowCount = 0;
@@ -4522,36 +4523,44 @@ function unlockSessionForm() {
 
 // ── Coachee Acknowledgement ─────────────────────────────────
 window.acknowledgeSession = async function() {
-  if (_acknowledgingSession) return;
-  _acknowledgingSession = true;
-  const btn = document.getElementById('session-acknowledge-btn');
+  // Validate commitment BEFORE setting the guard flag so early returns don't corrupt it
   const commitment = (document.getElementById('sf-commitment-text').value||'').trim();
-
-  // Fetch current status
-  const snap2 = await getDoc(doc(db,'sessions',currentSessionId));
-  const curStatus = snap2.exists() ? snap2.data().status : '';
-
-  // Commitment is required for both coach-led (pending) and coachee-led (pending-commitment)
   if (!commitment) {
     toast('Please add your commitment before acknowledging.','error'); return;
   }
+  if (_acknowledgingSession) return;
+  _acknowledgingSession = true;
 
+  const btn = document.getElementById('session-acknowledge-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
-    const updateData = {
-      status:         'acknowledged',
-      acknowledgedAt: serverTimestamp(),
-      updatedAt:      serverTimestamp()
-    };
-    if (commitment) updateData.employeeCommitment = commitment;
+    // ── Atomic acknowledge + AP-sync dedup via apsSynced flag ──────────────
+    // runTransaction ensures only one concurrent call (across tabs) wins the
+    // status update and sets apsSynced:true. Subsequent calls see it already set.
+    let sessionData = null;
+    let shouldCreateAPs = false;
+    await runTransaction(db, async (transaction) => {
+      const sessRef  = doc(db,'sessions',currentSessionId);
+      const sessSnap = await transaction.get(sessRef);
+      if (!sessSnap.exists()) throw new Error('Session not found.');
+      sessionData = sessSnap.data();
+      if (sessionData.apsSynced) {
+        // Another tab already acknowledged — skip AP creation but still update UI
+        shouldCreateAPs = false;
+        return;
+      }
+      transaction.update(sessRef, {
+        status:              'acknowledged',
+        acknowledgedAt:      serverTimestamp(),
+        updatedAt:           serverTimestamp(),
+        employeeCommitment:  commitment,
+        apsSynced:           true,
+      });
+      shouldCreateAPs = true;
+    });
 
-    await updateDoc(doc(db,'sessions',currentSessionId), updateData);
-
-    // Sync action plans to AP Log at acknowledgment (dedup by sessionId)
-    const sessionSnap = await getDoc(doc(db,'sessions',currentSessionId));
-    const sessionData = sessionSnap.data();
-    const existingAPs = await getDocs(query(collection(db,'actionPlans'), where('sessionId','==',currentSessionId)));
-    if (existingAPs.empty && sessionData.actionPlan && sessionData.actionPlan.length) {
+    // ── Create AP Log entries (outside transaction — addDoc not transactable) ─
+    if (shouldCreateAPs && sessionData.actionPlan && sessionData.actionPlan.length) {
       for (const row of sessionData.actionPlan.filter(r => r.action && r.action.trim())) {
         await addDoc(collection(db,'actionPlans'), {
           sessionId:   currentSessionId,
@@ -4573,7 +4582,7 @@ window.acknowledgeSession = async function() {
     toast('Session acknowledged — thank you!','success');
     document.getElementById('session-acknowledge-btn').style.display = 'none';
     document.getElementById('session-reject-btn').style.display = 'none';
-    if (commitment) document.getElementById('sf-commitment-text').disabled = true;
+    document.getElementById('sf-commitment-text').disabled = true;
     document.getElementById('pdf-btn').style.display = 'inline-flex';
     lockSessionForm();
     loadNotificationBadges();
@@ -5429,11 +5438,14 @@ window.finalizeCoachLog = async function() {
 
 // ── Coachee-Led: Send Prep Request ────────────────────────────
 window.sendPrepRequest = async function() {
+  if (_sendingPrepRequest) return; // prevent double-send from either button
   if (!currentSessionCoacheeId) { toast('Please select a coachee first.','error'); return; }
+  _sendingPrepRequest = true;
   const deptEl   = document.getElementById('sf-cl-department');
   const targetEl = document.getElementById('sf-cl-target-date');
-  const btn = document.getElementById('session-send-prep-btn');
-  btn.disabled = true; btn.textContent = 'Sending…';
+  // Disable both possible Send Prep Request buttons (pre-form + session form header)
+  const btns = document.querySelectorAll('[onclick="sendPrepRequest()"]');
+  btns.forEach(b => { b.disabled = true; b.textContent = 'Sending…'; });
   try {
     const coachee = allUsers.find(u=>u.uid===currentSessionCoacheeId);
     const cName = coachee ? coachee.firstName+' '+coachee.lastName : 'Coachee';
@@ -5456,17 +5468,24 @@ window.sendPrepRequest = async function() {
       currentSessionId = ref.id;
     }
     toast('Prep request sent to '+cName+'.','success');
-    btn.disabled = true;
-    btn.textContent = '✓ Prep Request Sent';
-    btn.style.background = 'var(--bg-light)';
-    btn.style.color = 'var(--muted)';
-    btn.style.borderColor = 'var(--border)';
+    // Lock all buttons permanently on success
+    btns.forEach(b => {
+      b.disabled = true;
+      b.textContent = '✓ Prep Request Sent';
+      b.style.background  = '#EEF4F7';
+      b.style.color       = 'var(--muted)';
+      b.style.borderColor = 'var(--border)';
+    });
     document.getElementById('session-save-draft-btn').style.display = 'none';
     lockSessionForm();
     loadNotificationBadges();
-    return; // success — do NOT re-enable button
-  } catch(e) { toast('Error: '+e.message,'error'); }
-  btn.disabled = false; btn.textContent = 'Send Prep Request';
+    return; // success — keep _sendingPrepRequest = true so flag stays locked
+  } catch(e) {
+    toast('Error: '+e.message,'error');
+    // Re-enable buttons on failure so coach can retry
+    btns.forEach(b => { b.disabled = false; b.textContent = 'Send Prep Request'; });
+    _sendingPrepRequest = false;
+  }
 };
 
 // ── Coachee Prep Form ─────────────────────────────────────────
