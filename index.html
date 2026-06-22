@@ -5813,20 +5813,37 @@ window.toggleForgotPw = function() {
     const emailVal = document.getElementById('login-email')?.value || '';
     if (emailVal) document.getElementById('forgot-pw-email').value = emailVal;
     document.getElementById('forgot-pw-msg').textContent = '';
+    // Reset button state in case it was left disabled from a prior attempt
+    const btn = document.querySelector('#forgot-pw-panel .btn-primary');
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Reset Link'; }
+    // Focus the email input so the user knows the panel is open
+    setTimeout(() => document.getElementById('forgot-pw-email')?.focus(), 50);
   }
 };
 
 window.sendForgotPwEmail = async function() {
   const email = (document.getElementById('forgot-pw-email').value || '').trim();
   const msgEl = document.getElementById('forgot-pw-msg');
-  if (!email) { msgEl.style.color='var(--red)'; msgEl.textContent='Please enter your email address.'; return; }
+  const btn   = document.querySelector('#forgot-pw-panel .btn-primary');
+  if (!email) { msgEl.style.color = 'var(--red)'; msgEl.textContent = 'Please enter your email address.'; return; }
+  // Show loading state so user knows the request is in flight
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  msgEl.textContent = '';
   try {
     await sendPasswordResetEmail(auth, email);
-    msgEl.style.color='var(--green)';
-    msgEl.textContent='Reset link sent! Check your inbox.';
+    msgEl.style.color = 'var(--green)';
+    msgEl.textContent = 'Reset link sent! Check your inbox (and spam folder) for an email from Firebase / noreply@ldcoach-83aed.firebaseapp.com.';
+    if (btn) { btn.textContent = 'Sent ✓'; }
   } catch(e) {
-    msgEl.style.color='var(--red)';
-    msgEl.textContent=e.code==='auth/user-not-found'?'No account found with that email.':'Error: '+e.message;
+    console.error('[ForgotPw] sendPasswordResetEmail error:', e.code, e.message);
+    msgEl.style.color = 'var(--red)';
+    const friendly = {
+      'auth/user-not-found':     'No account found with that email.',
+      'auth/invalid-email':      'Please enter a valid email address.',
+      'auth/too-many-requests':  'Too many attempts. Please wait a few minutes and try again.',
+    };
+    msgEl.textContent = friendly[e.code] || ('Error: ' + (e.message || e.code || 'Unknown error. Please try again.'));
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Reset Link'; }
   }
 };
 
