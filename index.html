@@ -2828,7 +2828,7 @@ async function loadCoachHome() {
   const now   = new Date();
   const upcomingCt = sessions.filter(s=>s.nextSessionDate&&new Date(s.nextSessionDate+'T00:00:00')>=today).length;
   const completedMo = sessions.filter(s=>{
-    if(s.status!=='completed') return false;
+    if(s.status!=='completed' && s.status!=='acknowledged') return false;
     const d=new Date((s.sessionDate||'')+'T00:00:00');
     return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
   }).length;
@@ -3216,7 +3216,7 @@ async function loadDashboard() {
     allAPs      = apSnap.docs.map(d=>({id:d.id,...d.data()}));
   } catch(e) { console.error('Dashboard fetch error',e); }
 
-  const completedSess = allSessions.filter(s => s.status === 'completed');
+  const completedSess = allSessions.filter(s => s.status === 'completed' || s.status === 'acknowledged');
   const sessMon = s => (s.sessionDate||'').slice(0,7);
 
   // All coachees (active check done inside isRequiredInMonth)
