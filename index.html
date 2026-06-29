@@ -1031,6 +1031,20 @@
             </div>
 
           </div>
+
+          <!-- Admin Deletion Log — visible to admins only -->
+          <div id="rpt-deletion-log-section" style="display:none;margin-top:24px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+              <div>
+                <div style="font-size:15px;font-weight:700;color:#1A2D3F">Admin Deletion Log</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px">Audit trail of coaching records deleted by system admins.</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="exportDeletionLogCsv()">&#8595; Export CSV</button>
+            </div>
+            <div class="card" style="padding:0;overflow:hidden">
+              <div id="rpt-deletion-log-body" style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Loading…</div>
+            </div>
+          </div>
         </div>
 
         <!-- COACHEE: MY COACHING -->
@@ -1439,6 +1453,27 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-confirm')">Cancel</button>
       <button class="btn btn-danger" id="mc-action-btn">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ADMIN DELETE SESSION -->
+<div id="modal-admin-delete" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-admin-delete')">
+  <div class="modal-box sm">
+    <div class="modal-header">
+      <div class="modal-title" style="color:var(--red)">&#9888; Admin Delete Session</div>
+      <button class="modal-close" onclick="closeModal('modal-admin-delete')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="ad-session-info" style="background:var(--light);border-radius:var(--radius);padding:10px 12px;font-size:12.5px;color:var(--text);margin-bottom:14px;line-height:1.8"></div>
+      <p style="font-size:13px;color:var(--text);margin-bottom:10px">This will <strong>permanently delete</strong> this coaching record and all associated action plans. This cannot be undone.</p>
+      <label class="form-label">Reason for deletion <span style="color:var(--red)">*</span></label>
+      <textarea id="ad-reason" class="form-control" rows="3" placeholder="e.g. Duplicate entry — session was recorded twice by coach" style="resize:vertical"></textarea>
+      <div id="ad-error" class="form-error-msg" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-admin-delete')">Cancel</button>
+      <button class="btn btn-danger" id="ad-confirm-btn" onclick="executeAdminDelete()">Delete Permanently</button>
     </div>
   </div>
 </div>
@@ -2628,6 +2663,13 @@ function loadReportsView() {
   const toEl   = document.getElementById('rpt-compliance-to');
   if (fromEl && !fromEl.value) fromEl.value = year + '-01';
   if (toEl   && !toEl.value)   toEl.value   = year + '-' + mm;
+  // Show deletion log section for admins
+  const _isAdmin = !!(currentProfile.permissions||{}).admin;
+  const logSection = document.getElementById('rpt-deletion-log-section');
+  if (logSection) {
+    logSection.style.display = _isAdmin ? 'block' : 'none';
+    if (_isAdmin) loadAdminDeletionLog();
+  }
 }
 window.loadReportsView = loadReportsView;
 
@@ -3648,13 +3690,16 @@ function srRow(s) {
   const coachName = coach   ? coach.firstName+' '+coach.lastName     : '—';
   const d     = s.sessionDate ? new Date(s.sessionDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
   const focus = (s.focusAreas||[]).map(f=>focusLabel(f)).join(', ')||'—';
+  const _isAdmin = !!(currentProfile.permissions||{}).admin;
   return '<tr>'
     + '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar avatar-sm">'+(coachee?ini(coachee.firstName,coachee.lastName):'?')+'</div><span style="font-weight:500">'+esc(cName)+'</span></div></td>'
     + '<td style="font-size:12.5px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(focus)+'">'+esc(focus)+'</td>'
     + '<td style="font-size:12.5px">'+esc(d)+'</td>'
     + '<td style="font-size:12.5px">'+esc(coachName)+'</td>'
     + '<td><span class="badge badge-'+(s.status||'draft')+'">'+statusLabel(s.status)+'</span></td>'
-    + '<td><button class="btn btn-ghost btn-sm" onclick="openExistingSession(\''+s.id+'\',true)">View</button></td>'
+    + '<td style="white-space:nowrap"><button class="btn btn-ghost btn-sm" onclick="openExistingSession(\''+s.id+'\',true)">View</button>'
+    + (_isAdmin ? ' <button class="btn btn-danger btn-sm" onclick="adminDeleteSession(\''+s.id+'\',\''+esc(cName)+'\',\''+esc(coachName)+'\',\''+esc(s.sessionDate||'')+'\',\''+esc(s.status||'draft')+'\',\''+esc(s.sessionCode||s.id)+'\')" title="Admin delete">Delete</button>' : '')
+    + '</td>'
     + '</tr>';
 }
 
@@ -5417,6 +5462,128 @@ window.submitRejection = async function() {
 };
 
 // ── Delete draft session ──────────────────────────────────────
+// ── Admin delete (any session status, with audit log) ────────
+let _adminDeleteTarget = null; // { id, coacheeName, coachName, sessionDate, status, sessionCode }
+
+window.adminDeleteSession = function(sessionId, coacheeName, coachName, sessionDate, status, sessionCode) {
+  _adminDeleteTarget = { id:sessionId, coacheeName, coachName, sessionDate, status, sessionCode };
+  document.getElementById('ad-session-info').innerHTML =
+    '<strong>Session:</strong> ' + esc(sessionCode) + '<br>'
+    + '<strong>Coachee:</strong> ' + esc(coacheeName) + '<br>'
+    + '<strong>Coach:</strong> ' + esc(coachName) + '<br>'
+    + '<strong>Date:</strong> ' + (sessionDate || '—') + '<br>'
+    + '<strong>Status:</strong> ' + statusLabel(status);
+  document.getElementById('ad-reason').value = '';
+  document.getElementById('ad-error').style.display = 'none';
+  document.getElementById('ad-confirm-btn').disabled = false;
+  document.getElementById('ad-confirm-btn').textContent = 'Delete Permanently';
+  document.getElementById('modal-admin-delete').style.display = 'flex';
+};
+
+window.executeAdminDelete = async function() {
+  const reason = document.getElementById('ad-reason').value.trim();
+  const errEl  = document.getElementById('ad-error');
+  if (!reason) { errEl.textContent = 'Please enter a reason for this deletion.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('ad-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  errEl.style.display = 'none';
+  const t = _adminDeleteTarget;
+  if (!t) return;
+  try {
+    // Delete associated action plans
+    const apSnap = await getDocs(query(collection(db,'actionPlans'), where('sessionId','==',t.id)));
+    const apDeletes = apSnap.docs.map(d => deleteDoc(doc(db,'actionPlans',d.id)));
+    await Promise.all(apDeletes);
+    // Delete the session
+    await deleteDoc(doc(db,'sessions',t.id));
+    // Write audit log
+    await addDoc(collection(db,'auditLog'), {
+      action:       'delete_session',
+      sessionId:    t.id,
+      sessionCode:  t.sessionCode,
+      coacheeName:  t.coacheeName,
+      coachName:    t.coachName,
+      sessionDate:  t.sessionDate,
+      sessionStatus: t.status,
+      reason,
+      deletedBy:    currentUser.uid,
+      deletedByName: (currentProfile.firstName||'') + ' ' + (currentProfile.lastName||''),
+      deletedAt:    serverTimestamp()
+    });
+    closeModal('modal-admin-delete');
+    toast('Session deleted and logged to audit trail.', 'success');
+    _adminDeleteTarget = null;
+    // Refresh whichever session list is visible
+    if (document.getElementById('view-all-sessions').classList.contains('active')) loadAllSessions();
+    if (document.getElementById('view-coach-sessions').classList.contains('active')) loadCoachSessions();
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Delete Permanently';
+  }
+};
+
+// ── Admin Deletion Log (Reports view) ────────────────────────
+let _deletionLogCache = [];
+
+async function loadAdminDeletionLog() {
+  const body = document.getElementById('rpt-deletion-log-body');
+  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
+  try {
+    const snap = await getDocs(query(collection(db,'auditLog'), where('action','==','delete_session')));
+    _deletionLogCache = snap.docs.map(d => ({id:d.id,...d.data()}))
+      .sort((a,b) => (b.deletedAt?.seconds||0) - (a.deletedAt?.seconds||0));
+    if (!_deletionLogCache.length) {
+      body.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No deletions recorded yet.</div>';
+      return;
+    }
+    const rows = _deletionLogCache.map(e => {
+      const ts = e.deletedAt?.toDate ? e.deletedAt.toDate().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'}) : '—';
+      return '<tr>'
+        + '<td style="font-size:12px;white-space:nowrap">'+esc(ts)+'</td>'
+        + '<td style="font-size:12px;font-weight:500">'+esc(e.deletedByName||'—')+'</td>'
+        + '<td style="font-size:12px;font-weight:600;color:var(--blue)">'+esc(e.sessionCode||e.sessionId||'—')+'</td>'
+        + '<td style="font-size:12px">'+esc(e.coacheeName||'—')+'</td>'
+        + '<td style="font-size:12px">'+esc(e.coachName||'—')+'</td>'
+        + '<td style="font-size:12px">'+esc(e.sessionDate||'—')+'</td>'
+        + '<td><span class="badge badge-'+(e.sessionStatus||'draft')+'">'+statusLabel(e.sessionStatus)+'</span></td>'
+        + '<td style="font-size:12px;max-width:220px;word-break:break-word">'+esc(e.reason||'—')+'</td>'
+        + '</tr>';
+    }).join('');
+    body.innerHTML = '<div class="table-wrap" style="overflow-x:auto"><table class="rt-table" style="font-size:12px">'
+      + '<thead><tr>'
+      + '<th style="min-width:160px">Deleted At</th>'
+      + '<th style="min-width:140px">Deleted By</th>'
+      + '<th style="min-width:100px">Session ID</th>'
+      + '<th style="min-width:140px">Coachee</th>'
+      + '<th style="min-width:140px">Coach</th>'
+      + '<th style="min-width:110px">Session Date</th>'
+      + '<th style="min-width:110px">Status (was)</th>'
+      + '<th style="min-width:200px">Reason</th>'
+      + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  } catch(e) {
+    body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--red);font-size:13px">Error: '+esc(e.message)+'</div>';
+  }
+}
+
+window.exportDeletionLogCsv = async function() {
+  if (!_deletionLogCache.length) {
+    try {
+      const snap = await getDocs(query(collection(db,'auditLog'), where('action','==','delete_session')));
+      _deletionLogCache = snap.docs.map(d => ({id:d.id,...d.data()}))
+        .sort((a,b) => (b.deletedAt?.seconds||0) - (a.deletedAt?.seconds||0));
+    } catch(e) { toast('Export failed.','error'); return; }
+  }
+  const headers = ['Deleted At','Deleted By','Session ID','Coachee','Coach','Session Date','Status (was)','Reason'];
+  const rows = _deletionLogCache.map(e => {
+    const ts = e.deletedAt?.toDate ? e.deletedAt.toDate().toISOString() : '';
+    return [ts, e.deletedByName||'', e.sessionCode||e.sessionId||'', e.coacheeName||'', e.coachName||'', e.sessionDate||'', e.sessionStatus||'', e.reason||''];
+  });
+  const date = new Date().toISOString().slice(0,10);
+  generateCsvDownload(headers, rows, `BOOST_AdminDeletionLog_${date}.csv`);
+  toast('Deletion log exported.','success');
+};
+
 window.deleteSession = function(sessionId) {
   document.getElementById('mc-title').textContent = 'Delete Draft';
   document.getElementById('mc-msg').textContent   = 'This draft will be permanently deleted. This cannot be undone.';
