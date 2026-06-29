@@ -2069,7 +2069,7 @@ function defaultView() {
   const p = currentProfile.permissions || {};
   if (r.includes('coach'))     return 'coach-home';
   if (p.dashboard)             return 'dashboard';
-  if (p.sessionRecords)        return 'all-sessions';
+  // sessionRecords permission no longer has a dedicated nav page
   return 'my-coaching';
 }
 
@@ -2114,14 +2114,12 @@ function renderSidebar() {
   const canSess = roles.includes('coach') || perms.sessionRecords;
   if (roles.includes('coach')) {
     html += '<div class="nav-section-label">Coaching</div>';
-    html += ni('coach-home',     NAV_ICONS.team,      'My Team');
-    html += ni('coach-sessions', NAV_ICONS.clipboard, 'Team Sessions');
-    html += ni('action-plans',   NAV_ICONS.checklist, 'Action Plans');
     html += ni('dashboard',      NAV_ICONS.dashboard, 'Dashboard');
-    html += ni('all-sessions',   NAV_ICONS.sessions,  'Session Records');
-  } else if (canDash || canSess) {
-    if (canDash) html += ni('dashboard',    NAV_ICONS.dashboard, 'Dashboard');
-    if (canSess) html += ni('all-sessions', NAV_ICONS.sessions,  'Session Records');
+    html += ni('coach-home',     NAV_ICONS.team,      'My Team');
+    html += ni('action-plans',   NAV_ICONS.checklist, 'Action Plans');
+    html += ni('coach-sessions', NAV_ICONS.clipboard, 'Team Sessions');
+  } else if (canDash) {
+    html += ni('dashboard', NAV_ICONS.dashboard, 'Dashboard');
   }
   if (roles.includes('coachee')) {
     html += '<div class="nav-section-label">My Development</div>';
@@ -2858,7 +2856,10 @@ window.exportActionPlansCsv = async function() {
     if (perms.admin) {
       snap = await getDocs(collection(db,'actionPlans'));
     } else {
-      snap = await getDocs(query(collection(db,'actionPlans'), where('coachId','==',currentUser.uid)));
+      // Include APs from all coaches for coachees in this coach's subtree
+      const _rptSubtree = getOrgSubtree(currentUser.uid);
+      snap = await getDocs(collection(db,'actionPlans'));
+      snap = { docs: snap.docs.filter(d => _rptSubtree.has(d.data().coacheeId)) };
     }
     const plans = snap.docs.map(d=>({id:d.id,...d.data()}));
     const headers = ['Employee ID','Employee Name','Position','Coach','Action Item','Support/Resources','Due Date','Status','Remarks','Completed Date','Session Date','Created At'];
@@ -4081,6 +4082,7 @@ window.clearCoachSessionsFilter = function() {
 };
 
 function renderCoachSessions(sessions) {
+  const _isAdmin = !!(currentProfile.permissions||{}).admin;
   const container = document.getElementById('coach-sessions-list');
   if (!sessions.length) {
     container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128203;</div><div class="empty-title">No sessions</div><div class="empty-sub">No sessions match the current filter, or start a new session from My Team.</div></div>';
@@ -4126,6 +4128,18 @@ function renderCoachSessions(sessions) {
           actions += '<button class="icon-btn" onclick="openExistingSession(\''+s.id+'\')" title="View session">'+ICON_EYE+'</button>';
           actions += '<button class="icon-btn" onclick="openSessionPdfModal(\''+s.id+'\')" title="View PDF" style="color:var(--red);border-color:var(--red)">'+ICON_PDF+'</button>';
           actions += '<button class="icon-btn" onclick="requestSessionDeletion(\''+s.id+'\',\''+esc(cName)+'\',\''+esc(code)+'\',\''+esc(s.sessionDate||'')+'\',\''+st+'\')" title="Request deletion" style="color:var(--amber);border-color:var(--amber)">'+ICON_FLAG+'</button>';
+        }
+        if (_isAdmin) {
+          const aCoach = allUsers.find(u=>u.uid===s.coachId);
+          const aCoachName = aCoach ? aCoach.firstName+' '+aCoach.lastName : '';
+          actions += '<button class="btn btn-danger btn-sm" style="margin-left:2px"'
+            + ' data-sid="'+esc(s.id)+'"'
+            + ' data-cname="'+esc(cName)+'"'
+            + ' data-coach="'+esc(aCoachName)+'"'
+            + ' data-date="'+esc(s.sessionDate||'')+'"'
+            + ' data-st="'+esc(st)+'"'
+            + ' data-code="'+esc(s.sessionCode||s.id)+'"'
+            + ' onclick="adminDeleteFromCS(this)" title="Admin delete">Delete</button>';
         }
         actions += '</div>';
 
@@ -5068,15 +5082,26 @@ async function loadActionPlans() {
   const container = document.getElementById('apl-list');
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
 
-  // Populate coachee filter from current coach's team
-  const myCoachees = allUsers.filter(u => u.coachId === currentUser.uid);
+  // Populate coachee filter from full subtree (includes skip-level coachees)
+  const _aplSubtree = getOrgSubtree(currentUser.uid);
+  _aplSubtree.delete(currentUser.uid);
+  const subtreeCoachees = allUsers.filter(u => _aplSubtree.has(u.uid) && u.active !== false);
   const coacheeSel = document.getElementById('apl-filter-coachee');
   coacheeSel.innerHTML = '<option value="">All Team Members</option>'
-    + myCoachees.map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
+    + subtreeCoachees.sort((a,b)=>(a.firstName+a.lastName).localeCompare(b.firstName+b.lastName))
+        .map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
 
   try {
-    const snap = await getDocs(query(collection(db,'actionPlans'), where('coachId','==',currentUser.uid)));
+    // Query all APs for coachees in this coach's subtree — includes APs from previous coaches
+    const _myPerms = currentProfile.permissions || {};
+    let snap;
+    if (_myPerms.admin) {
+      snap = await getDocs(collection(db,'actionPlans'));
+    } else {
+      snap = await getDocs(collection(db,'actionPlans'));
+    }
     allActionPlans = snap.docs.map(d => ({id:d.id,...d.data()}))
+      .filter(p => _myPerms.admin || _aplSubtree.has(p.coacheeId))
       .sort((a,b) => (a.dueDate||'').localeCompare(b.dueDate||''));
     // Fetch session codes for all unique sessionIds
     sessionCodeMap = {};
@@ -5106,8 +5131,11 @@ function renderActionPlans(plans) {
   const statusColor = { 'Not Started':'#6B7A8D','In Progress':'#A05A0A','Completed':'#1A6B34','Overdue':'#B91C1C','Cancelled':'#9CA3AF' };
   const statusBg    = { 'Not Started':'#EEF4F7','In Progress':'#FEF0E0','Completed':'#E6F4EB','Overdue':'#FEE2E2','Cancelled':'#F9FAFB' };
   const rows = plans.map(p => {
-    const coachee = allUsers.find(u=>u.uid===p.coacheeId);
-    const cName   = coachee ? coachee.firstName+' '+coachee.lastName : '—';
+    const coachee  = allUsers.find(u=>u.uid===p.coacheeId);
+    const cName    = coachee ? coachee.firstName+' '+coachee.lastName : '—';
+    const apCoach  = allUsers.find(u=>u.uid===p.coachId);
+    const apCoachName = apCoach ? apCoach.firstName+' '+apCoach.lastName : '—';
+    const isOwnAP  = p.coachId === currentUser.uid;
     const d   = p.sessionDate ? new Date(p.sessionDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
     const due = p.dueDate     ? new Date(p.dueDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})     : '—';
     const st  = p.status || 'Not Started';
@@ -5121,6 +5149,7 @@ function renderActionPlans(plans) {
       : '<span style="font-size:11.5px;color:var(--muted)">—</span>';
     return '<tr>'
       + '<td style="font-weight:500;font-size:13px">'+esc(cName)+'</td>'
+      + '<td style="font-size:12px;color:'+(isOwnAP?'var(--text)':'var(--blue)')+'">'+esc(apCoachName)+(isOwnAP?'':' <span style="font-size:10px;background:var(--blue-lt);color:var(--blue);padding:1px 5px;border-radius:8px">prev</span>')+'</td>'
       + '<td style="white-space:nowrap">'+sessionTag+'</td>'
       + '<td style="font-size:12.5px;white-space:nowrap">'+d+'</td>'
       + '<td style="font-size:12.5px;max-width:220px">'+esc(p.action||'—')+'</td>'
@@ -5137,6 +5166,7 @@ function renderActionPlans(plans) {
   container.innerHTML = '<div class="table-wrap"><table class="rt-table" id="apl-table">'
     + '<thead><tr>'
     + '<th data-col="name" style="min-width:130px">Team Member</th>'
+    + '<th data-col="coach" style="min-width:120px">Coach</th>'
     + '<th data-col="code" style="min-width:90px">Session ID</th>'
     + '<th data-col="date" style="min-width:110px">Session Date</th>'
     + '<th data-col="action" style="min-width:200px">Action</th>'
@@ -5178,7 +5208,8 @@ window.filterActionPlans = function() {
     return p.dueDate && !['Completed','Cancelled'].includes(st) && new Date(p.dueDate+'T00:00:00')<today0;
   });
   const getVal = (p, col) => {
-    if (col==='name') { const c=allUsers.find(u=>u.uid===p.coacheeId); return c?c.lastName+c.firstName:''; }
+    if (col==='name')  { const c=allUsers.find(u=>u.uid===p.coacheeId); return c?c.lastName+c.firstName:''; }
+    if (col==='coach') { const c=allUsers.find(u=>u.uid===p.coachId);    return c?c.lastName+c.firstName:''; }
     if (col==='code') return p.sessionCode||(sessionCodeMap&&sessionCodeMap[p.sessionId])||'';
     if (col==='date') return p.sessionDate||'';
     if (col==='action') return p.action||'';
@@ -5923,6 +5954,9 @@ async function updateAdminInboxBadge() {
 // ── Admin delete (any session status, with audit log) ────────
 let _adminDeleteTarget = null; // { id, coacheeName, coachName, sessionDate, status, sessionCode }
 
+window.adminDeleteFromCS = function(btn) {
+  adminDeleteSession(btn.dataset.sid, btn.dataset.cname, btn.dataset.coach, btn.dataset.date, btn.dataset.st, btn.dataset.code);
+};
 window.adminDeleteSession = function(sessionId, coacheeName, coachName, sessionDate, status, sessionCode) {
   _adminDeleteTarget = { id:sessionId, coacheeName, coachName, sessionDate, status, sessionCode };
   document.getElementById('ad-session-info').innerHTML =
@@ -6361,8 +6395,7 @@ async function loadOpenAPBanner(coacheeId) {
   try {
     const snap = await getDocs(query(
       collection(db,'actionPlans'),
-      where('coacheeId','==',coacheeId),
-      where('coachId','==',currentUser.uid)
+      where('coacheeId','==',coacheeId)
     ));
     openAPsForCoachee = snap.docs.map(d=>({id:d.id,...d.data()}))
       .filter(p => !['Completed','Cancelled'].includes(p.status||'Not Started'));
