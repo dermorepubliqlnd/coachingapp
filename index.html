@@ -1315,8 +1315,11 @@
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
             <input type="checkbox" id="mu-perm-sessions"> View Session Records
           </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="mu-perm-admin"> System Admin (Settings &amp; User Management)
+          </label>
         </div>
-        <div class="form-hint">Directors always have full access. These controls apply to non-director users only.</div>
+        <div class="form-hint">Directors have full coaching visibility over their org tree. System Admin grants Settings &amp; User Management access to any user.</div>
       </div>
       <div class="form-group" id="mu-active-group" style="display:none">
         <label class="form-label">Account Status</label>
@@ -1982,15 +1985,16 @@ function renderSidebar() {
     html += ni('my-action-plans',  NAV_ICONS.checklist, 'My Action Plans');
   }
   // Admin section — pushed to bottom
-  if (roles.includes('director')) {
+  const canAdmin = roles.includes('director') || perms.admin;
+  if (canAdmin) {
     html += '<div class="nav-spacer"></div>';
     html += '<div class="nav-section-label">Admin</div>';
-    html += ni('reports',  NAV_ICONS.reports,  'Reports');
+    if (roles.includes('director')) html += ni('reports', NAV_ICONS.reports, 'Reports');
     html += ni('settings', NAV_ICONS.settings, 'Settings');
     html += ni('users',    NAV_ICONS.users,    'User Management');
   }
   // My Profile — always at the bottom for all roles
-  if (!roles.includes('director')) html += '<div class="nav-spacer"></div>';
+  if (!canAdmin) html += '<div class="nav-spacer"></div>';
   html += '<div class="nav-item" data-label="My Profile" onclick="openProfileModal()"><span class="nav-icon">'+NAV_ICONS.profile+'</span><span class="nav-label">My Profile</span></div>';
   document.getElementById('nav-menu').innerHTML = html;
   document.getElementById('sb-avatar').textContent = ini(currentProfile.firstName, currentProfile.lastName);
@@ -2127,7 +2131,7 @@ window.openUserModal = function(uid) {
   coachSel.innerHTML = '<option value="">— Select coach —</option>'
     + coaches.map(c => '<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
   ['mu-firstname','mu-lastname','mu-empid','mu-email','mu-position','mu-hiredate'].forEach(id => document.getElementById(id).value = '');
-  ['role-director','role-coach','role-coachee','mu-perm-dashboard','mu-perm-sessions'].forEach(id => document.getElementById(id).checked = false);
+  ['role-director','role-coach','role-coachee','mu-perm-dashboard','mu-perm-sessions','mu-perm-admin'].forEach(id => document.getElementById(id).checked = false);
   document.getElementById('mu-uid').value = '';
   document.getElementById('mu-error').style.display = 'none';
   document.getElementById('mu-active-group').style.display = 'none';
@@ -2150,6 +2154,7 @@ window.openUserModal = function(uid) {
     document.getElementById('mu-hiredate').value            = normalizeDate(u.hireDate) || '';
     document.getElementById('mu-perm-dashboard').checked   = !!(u.permissions||{}).dashboard;
     document.getElementById('mu-perm-sessions').checked    = !!(u.permissions||{}).sessionRecords;
+    document.getElementById('mu-perm-admin').checked       = !!(u.permissions||{}).admin;
     (u.roles||[]).forEach(r => { const el = document.getElementById('role-'+r); if (el) el.checked = true; });
     if (u.coachId) coachSel.value = u.coachId;
     document.getElementById('mu-active-group').style.display = 'block';
@@ -2184,7 +2189,8 @@ window.saveUser = async function() {
   const hireDate    = document.getElementById('mu-hiredate').value || null;
   const permissions = {
     dashboard:      document.getElementById('mu-perm-dashboard').checked,
-    sessionRecords: document.getElementById('mu-perm-sessions').checked
+    sessionRecords: document.getElementById('mu-perm-sessions').checked,
+    admin:          document.getElementById('mu-perm-admin').checked
   };
   const roles     = ['director','coach','coachee'].filter(r => document.getElementById('role-'+r).checked);
   const coachId   = (document.getElementById('mu-coach-group').style.display !== 'none')
@@ -3557,18 +3563,45 @@ window.loadDashboard = loadDashboard;
 // ── Session Records (director — view-only audit log) ──────────
 let allSessionRecords = [];
 
+// Returns a Set of all UIDs in the downward coachId chain from rootUid (inclusive).
+// Used for director org-tree visibility and skip-level coachee picker.
+function getOrgSubtree(rootUid) {
+  const tree = new Set([rootUid]);
+  let frontier = [rootUid];
+  while (frontier.length) {
+    const next = [];
+    allUsers.forEach(u => {
+      if (frontier.includes(u.coachId) && !tree.has(u.uid)) {
+        tree.add(u.uid);
+        next.push(u.uid);
+      }
+    });
+    frontier = next;
+  }
+  return tree;
+}
+
 async function loadAllSessions() {
   const container = document.getElementById('all-sessions-list');
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
   try {
     if (!allUsers.length) await refreshUsers();
     const snap = await getDocs(collection(db,'sessions'));
-    allSessionRecords = snap.docs.map(d=>({id:d.id,...d.data()}))
+    let allSnap = snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>(b.sessionDate||'').localeCompare(a.sessionDate||''));
 
-    // Populate coach + coachee dropdowns
-    const coaches  = allUsers.filter(u=>(u.roles||[]).includes('coach'));
-    const coachees = allUsers.filter(u=>(u.roles||[]).includes('coachee'));
+    // Scope to director's org subtree (top-to-bottom visibility by org line)
+    const _myRoles = currentProfile.roles || [];
+    if (_myRoles.includes('director')) {
+      const subtree = getOrgSubtree(currentUser.uid);
+      allSnap = allSnap.filter(s => subtree.has(s.coacheeId) || subtree.has(s.coachId));
+    }
+    allSessionRecords = allSnap;
+
+    // Populate coach + coachee dropdowns (scoped to visible users)
+    const _subtreeIds = _myRoles.includes('director') ? getOrgSubtree(currentUser.uid) : null;
+    const coaches  = allUsers.filter(u=>(u.roles||[]).includes('coach')   && (!_subtreeIds || _subtreeIds.has(u.uid)));
+    const coachees = allUsers.filter(u=>(u.roles||[]).includes('coachee') && (!_subtreeIds || _subtreeIds.has(u.uid)));
     const cSel = document.getElementById('sr-filter-coach');
     const eSel = document.getElementById('sr-filter-coachee');
     if (cSel.options.length <= 1) {
@@ -4023,10 +4056,19 @@ function fillCoacheeInfo(uid) {
 }
 
 function showCoacheePicker() {
-  const myCoachees = allUsers.filter(u => u.coachId === currentUser.uid && u.active !== false);
+  // Directors see their full org subtree for skip-level coaching (within their branch only)
+  const _pickerRoles = currentProfile.roles || [];
+  let pickList;
+  if (_pickerRoles.includes('director')) {
+    const subtree = getOrgSubtree(currentUser.uid);
+    subtree.delete(currentUser.uid); // exclude self
+    pickList = allUsers.filter(u => subtree.has(u.uid) && u.active !== false);
+  } else {
+    pickList = allUsers.filter(u => u.coachId === currentUser.uid && u.active !== false);
+  }
   const sel = document.getElementById('sf-coachee-select');
   sel.innerHTML = '<option value="">— Select coachee —</option>'
-    + myCoachees.map(c => '<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
+    + pickList.map(c => '<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
   document.getElementById('sf-coachee-picker').style.display = 'block';
 }
 
