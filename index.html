@@ -931,7 +931,8 @@
           </div>
           <div class="card" style="margin-bottom:12px;padding:12px 16px">
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <select id="cs-filter-coachee" class="form-control" style="max-width:220px" onchange="filterCoachSessions()">
+              <select id="cs-filter-coach" class="form-control form-control-sm" onchange="filterCoachSessions()" style="display:none"><option value="">All Coaches</option></select>
+          <select id="cs-filter-coachee" class="form-control" style="max-width:220px" onchange="filterCoachSessions()">
                 <option value="">All Team Members</option>
               </select>
               <select id="cs-filter-status" class="form-control" style="max-width:190px" onchange="filterCoachSessions()">
@@ -3995,10 +3996,18 @@ async function loadCoachSessions() {
   const container = document.getElementById('coach-sessions-list');
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
   try {
-    const snap = await getDocs(query(collection(db,'sessions'), where('coachId','==',currentUser.uid)));
     if (!allUsers.length) await refreshUsers();
+    const _csPerms  = currentProfile.permissions || {};
+    const _csAdmin  = !!_csPerms.admin;
+    let snap;
+    if (_csAdmin) {
+      snap = await getDocs(collection(db,'sessions'));
+    } else {
+      snap = await getDocs(query(collection(db,'sessions'), where('coachId','==',currentUser.uid)));
+    }
+    const _csSubtree = _csAdmin ? null : getOrgSubtree(currentUser.uid);
     allCoachSessions = snap.docs.map(d=>({id:d.id,...d.data()}))
-      .filter(s => s.coachId === currentUser.uid)
+      .filter(s => _csAdmin || _csSubtree.has(s.coachId) || s.coachId === currentUser.uid)
       .sort((a,b)=>(b.sessionDate||'').localeCompare(a.sessionDate||''));
 
     // ── Stat cards (same mkStat pattern as My Team) ──────────
@@ -4029,12 +4038,28 @@ async function loadCoachSessions() {
     + mkCS(CS_WARN,  '#FEE2E2', '#B91C1C', 'Needs Your Review',      csNeedAction,   'document.getElementById(\'cs-filter-status\').value=\'coach-review\';filterCoachSessions()')
     + mkCS(CS_CHECK, '#E6F4EB', '#1A6B34', 'Completed This Month',   csComp,         '');
 
-    // Populate coachee filter dropdown
-    const myCoachees = allUsers.filter(u => u.coachId === currentUser.uid);
+    // Populate coachee filter dropdown — all coachees visible in this view
+    const _csCoachees = _csAdmin
+      ? allUsers.filter(u => (u.roles||[]).includes('coachee') && u.active !== false)
+      : allUsers.filter(u => (_csSubtree && _csSubtree.has(u.uid)) && (u.roles||[]).includes('coachee') && u.active !== false);
     const coacheeSel = document.getElementById('cs-filter-coachee');
     if (coacheeSel) {
       coacheeSel.innerHTML = '<option value="">All Team Members</option>'
-        + myCoachees.map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
+        + _csCoachees.sort((a,b)=>(a.firstName+a.lastName).localeCompare(b.firstName+b.lastName))
+            .map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
+    }
+    // Show coach filter for admin
+    const coachFilterEl = document.getElementById('cs-filter-coach');
+    if (coachFilterEl) {
+      if (_csAdmin) {
+        const coaches = allUsers.filter(u => (u.roles||[]).includes('coach') && u.active !== false);
+        coachFilterEl.innerHTML = '<option value="">All Coaches</option>'
+          + coaches.sort((a,b)=>(a.firstName+a.lastName).localeCompare(b.firstName+b.lastName))
+              .map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
+        coachFilterEl.style.display = '';
+      } else {
+        coachFilterEl.style.display = 'none';
+      }
     }
 
     // Pre-apply pending filter (from viewCoacheeSessions)
@@ -4052,7 +4077,9 @@ window.filterCoachSessions = function() {
   const statusVal   = (document.getElementById('cs-filter-status')||{}).value   || '';
   const focusVal    = (document.getElementById('cs-filter-focus')||{}).value    || '';
   const deliveryVal = (document.getElementById('cs-filter-delivery')||{}).value || '';
+  const coachVal    = (document.getElementById('cs-filter-coach')||{}).value    || '';
   let filtered = allCoachSessions;
+  if (coachVal)    filtered = filtered.filter(s => s.coachId === coachVal);
   if (coacheeVal)  filtered = filtered.filter(s => s.coacheeId === coacheeVal);
   if (statusVal)   filtered = filtered.filter(s => (s.status||'draft') === statusVal);
   if (focusVal)    filtered = filtered.filter(s => (s.focusAreas||[]).includes(focusVal));
@@ -4074,7 +4101,7 @@ window.filterCoachSessions = function() {
 };
 
 window.clearCoachSessionsFilter = function() {
-  ['cs-filter-coachee','cs-filter-status','cs-filter-focus','cs-filter-delivery'].forEach(id=>{
+  ['cs-filter-coach','cs-filter-coachee','cs-filter-status','cs-filter-focus','cs-filter-delivery'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
   _tblSort.cs={col:null,dir:0};
