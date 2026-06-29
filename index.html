@@ -558,6 +558,7 @@
                     <th data-sort="employeeId" style="min-width:110px">Employee ID</th>
                     <th style="min-width:170px">Email</th>
                     <th data-sort="position" style="min-width:130px">Position</th>
+                    <th data-sort="dept" style="min-width:120px">Department</th>
                     <th data-sort="hireDate" style="min-width:110px">Hire Date</th>
                     <th style="min-width:110px">Roles</th>
                     <th style="min-width:100px">Coach</th>
@@ -583,10 +584,16 @@
               </select>
               <select id="sr-filter-status" class="form-control" style="max-width:180px" onchange="filterSessionRecords()">
                 <option value="">All Statuses</option>
-                <option value="pending">Pending Acknowledgement</option>
-                <option value="completed">Completed</option>
-                <option value="for-review">For Review</option>
                 <option value="draft">Draft</option>
+                <option value="prep-requested">Prep Requested</option>
+                <option value="coachee-preparing">Coachee Preparing</option>
+                <option value="prep-submitted">Prep Submitted</option>
+                <option value="coach-review">Coach Review</option>
+                <option value="pending-commitment">Pending Commitment</option>
+                <option value="pending">Pending Acknowledgement</option>
+                <option value="for-review">For Review</option>
+                <option value="acknowledged">Acknowledged</option>
+                <option value="completed">Completed</option>
               </select>
               <input type="date" id="sr-filter-from" class="form-control" style="max-width:145px" onchange="filterSessionRecords()" title="From date">
               <input type="date" id="sr-filter-to" class="form-control" style="max-width:145px" onchange="filterSessionRecords()" title="To date">
@@ -623,6 +630,13 @@
             <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Export all app data as a JSON file. This is your manual backup and serves as the migration export for IT when moving to Linode.</p>
             <button class="btn btn-ghost" onclick="exportBackup()">&#11015; Export JSON Backup</button>
             <div id="last-export-label" style="margin-top:10px;font-size:11.5px;color:var(--muted)">Last export: Never</div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div class="card-title" style="margin:0">Departments</div>
+              <button class="btn btn-ghost btn-sm" onclick="openDeptModal()">+ Add Department</button>
+            </div>
+            <div id="dept-list"><div style="font-size:13px;color:var(--muted);padding:4px 0">Loading…</div></div>
           </div>
           <div class="card" style="margin-bottom:12px;border:1px solid #FCA5A5">
             <div class="card-title" style="color:var(--red)">⚠️ Danger Zone</div>
@@ -892,7 +906,7 @@
             <button class="btn btn-primary" id="session-send-prep-btn" style="display:none" onclick="sendPrepRequest()">Send Prep Request</button>
             <button class="btn btn-primary" id="session-finalize-btn" style="display:none" onclick="finalizeCoachLog()">Finalize &amp; Send to Coachee</button>
             <button class="btn btn-primary" id="session-acknowledge-btn" style="display:none" onclick="acknowledgeSession()">Acknowledge &amp; Complete</button>
-            <button class="btn btn-ghost" id="session-reject-btn" style="display:none;color:var(--red);border-color:var(--red)" onclick="document.getElementById('modal-reject').style.display='flex'">Return for Review</button>
+            <button class="btn btn-ghost" id="session-reject-btn" style="display:none;color:var(--red);border-color:var(--red)" onclick="openRejectModal()">Return for Review</button>
             <span id="pdf-status" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
           </div>
           </div><!-- /sf-form-body -->
@@ -1047,6 +1061,30 @@
           </div>
         </div>
 
+        <!-- ADMIN INBOX -->
+        <div class="view" id="view-admin-inbox">
+          <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px">
+              <div>
+                <div class="card-title" style="margin-bottom:2px">Pending Deletion Requests</div>
+                <div style="font-size:12px;color:var(--muted)">Submitted by coaches for sessions they cannot delete directly.</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="loadAdminInbox()">&#8635; Refresh</button>
+            </div>
+            <div id="ai-del-requests" style="margin-top:14px"><div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Loading…</div></div>
+          </div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-title" style="margin-bottom:4px">Recent System Activity</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Last 20 admin actions.</div>
+            <div id="ai-activity"><div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Loading…</div></div>
+          </div>
+          <div class="card">
+            <div class="card-title" style="margin-bottom:4px">User Access Requests</div>
+            <div style="padding:24px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed var(--border);border-radius:var(--radius)">
+              No pending access requests. Activates when self-registration is enabled.
+            </div>
+          </div>
+        </div>
         <!-- COACHEE: MY COACHING -->
         <div class="view" id="view-my-coaching">
           <div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding:14px 16px">
@@ -1302,6 +1340,13 @@
         <input type="text" id="mu-position" class="form-control" placeholder="e.g. Instructional Designer">
       </div>
       <div class="form-group">
+        <label class="form-label">Department</label>
+        <select id="mu-dept" class="form-control">
+          <option value="">— No department —</option>
+        </select>
+        <div class="form-hint">Org unit. Will sync from Azure AD when integrated.</div>
+      </div>
+      <div class="form-group">
         <label class="form-label">Hire Date</label>
         <input type="date" id="mu-hiredate" class="form-control">
         <div class="form-hint">Compliance counting starts the month after the hire month.</div>
@@ -1309,7 +1354,6 @@
       <div class="form-group">
         <label class="form-label">Roles <span style="color:var(--red)">*</span></label>
         <div class="role-checks">
-          <label class="role-check"><input type="checkbox" id="role-director" value="director" onchange="updateCoachField()"> Director</label>
           <label class="role-check"><input type="checkbox" id="role-coach" value="coach" onchange="updateCoachField()"> Coach</label>
           <label class="role-check"><input type="checkbox" id="role-coachee" value="coachee" onchange="updateCoachField()"> Coachee</label>
         </div>
@@ -1386,8 +1430,8 @@
               <tr style="background:#f0faf4"><td style="padding:3px 8px;border:1px solid var(--border)">G</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">roleCoach</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — assign Coach role</td></tr>
               <tr style="background:#f0faf4"><td style="padding:3px 8px;border:1px solid var(--border)">H</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">roleCoachee</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — assign Coachee role</td></tr>
               <tr style="background:#f0faf4"><td style="padding:3px 8px;border:1px solid var(--border)">I</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">roleDirector</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — assign Director role</td></tr>
-              <tr style="background:#f0f6ff"><td style="padding:3px 8px;border:1px solid var(--border)">J</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">permDashboard</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — grant Dashboard access (non-directors)</td></tr>
-              <tr style="background:#f0f6ff"><td style="padding:3px 8px;border:1px solid var(--border)">K</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">permSessionRecords</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — grant Session Records access (non-directors)</td></tr>
+              <tr style="background:#f0f6ff"><td style="padding:3px 8px;border:1px solid var(--border)">J</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">permDashboard</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — grant Dashboard access (non-coaches)</td></tr>
+              <tr style="background:#f0f6ff"><td style="padding:3px 8px;border:1px solid var(--border)">K</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">permSessionRecords</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — grant Session Records access (non-coaches)</td></tr>
               <tr><td style="padding:3px 8px;border:1px solid var(--border)">L</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">coachEmail</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">Email of assigned coach (for coachees)</td></tr>
               <tr><td style="padding:3px 8px;border:1px solid var(--border)">M</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">active</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — defaults to true if blank</td></tr>
             </tbody>
@@ -1412,10 +1456,10 @@
               <th style="min-width:80px">Emp ID</th>
               <th style="min-width:140px">Email</th>
               <th style="min-width:90px">Position</th>
+              <th style="min-width:110px">Department</th>
               <th style="min-width:75px">Hire Date</th>
               <th style="min-width:55px;text-align:center">Coach</th>
               <th style="min-width:60px;text-align:center">Coachee</th>
-              <th style="min-width:55px;text-align:center">Director</th>
               <th style="min-width:60px;text-align:center">Dashboard</th>
               <th style="min-width:70px;text-align:center">Sess. Rec.</th>
               <th style="min-width:110px">Coach Email</th>
@@ -1457,6 +1501,45 @@
   </div>
 </div>
 
+<!-- MODAL: REQUEST DELETION (coach) -->
+<div id="modal-request-delete" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-request-delete')">
+  <div class="modal-box sm">
+    <div class="modal-header">
+      <div class="modal-title">Request Session Deletion</div>
+      <button class="modal-close" onclick="closeModal('modal-request-delete')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="rd-session-info" style="background:var(--light);border-radius:var(--radius);padding:10px 12px;font-size:12.5px;color:var(--text);margin-bottom:14px;line-height:1.8"></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">This sends a deletion request to an admin for review. The session stays visible until approved.</p>
+      <label class="form-label">Reason <span style="color:var(--red)">*</span></label>
+      <textarea id="rd-reason" class="form-control" rows="3" placeholder="e.g. Duplicate — recorded twice by mistake" style="resize:vertical"></textarea>
+      <div id="rd-error" class="form-error-msg" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-request-delete')">Cancel</button>
+      <button class="btn btn-primary" id="rd-submit-btn" onclick="submitDeletionRequest()">Submit Request</button>
+    </div>
+  </div>
+</div>
+<!-- MODAL: REJECT DELETION REQUEST (admin) -->
+<div id="modal-reject-request" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-reject-request')">
+  <div class="modal-box sm">
+    <div class="modal-header">
+      <div class="modal-title">Reject Deletion Request</div>
+      <button class="modal-close" onclick="closeModal('modal-reject-request')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="rr-session-info" style="background:var(--light);border-radius:var(--radius);padding:10px 12px;font-size:12.5px;color:var(--text);margin-bottom:14px;line-height:1.8"></div>
+      <label class="form-label">Reason for rejection <span style="color:var(--red)">*</span></label>
+      <textarea id="rr-notes" class="form-control" rows="3" placeholder="e.g. Session is valid — not a duplicate." style="resize:vertical"></textarea>
+      <div id="rr-error" class="form-error-msg" style="display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-reject-request')">Cancel</button>
+      <button class="btn btn-danger" id="rr-submit-btn" onclick="submitRejectRequest()">Reject Request</button>
+    </div>
+  </div>
+</div>
 <!-- MODAL: ADMIN DELETE SESSION -->
 <div id="modal-admin-delete" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-admin-delete')">
   <div class="modal-box sm">
@@ -1474,6 +1557,28 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-admin-delete')">Cancel</button>
       <button class="btn btn-danger" id="ad-confirm-btn" onclick="executeAdminDelete()">Delete Permanently</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DEPARTMENT (add/rename) -->
+<div id="modal-department" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-department')">
+  <div class="modal-box sm">
+    <div class="modal-header">
+      <div class="modal-title" id="dept-modal-title">Add Department</div>
+      <button class="modal-close" onclick="closeModal('modal-department')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="dept-modal-id">
+      <div class="form-group" style="margin-bottom:4px">
+        <label class="form-label">Department Name <span style="color:var(--red)">*</span></label>
+        <input type="text" id="dept-modal-name" class="form-control" placeholder="e.g. Finance">
+      </div>
+      <div id="dept-modal-error" class="form-error-msg"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-department')">Cancel</button>
+      <button class="btn btn-primary" id="dept-modal-save-btn" onclick="saveDepartment()">Save</button>
     </div>
   </div>
 </div>
@@ -1588,6 +1693,7 @@ const auth2        = getAuth(secondaryApp);
 let currentUser    = null;
 let currentProfile = null;
 let allUsers       = [];
+let allDepartments = [];
 let appSettings    = { emailNotifications: false };
 
 // ── Table sort + resize + reorder + column-manager utility ──────────
@@ -1816,6 +1922,7 @@ onAuthStateChanged(auth, async (user) => {
           await signOut(auth); return;
         }
         await loadSettings();
+        await loadDepartments();
         renderSidebar();
         loadNotificationBadges();
         showApp();
@@ -1860,7 +1967,7 @@ window.initApp = async function () {
       email:'sbarlao@dermorepubliq.com',
       employeeId:'240301-081',
       position:'Learning & Development Director',
-      roles:['director','coachee'], coachId:null,
+      roles:['coach','coachee'], coachId:null,
       active:true, createdAt:serverTimestamp()
     });
     await setDoc(doc(db, 'settings', 'app'), {
@@ -1870,7 +1977,7 @@ window.initApp = async function () {
       uid:currentUser.uid, firstName:'Sandra Abegail', lastName:'Barlao',
       email:'sbarlao@dermorepubliq.com',
       position:'Learning & Development Director',
-      roles:['director','coachee'], coachId:null, active:true
+      roles:['coach','coachee'], coachId:null, active:true
     };
     appSettings = { emailNotifications:false };
     renderSidebar(); showApp(); navigateTo('dashboard');
@@ -1938,6 +2045,7 @@ function showLogin() {
 function showApp() {
   hideAll();
   document.getElementById('app').style.display = 'block';
+  if ((currentProfile.permissions||{}).admin) updateAdminInboxBadge();
 }
 
 // ── Navigation ───────────────────────────────────────────────
@@ -1959,9 +2067,8 @@ const VIEWS = {
 function defaultView() {
   const r = currentProfile.roles || [];
   const p = currentProfile.permissions || {};
-  if (r.includes('director'))  return 'dashboard';
-  if (p.dashboard)             return 'dashboard';
   if (r.includes('coach'))     return 'coach-home';
+  if (p.dashboard)             return 'dashboard';
   if (p.sessionRecords)        return 'all-sessions';
   return 'my-coaching';
 }
@@ -1994,6 +2101,7 @@ const NAV_ICONS = {
   checklist: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
   profile:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
   reports:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  inbox:    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>',
 };
 
 // ── Sidebar ──────────────────────────────────────────────────
@@ -2002,17 +2110,18 @@ function renderSidebar() {
   let html = '';
   // Primary nav — analytics views (director always; others by permission)
   const perms = currentProfile.permissions || {};
-  const canDash = roles.includes('director') || perms.dashboard;
-  const canSess = roles.includes('director') || perms.sessionRecords;
-  if (canDash || canSess) {
-    if (canDash) html += ni('dashboard',    NAV_ICONS.dashboard, 'Dashboard');
-    if (canSess) html += ni('all-sessions', NAV_ICONS.sessions,  'Session Records');
-  }
+  const canDash = roles.includes('coach') || perms.dashboard;
+  const canSess = roles.includes('coach') || perms.sessionRecords;
   if (roles.includes('coach')) {
     html += '<div class="nav-section-label">Coaching</div>';
     html += ni('coach-home',     NAV_ICONS.team,      'My Team');
     html += ni('coach-sessions', NAV_ICONS.clipboard, 'Team Sessions');
     html += ni('action-plans',   NAV_ICONS.checklist, 'Action Plans');
+    html += ni('dashboard',      NAV_ICONS.dashboard, 'Dashboard');
+    html += ni('all-sessions',   NAV_ICONS.sessions,  'Session Records');
+  } else if (canDash || canSess) {
+    if (canDash) html += ni('dashboard',    NAV_ICONS.dashboard, 'Dashboard');
+    if (canSess) html += ni('all-sessions', NAV_ICONS.sessions,  'Session Records');
   }
   if (roles.includes('coachee')) {
     html += '<div class="nav-section-label">My Development</div>';
@@ -2020,13 +2129,14 @@ function renderSidebar() {
     html += ni('my-action-plans',  NAV_ICONS.checklist, 'My Action Plans');
   }
   // Admin section — pushed to bottom
-  const canAdmin = roles.includes('director') || perms.admin;
+  const canAdmin = perms.admin;
   if (canAdmin) {
     html += '<div class="nav-spacer"></div>';
     html += '<div class="nav-section-label">Admin</div>';
-    if (roles.includes('director')) html += ni('reports', NAV_ICONS.reports, 'Reports');
+    html += ni('reports',  NAV_ICONS.reports,  'Reports');
     html += ni('settings', NAV_ICONS.settings, 'Settings');
     html += ni('users',    NAV_ICONS.users,    'User Management');
+    html += niBadge('admin-inbox', NAV_ICONS.inbox, 'Admin Inbox', 'ai-nav-badge');
   }
   // My Profile — always at the bottom for all roles
   if (!canAdmin) html += '<div class="nav-spacer"></div>';
@@ -2040,6 +2150,12 @@ function renderSidebar() {
 function ni(view, icon, label) {
   return '<div class="nav-item" data-view="' + view + '" data-label="' + label + '" onclick="navigateTo(\'' + view + '\')">'
        + '<span class="nav-icon">' + icon + '</span><span class="nav-label">' + label + '</span></div>';
+}
+function niBadge(view, icon, label, badgeId) {
+  return '<div class="nav-item" data-view="' + view + '" data-label="' + label + '" onclick="navigateTo(\'' + view + '\')" style="position:relative">'
+       + '<span class="nav-icon">' + icon + '</span><span class="nav-label">' + label + '</span>'
+       + '<span id="' + badgeId + '" style="display:none;background:var(--red);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;text-align:center;line-height:16px;padding:0 4px;margin-left:auto"></span>'
+       + '</div>';
 }
 
 // loadDashboard defined below
@@ -2060,7 +2176,7 @@ async function refreshUsers() {
 
 async function loadUsers() {
   document.getElementById('users-tbody').innerHTML =
-    '<tr><td colspan="9"><div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Loading...</div></td></tr>';
+    '<tr><td colspan="10"><div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Loading...</div></td></tr>';
   await refreshUsers();
   renderUsersTable();
   if (!usersTableReady) {
@@ -2072,7 +2188,7 @@ async function loadUsers() {
 function renderUsersTable() {
   const tbody = document.getElementById('users-tbody');
   if (!allUsers.length) {
-    tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">&#128101;</div><div class="empty-title">No users yet</div><div class="empty-sub">Add your first user to get started.</div></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">&#128101;</div><div class="empty-title">No users yet</div><div class="empty-sub">Add your first user to get started.</div></div></td></tr>';
     return;
   }
   let rows = [...allUsers];
@@ -2093,6 +2209,7 @@ function renderUsersTable() {
       + '<td>' + esc(u.employeeId||'—') + '</td>'
       + '<td style="font-size:12px">' + esc(u.email) + '</td>'
       + '<td>' + esc(u.position||'—') + '</td>'
+      + '<td style="font-size:12px">' + esc(u.department||'—') + '</td>'
       + '<td style="font-size:12px">' + displayHireDate(u.hireDate) + '</td>'
       + '<td>' + badges + '</td>'
       + '<td>' + esc(coachName) + '</td>'
@@ -2109,6 +2226,7 @@ function rtSortKey(u, col) {
   if (col === 'name')       return ((u.firstName||'') + ' ' + (u.lastName||'')).toLowerCase();
   if (col === 'employeeId') return (u.employeeId||'').toLowerCase();
   if (col === 'position')   return (u.position||'').toLowerCase();
+  if (col === 'dept')       return (u.department||'').toLowerCase();
   if (col === 'active')     return u.active!==false ? 'a' : 'z';
   if (col === 'hireDate')   return normalizeDate(u.hireDate) || '0000-00-00'; // normalize to YYYY-MM-DD so string sort = date sort; blank → bottom
   return '';
@@ -2166,7 +2284,11 @@ window.openUserModal = function(uid) {
   coachSel.innerHTML = '<option value="">— Select coach —</option>'
     + coaches.map(c => '<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
   ['mu-firstname','mu-lastname','mu-empid','mu-email','mu-position','mu-hiredate'].forEach(id => document.getElementById(id).value = '');
-  ['role-director','role-coach','role-coachee','mu-perm-dashboard','mu-perm-sessions','mu-perm-admin'].forEach(id => document.getElementById(id).checked = false);
+  const deptSel = document.getElementById('mu-dept');
+  deptSel.innerHTML = '<option value="">— No department —</option>'
+    + allDepartments.filter(d=>d.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(d=>'<option value="'+esc(d.name)+'">'+esc(d.name)+'</option>').join('');
+  deptSel.value = '';
+  ['role-coach','role-coachee','mu-perm-dashboard','mu-perm-sessions','mu-perm-admin'].forEach(id => document.getElementById(id).checked = false);
   document.getElementById('mu-uid').value = '';
   document.getElementById('mu-error').style.display = 'none';
   document.getElementById('mu-active-group').style.display = 'none';
@@ -2186,6 +2308,7 @@ window.openUserModal = function(uid) {
     document.getElementById('mu-email').disabled           = true;
     document.getElementById('mu-email-hint').textContent   = 'Email cannot be changed after creation.';
     document.getElementById('mu-position').value           = u.position || '';
+    document.getElementById('mu-dept').value              = u.department || '';
     document.getElementById('mu-hiredate').value            = normalizeDate(u.hireDate) || '';
     document.getElementById('mu-perm-dashboard').checked   = !!(u.permissions||{}).dashboard;
     document.getElementById('mu-perm-sessions').checked    = !!(u.permissions||{}).sessionRecords;
@@ -2222,29 +2345,32 @@ window.saveUser = async function() {
   const empId     = document.getElementById('mu-empid').value.trim();
   const position  = document.getElementById('mu-position').value.trim();
   const hireDate    = document.getElementById('mu-hiredate').value || null;
+  const department  = document.getElementById('mu-dept').value.trim() || null;
   const permissions = {
     dashboard:      document.getElementById('mu-perm-dashboard').checked,
     sessionRecords: document.getElementById('mu-perm-sessions').checked,
     admin:          document.getElementById('mu-perm-admin').checked
   };
-  const roles     = ['director','coach','coachee'].filter(r => document.getElementById('role-'+r).checked);
+  const roles     = ['coach','coachee'].filter(r => document.getElementById('role-'+r).checked);
   const coachId   = (document.getElementById('mu-coach-group').style.display !== 'none')
                     ? (document.getElementById('mu-coach').value || null) : null;
 
   if (!firstName || !lastName) { showErr(errEl,'First and last name required.'); toast('First and last name required.','error'); return; }
   if (!uid && !email)           { showErr(errEl,'Email required.'); toast('Email required.','error'); return; }
   if (!roles.length)            { showErr(errEl,'At least one role required.'); toast('At least one role required.','error'); return; }
-  if (roles.includes('coachee') && !roles.includes('director') && !coachId) { showErr(errEl,'Please assign a coach.'); toast('Please assign a coach for this coachee.','error'); return; }
+  if (roles.includes('coachee') && !coachId) { showErr(errEl,'Please assign a coach.'); toast('Please assign a coach for this coachee.','error'); return; }
 
   btn.disabled = true; btn.textContent = uid ? 'Saving…' : 'Creating…';
   try {
     if (uid) {
       const active = document.getElementById('mu-active').checked;
-      await updateDoc(doc(db,'users',uid), { firstName,lastName,employeeId:empId,position,hireDate,permissions,roles,coachId,active,updatedAt:serverTimestamp() });
+      await updateDoc(doc(db,'users',uid), { firstName,lastName,employeeId:empId,position,hireDate,department,permissions,roles,coachId,active,updatedAt:serverTimestamp() });
+      await addDoc(collection(db,'auditLog'), { action:'update_user', targetUid:uid, targetName:firstName+' '+lastName, performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'Roles: '+roles.join(', ')+'. Admin: '+(permissions.admin||false)+'.', timestamp:serverTimestamp() });
       toast('User updated.','success');
     } else {
       const cred = await createUserWithEmailAndPassword(auth2, email, 'Boost2024!');
-      await setDoc(doc(db,'users',cred.user.uid), { firstName,lastName,email,employeeId:empId,position,hireDate,permissions,roles,coachId,active:true,createdAt:serverTimestamp() });
+      await setDoc(doc(db,'users',cred.user.uid), { firstName,lastName,email,employeeId:empId,position,hireDate,department,permissions,roles,coachId,active:true,createdAt:serverTimestamp() });
+      await addDoc(collection(db,'auditLog'), { action:'create_user', targetUid:cred.user.uid, targetName:firstName+' '+lastName, targetEmail:email, performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'Roles: '+roles.join(', ')+'.', timestamp:serverTimestamp() });
       await sendPasswordResetEmail(auth2, email);
       await signOut(auth2);
       toast('User created. Password setup email sent.','success');
@@ -2294,14 +2420,14 @@ window.downloadCsvTemplate = function() {
     '# BOOST Hub User Import Template',
     '# Col A: employeeId (REQUIRED on every row — used to match existing users)',
     '# Col B-D: firstName, lastName, email (email required for new users only; cannot be changed for existing)',
-    '# Col E-F: position, hireDate (YYYY-MM-DD format)',
-    '# Col G-I: roleCoach, roleCoachee, roleDirector (true/false)',
-    '# Col J-K: permDashboard, permSessionRecords (true/false — applies to non-directors only)',
+    '# Col E-G: position, department, hireDate (YYYY-MM-DD format)',
+    '# Col H-I: roleCoach, roleCoachee (true/false)',
+    '# Col J-K: permDashboard, permSessionRecords (true/false)',
     '# Col L-M: coachEmail, active (true/false — defaults to true if blank)',
     '# Lines starting with # are ignored by the importer.',
-    'employeeId,firstName,lastName,email,position,hireDate,roleCoach,roleCoachee,roleDirector,permDashboard,permSessionRecords,coachEmail,active',
-    '240401-001,Juan,dela Cruz,jdelacruz@dermorepubliq.com,Sales Associate,2024-04-01,false,true,false,false,false,mcoach@dermorepubliq.com,true',
-    '240402-002,Maria,Santos,msantos@dermorepubliq.com,Senior Team Lead,2024-04-15,true,false,false,true,true,,true'
+    'employeeId,firstName,lastName,email,position,department,hireDate,roleCoach,roleCoachee,permDashboard,permSessionRecords,coachEmail,active',
+    '240401-001,Juan,dela Cruz,jdelacruz@dermorepubliq.com,Sales Associate,Operations,2024-04-01,false,true,false,false,mcoach@dermorepubliq.com,true',
+    '240402-002,Maria,Santos,msantos@dermorepubliq.com,Senior Team Lead,Finance,2024-04-15,true,false,true,true,,true'
   ].join('\n') + '\n';
   const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(new Blob([data],{type:'text/csv'})),download:'boost_users_template.csv'});
   a.click();
@@ -2403,13 +2529,14 @@ window.parseCsv = function(file) {
       const normHireDate = normalizeDate(row.hiredate); // always store as YYYY-MM-DD
       // Track which optional columns were explicitly provided (non-blank)
       // For updates, only fields with explicit values will be written — blanks = leave unchanged
-      const _hasRoles  = row.rolecoach !== '' || row.rolecoachee !== '' || row.roledirector !== '';
+      const _hasRoles  = row.rolecoach !== '' || row.rolecoachee !== '';
+      const _hasDept   = row.department !== '';
       const _hasPerms  = row.permdashboard !== '' || row.permsessionrecords !== '';
       const _hasCoach  = row.coachemail !== '';
       const _hasActive = row.active !== '';
       csvParsed.push({ ...row, hiredate: normHireDate, roles, permissions,
         _action: action, _err: err, _existingUid: existing?.uid||null, _active: activeVal,
-        _hasRoles, _hasPerms, _hasCoach, _hasActive });
+        _hasRoles, _hasPerms, _hasCoach, _hasActive, _hasDept });
 
       const rowBg = action === 'error'  ? '#fff5f5' : action === 'create' ? '#f0faf4' : '#f0f6ff';
       const actionBadge = action === 'error'
@@ -2430,10 +2557,10 @@ window.parseCsv = function(file) {
         <td style="font-family:monospace;font-size:11px">${esc(empId)}</td>
         <td style="font-size:11px">${displayEmail}</td>
         <td>${esc(row.position||'')}</td>
+        <td style="font-size:11px">${esc(row.department||'')}</td>
         <td style="font-size:11px">${normHireDate || '<span style="color:#9ca3af">—</span>'}</td>
         <td style="text-align:center">${_boolCell(roles.includes('coach'))}</td>
         <td style="text-align:center">${_boolCell(roles.includes('coachee'))}</td>
-        <td style="text-align:center">${_boolCell(roles.includes('director'))}</td>
         <td style="text-align:center">${_boolCell(permissions.dashboard)}</td>
         <td style="text-align:center">${_boolCell(permissions.sessionRecords)}</td>
         <td style="font-size:11px">${esc(row.coachemail||'')}</td>
@@ -2487,6 +2614,7 @@ window.runCsvImport = async function() {
         if (row._hasPerms)   updates.permissions = row.permissions;
         if (row._hasCoach)   updates.coachId    = coachId;
         if (row._hasActive)  updates.active     = row._active;
+        if (row._hasDept)    updates.department = row.department || null;
         await updateDoc(doc(db,'users',row._existingUid), updates);
         updated++;
       } else {
@@ -2499,6 +2627,7 @@ window.runCsvImport = async function() {
           employeeId:  row.employeeid||'',
           position:    row.position||'',
           hireDate:    row.hiredate||null,
+          department:  row.department||null,
           roles,
           permissions: row.permissions,
           coachId,
@@ -2527,6 +2656,95 @@ window.runCsvImport = async function() {
 };
 
 // ── Settings ─────────────────────────────────────────────────
+// ── Departments ──────────────────────────────────────────────
+async function loadDepartments() {
+  try {
+    const snap = await getDocs(query(collection(db,'departments'), orderBy('name','asc')));
+    allDepartments = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+  } catch(e) { allDepartments = []; }
+}
+
+function renderDepartmentList() {
+  const el = document.getElementById('dept-list');
+  if (!el) return;
+  const active   = allDepartments.filter(d => d.active !== false);
+  const inactive = allDepartments.filter(d => d.active === false);
+  const sorted   = [...active.sort((a,b)=>a.name.localeCompare(b.name)),
+                    ...inactive.sort((a,b)=>a.name.localeCompare(b.name))];
+  if (!sorted.length) {
+    el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:4px 0">No departments yet. Add your first one above.</div>';
+    return;
+  }
+  el.innerHTML = sorted.map(d => {
+    const userCount = allUsers.filter(u => u.department === d.name).length;
+    const isActive  = d.active !== false;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:13px;font-weight:500;color:'+(isActive?'var(--text)':'var(--muted)')+'">'+esc(d.name)+'</span>'
+      + '<span style="font-size:11.5px;color:var(--muted)">('+userCount+' user'+(userCount!==1?'s':'')+')</span>'
+      + (!isActive ? '<span style="font-size:11px;background:#F3F4F6;color:#6B7280;padding:1px 6px;border-radius:8px">Inactive</span>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:6px">'
+      + '<button class="btn btn-ghost btn-sm" onclick="openDeptModal(''+d.id+'',''+esc(d.name)+'')">Rename</button>'
+      + '<button class="btn btn-ghost btn-sm" style="color:'+(isActive?'var(--red)':'var(--green)')+'" onclick="toggleDepartmentActive(''+d.id+'',''+esc(d.name)+'','+(isActive)+','+userCount+')">'+(isActive?'Deactivate':'Reactivate')+'</button>'
+      + '</div></div>';
+  }).join('');
+}
+
+window.openDeptModal = function(id, name) {
+  document.getElementById('dept-modal-title').textContent = id ? 'Rename Department' : 'Add Department';
+  document.getElementById('dept-modal-id').value   = id || '';
+  document.getElementById('dept-modal-name').value = name || '';
+  document.getElementById('dept-modal-error').style.display = 'none';
+  document.getElementById('dept-modal-save-btn').disabled = false;
+  document.getElementById('dept-modal-save-btn').textContent = 'Save';
+  document.getElementById('modal-department').style.display = 'flex';
+  setTimeout(() => document.getElementById('dept-modal-name').focus(), 50);
+};
+
+window.saveDepartment = async function() {
+  const id   = document.getElementById('dept-modal-id').value.trim();
+  const name = document.getElementById('dept-modal-name').value.trim();
+  const errEl = document.getElementById('dept-modal-error');
+  errEl.style.display = 'none';
+  if (!name) { errEl.textContent = 'Department name is required.'; errEl.style.display='block'; return; }
+  const duplicate = allDepartments.find(d => d.name.toLowerCase()===name.toLowerCase() && d.id !== id);
+  if (duplicate) { errEl.textContent = 'A department with that name already exists.'; errEl.style.display='block'; return; }
+  const btn = document.getElementById('dept-modal-save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    if (id) {
+      await updateDoc(doc(db,'departments',id), { name, updatedAt:serverTimestamp() });
+      // Update all users with old name to new name
+      const oldName = allDepartments.find(d=>d.id===id)?.name;
+      if (oldName && oldName !== name) {
+        const affected = allUsers.filter(u => u.department === oldName);
+        for (const u of affected) await updateDoc(doc(db,'users',u.uid), { department:name });
+      }
+    } else {
+      await addDoc(collection(db,'departments'), { name, active:true, createdAt:serverTimestamp() });
+    }
+    closeModal('modal-department');
+    await loadDepartments();
+    renderDepartmentList();
+    toast((id ? 'Department renamed.' : 'Department added.'),'success');
+  } catch(e) { errEl.textContent = 'Error: '+e.message; errEl.style.display='block'; btn.disabled=false; btn.textContent='Save'; }
+};
+
+window.toggleDepartmentActive = function(id, name, isActive, userCount) {
+  if (isActive && userCount > 0) {
+    if (!confirm('Deactivate "'+name+'"? It has '+userCount+' user'+(userCount!==1?'s':'')+' assigned. They will keep this department but it will be hidden from new dropdowns.')) return;
+  }
+  const action = isActive ? 'deactivate' : 'reactivate';
+  updateDoc(doc(db,'departments',id), { active:!isActive, updatedAt:serverTimestamp() })
+    .then(async () => {
+      await loadDepartments();
+      renderDepartmentList();
+      toast('Department '+action+'d.','success');
+    })
+    .catch(e => toast('Error: '+e.message,'error'));
+};
+
 async function loadSettings() {
   try {
     const snap = await getDoc(doc(db,'settings','app'));
@@ -2536,6 +2754,7 @@ async function loadSettings() {
 
 async function loadSettingsView() {
   document.getElementById('setting-email-notif').checked = !!appSettings.emailNotifications;
+  renderDepartmentList();
   const ts = appSettings.lastExport;
   const last = ts ? new Date(ts.seconds*1000).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : 'Never';
   document.getElementById('last-export-label').textContent = 'Last export: ' + last;
@@ -2580,7 +2799,7 @@ window.executeResetAppData = async function() {
     const sessSnap = await getDocs(collection(db,'sessions'));
     for (const s of sessSnap.docs) await deleteDoc(s.ref);
     // 3. Reset session counter
-    await setDoc(doc(db,'meta','sessionCounter'), { current: 0 });
+    await setDoc(doc(db,'meta','sessionCounter'), { lastId: 0, current: 0 });
     toast('All sessions and action plans deleted. Session counter reset to CS-001.','success');
     if (btn) { btn.disabled = false; btn.textContent = '🗑 Reset All Sessions & Action Plans'; btn.style.background=''; }
   } catch(e) {
@@ -2621,7 +2840,8 @@ window.exportActionPlansCsv = async function() {
   try {
     let snap;
     const roles = currentProfile.roles || [];
-    if (roles.includes('director')) {
+    const perms = currentProfile.permissions || {};
+    if (perms.admin) {
       snap = await getDocs(collection(db,'actionPlans'));
     } else {
       snap = await getDocs(query(collection(db,'actionPlans'), where('coachId','==',currentUser.uid)));
@@ -3072,7 +3292,7 @@ async function loadMyCoaching() {
       });
 
     // ── Coachee stat cards (same mkStat pattern as My Team) ──
-    const mcNeedAction = sessions.filter(s => ['pending-commitment','pending','for-review'].includes(s.status)).length;
+    const mcNeedAction = sessions.filter(s => ['pending-commitment','pending'].includes(s.status)).length;
     const mcAck        = sessions.filter(s => s.status === 'acknowledged').length;
     const mcComp       = sessions.filter(s => s.status === 'completed').length;
     const MC_LIST  = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
@@ -3634,14 +3854,15 @@ async function loadAllSessions() {
 
     // Scope to director's org subtree (top-to-bottom visibility by org line)
     const _myRoles = currentProfile.roles || [];
-    if (_myRoles.includes('director')) {
+    const _myPerms = currentProfile.permissions || {};
+    if (_myRoles.includes('coach') && !_myPerms.admin) {
       const subtree = getOrgSubtree(currentUser.uid);
       allSnap = allSnap.filter(s => subtree.has(s.coacheeId) || subtree.has(s.coachId));
     }
     allSessionRecords = allSnap;
 
-    // Populate coach + coachee dropdowns (scoped to visible users)
-    const _subtreeIds = _myRoles.includes('director') ? getOrgSubtree(currentUser.uid) : null;
+    // Populate coach + coachee dropdowns (admins see all; coaches scoped to subtree)
+    const _subtreeIds = (_myRoles.includes('coach') && !_myPerms.admin) ? getOrgSubtree(currentUser.uid) : null;
     const coaches  = allUsers.filter(u=>(u.roles||[]).includes('coach')   && (!_subtreeIds || _subtreeIds.has(u.uid)));
     const coachees = allUsers.filter(u=>(u.roles||[]).includes('coachee') && (!_subtreeIds || _subtreeIds.has(u.uid)));
     const cSel = document.getElementById('sr-filter-coach');
@@ -3883,11 +4104,14 @@ function renderCoachSessions(sessions) {
           actions += '<button class="icon-btn danger" onclick="deleteSession(\''+s.id+'\')" title="Delete draft">'+ICON_DEL+'</button>';
         } else if (st === 'for-review') {
           actions += '<button class="icon-btn" onclick="openExistingSession(\''+s.id+'\')" title="Review &amp; resubmit">'+ICON_EDIT+'</button>';
+          actions += '<button class="icon-btn" onclick="requestSessionDeletion(\''+s.id+'\',\''+esc(cName)+'\',\''+esc(code)+'\',\''+esc(s.sessionDate||'')+'\',\''+st+'\')" title="Request deletion" style="color:var(--amber);border-color:var(--amber)">'+ICON_FLAG+'</button>';
         } else if (isCoacheeLedReview) {
           actions += '<button class="btn btn-primary btn-sm" onclick="openExistingSession(\''+s.id+'\')">Review</button>';
+          actions += '<button class="icon-btn" onclick="requestSessionDeletion(\''+s.id+'\',\''+esc(cName)+'\',\''+esc(code)+'\',\''+esc(s.sessionDate||'')+'\',\''+st+'\')" title="Request deletion" style="color:var(--amber);border-color:var(--amber)">'+ICON_FLAG+'</button>';
         } else {
           actions += '<button class="icon-btn" onclick="openExistingSession(\''+s.id+'\')" title="View session">'+ICON_EYE+'</button>';
           actions += '<button class="icon-btn" onclick="openSessionPdfModal(\''+s.id+'\')" title="View PDF" style="color:var(--red);border-color:var(--red)">'+ICON_PDF+'</button>';
+          actions += '<button class="icon-btn" onclick="requestSessionDeletion(\''+s.id+'\',\''+esc(cName)+'\',\''+esc(code)+'\',\''+esc(s.sessionDate||'')+'\',\''+st+'\')" title="Request deletion" style="color:var(--amber);border-color:var(--amber)">'+ICON_FLAG+'</button>';
         }
         actions += '</div>';
 
@@ -4050,8 +4274,8 @@ async function loadSessionForm() {
       ['session-save-draft-btn','session-submit-btn','session-acknowledge-btn','pdf-btn'].forEach(id => {
         const el = document.getElementById(id); if (el) el.style.display = 'none';
       });
-      document.getElementById('session-form-sub').textContent = 'Read-only — director view';
-      setStatusBar('You are viewing this session as a director. No edits can be made.', 'amber');
+      document.getElementById('session-form-sub').textContent = 'Read-only view';
+      setStatusBar('You are viewing this session in read-only mode. No edits can be made.', 'amber');
       _sessionForceViewOnly = false;
     }
   } else if (currentSessionCoacheeId) {
@@ -4104,7 +4328,7 @@ function showCoacheePicker() {
   // Directors see their full org subtree for skip-level coaching (within their branch only)
   const _pickerRoles = currentProfile.roles || [];
   let pickList;
-  if (_pickerRoles.includes('director')) {
+  if (_pickerRoles.includes('coach')) {
     const subtree = getOrgSubtree(currentUser.uid);
     subtree.delete(currentUser.uid); // exclude self
     pickList = allUsers.filter(u => subtree.has(u.uid) && u.active !== false);
@@ -4170,7 +4394,7 @@ window.onFlowTypeSelected = function(type) {
 
 window.navigateBackFromSession = function() {
   const roles = currentProfile.roles || [];
-  const isCoacheeOnly = roles.includes('coachee') && !roles.includes('coach') && !roles.includes('director');
+  const isCoacheeOnly = roles.includes('coachee') && !roles.includes('coach');
   navigateTo(isCoacheeOnly ? 'my-coaching' : 'coach-sessions');
 };
 
@@ -4870,8 +5094,8 @@ function renderActionPlans(plans) {
   const rows = plans.map(p => {
     const coachee = allUsers.find(u=>u.uid===p.coacheeId);
     const cName   = coachee ? coachee.firstName+' '+coachee.lastName : '—';
-    const d   = p.sessionDate ? new Date(p.sessionDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
-    const due = p.dueDate     ? new Date(p.dueDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})     : '—';
+    const d   = p.sessionDate ? new Date(p.sessionDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+    const due = p.dueDate     ? new Date(p.dueDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})     : '—';
     const st  = p.status || 'Not Started';
     const today2 = new Date(); today2.setHours(0,0,0,0);
     const overdue = p.dueDate && !['Completed','Cancelled'].includes(st) && new Date(p.dueDate+'T00:00:00') < today2;
@@ -5271,8 +5495,8 @@ function renderMyActionPlans(plans) {
   const rows = plans.map(p => {
     const coach = allUsers.find(u=>u.uid===p.coachId);
     const coachName = coach ? coach.firstName+' '+coach.lastName : '—';
-    const d   = p.sessionDate ? new Date(p.sessionDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
-    const due = p.dueDate     ? new Date(p.dueDate).toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})     : '—';
+    const d   = p.sessionDate ? new Date(p.sessionDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+    const due = p.dueDate     ? new Date(p.dueDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'})     : '—';
     const st  = p.status || 'Not Started';
     const today3 = new Date(); today3.setHours(0,0,0,0);
     const overdue = p.dueDate && !['Completed','Cancelled'].includes(st) && new Date(p.dueDate+'T00:00:00') < today3;
@@ -5440,6 +5664,15 @@ window.openSessionPdfModal = async function(sessionId) {
 window.downloadFromPreview = function() { return _openPdfWindow(_previewSessionId); };
 
 // ── Return session for review (coachee) ───────────────────────
+window.openRejectModal = function() {
+  document.getElementById('reject-comment').value = '';
+  const errEl = document.getElementById('reject-error');
+  errEl.textContent = ''; errEl.style.display = 'none';
+  document.getElementById('reject-submit-btn').disabled = false;
+  document.getElementById('reject-submit-btn').textContent = 'Return for Review';
+  document.getElementById('modal-reject').style.display = 'flex';
+};
+
 window.submitRejection = async function() {
   const comment = document.getElementById('reject-comment').value.trim();
   const errEl   = document.getElementById('reject-error');
@@ -5462,6 +5695,205 @@ window.submitRejection = async function() {
 };
 
 // ── Delete draft session ──────────────────────────────────────
+// ── Coach: Request session deletion ─────────────────────────
+let _rdTarget = null;
+
+window.requestSessionDeletion = function(sessionId, coacheeName, sessionCode, sessionDate, status) {
+  _rdTarget = { id:sessionId, coacheeName, sessionCode, sessionDate, status };
+  document.getElementById('rd-session-info').innerHTML =
+    '<strong>Session:</strong> ' + esc(sessionCode) + '<br>'
+    + '<strong>Coachee:</strong> ' + esc(coacheeName) + '<br>'
+    + '<strong>Date:</strong> ' + (sessionDate || '—') + '<br>'
+    + '<strong>Status:</strong> ' + statusLabel(status);
+  document.getElementById('rd-reason').value = '';
+  document.getElementById('rd-error').style.display = 'none';
+  document.getElementById('rd-submit-btn').disabled = false;
+  document.getElementById('rd-submit-btn').textContent = 'Submit Request';
+  document.getElementById('modal-request-delete').style.display = 'flex';
+};
+
+window.submitDeletionRequest = async function() {
+  const reason = document.getElementById('rd-reason').value.trim();
+  const errEl  = document.getElementById('rd-error');
+  if (!reason) { errEl.textContent = 'Please enter a reason.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('rd-submit-btn');
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  errEl.style.display = 'none';
+  const t = _rdTarget; if (!t) return;
+  try {
+    await addDoc(collection(db,'deletionRequests'), {
+      sessionId:       t.id,
+      sessionCode:     t.sessionCode,
+      coacheeName:     t.coacheeName,
+      sessionDate:     t.sessionDate,
+      sessionStatus:   t.status,
+      reason,
+      requestedBy:     currentUser.uid,
+      requestedByName: (currentProfile.firstName||'') + ' ' + (currentProfile.lastName||''),
+      requestStatus:   'pending',
+      requestedAt:     serverTimestamp()
+    });
+    closeModal('modal-request-delete');
+    toast('Deletion request submitted. An admin will review it.', 'success');
+    _rdTarget = null;
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Submit Request';
+  }
+};
+
+// ── Admin Inbox ───────────────────────────────────────────────
+window.loadAdminInbox = async function() {
+  await Promise.all([loadPendingDeletionRequests(), loadRecentSystemActivity()]);
+  updateAdminInboxBadge();
+};
+
+async function loadPendingDeletionRequests() {
+  const el = document.getElementById('ai-del-requests');
+  el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:13px">Loading…</div>';
+  try {
+    if (!allUsers.length) await refreshUsers();
+    const snap = await getDocs(query(collection(db,'deletionRequests'), where('requestStatus','==','pending')));
+    const requests = snap.docs.map(d => ({id:d.id,...d.data()}))
+      .sort((a,b) => (b.requestedAt?.seconds||0) - (a.requestedAt?.seconds||0));
+    if (!requests.length) {
+      el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">No pending deletion requests. ✓</div>';
+      return;
+    }
+    const rows = requests.map(r => {
+      const ts = r.requestedAt?.toDate ? r.requestedAt.toDate().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'}) : '—';
+      return '<tr>'
+        + '<td style="font-size:12px;white-space:nowrap">'+esc(ts)+'</td>'
+        + '<td style="font-size:12px;font-weight:600;color:var(--blue)">'+esc(r.sessionCode||r.sessionId||'—')+'</td>'
+        + '<td style="font-size:12px">'+esc(r.coacheeName||'—')+'</td>'
+        + '<td style="font-size:12px">'+esc(r.sessionDate||'—')+'</td>'
+        + '<td><span class="badge badge-'+(r.sessionStatus||'draft')+'">'+statusLabel(r.sessionStatus)+'</span></td>'
+        + '<td style="font-size:12px">'+esc(r.requestedByName||'—')+'</td>'
+        + '<td style="font-size:12px;max-width:180px;word-break:break-word">'+esc(r.reason||'—')+'</td>'
+        + '<td style="white-space:nowrap">'
+        + '<button class="btn btn-danger btn-sm" style="margin-right:4px" onclick="approveDeleteRequest(''+r.id+'',''+esc(r.sessionId||'')+'',''+esc(r.coacheeName||'')+'',''+esc(r.requestedByName||'')+'',''+esc(r.sessionDate||'')+'',''+esc(r.sessionStatus||'')+'',''+esc(r.sessionCode||r.sessionId||'')+'',''+esc(r.reason||'')+'')">Approve &amp; Delete</button>'
+        + '<button class="btn btn-ghost btn-sm" onclick="showRejectRequestModal(''+r.id+'',''+esc(r.sessionCode||r.sessionId||'')+'',''+esc(r.coacheeName||'')+'',''+esc(r.sessionDate||'')+'',''+esc(r.requestedByName||'')+'')">Reject</button>'
+        + '</td>'
+        + '</tr>';
+    }).join('');
+    el.innerHTML = '<div class="table-wrap" style="overflow-x:auto"><table class="rt-table" style="font-size:12px">'
+      + '<thead><tr>'
+      + '<th style="min-width:150px">Requested At</th>'
+      + '<th style="min-width:100px">Session ID</th>'
+      + '<th style="min-width:130px">Coachee</th>'
+      + '<th style="min-width:110px">Session Date</th>'
+      + '<th style="min-width:110px">Status</th>'
+      + '<th style="min-width:130px">Requested By</th>'
+      + '<th style="min-width:180px">Reason</th>'
+      + '<th style="min-width:210px">Action</th>'
+      + '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+  } catch(e) {
+    el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--red);font-size:13px">Error: '+esc(e.message)+'</div>';
+  }
+}
+
+window.approveDeleteRequest = async function(requestId, sessionId, coacheeName, requestedByName, sessionDate, sessionStatus, sessionCode, reason) {
+  if (!confirm('Approve and permanently delete session ' + sessionCode + '? This cannot be undone.')) return;
+  try {
+    const apSnap = await getDocs(query(collection(db,'actionPlans'), where('sessionId','==',sessionId)));
+    await Promise.all(apSnap.docs.map(d => deleteDoc(doc(db,'actionPlans',d.id))));
+    await deleteDoc(doc(db,'sessions',sessionId));
+    await updateDoc(doc(db,'deletionRequests',requestId), { requestStatus:'approved', reviewedBy:currentUser.uid, reviewedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), reviewedAt:serverTimestamp() });
+    await addDoc(collection(db,'auditLog'), {
+      action:'delete_session', sessionId, sessionCode, coacheeName,
+      coachName:requestedByName, sessionDate, sessionStatus,
+      reason:'[Via deletion request] ' + reason,
+      deletedBy:currentUser.uid,
+      deletedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''),
+      deletedAt:serverTimestamp()
+    });
+    toast('Session deleted and request approved.','success');
+    loadAdminInbox();
+  } catch(e) { toast('Error: '+e.message,'error'); }
+};
+
+let _rrTarget = null;
+window.showRejectRequestModal = function(requestId, sessionCode, coacheeName, sessionDate, requestedByName) {
+  _rrTarget = requestId;
+  document.getElementById('rr-session-info').innerHTML =
+    '<strong>Session:</strong> ' + esc(sessionCode) + '<br>'
+    + '<strong>Coachee:</strong> ' + esc(coacheeName) + '<br>'
+    + '<strong>Date:</strong> ' + (sessionDate||'—') + '<br>'
+    + '<strong>Requested by:</strong> ' + esc(requestedByName);
+  document.getElementById('rr-notes').value = '';
+  document.getElementById('rr-error').style.display = 'none';
+  document.getElementById('rr-submit-btn').disabled = false;
+  document.getElementById('rr-submit-btn').textContent = 'Reject Request';
+  document.getElementById('modal-reject-request').style.display = 'flex';
+};
+
+window.submitRejectRequest = async function() {
+  const notes = document.getElementById('rr-notes').value.trim();
+  const errEl = document.getElementById('rr-error');
+  if (!notes) { errEl.textContent = 'Please provide a reason for rejection.'; errEl.style.display = 'block'; return; }
+  const btn = document.getElementById('rr-submit-btn');
+  btn.disabled = true; btn.textContent = 'Rejecting…';
+  try {
+    await updateDoc(doc(db,'deletionRequests',_rrTarget), {
+      requestStatus:'rejected', reviewNotes:notes,
+      reviewedBy:currentUser.uid, reviewedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''),
+      reviewedAt:serverTimestamp()
+    });
+    closeModal('modal-reject-request');
+    toast('Deletion request rejected.','success');
+    _rrTarget = null;
+    loadAdminInbox();
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message; errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Reject Request';
+  }
+};
+
+async function loadRecentSystemActivity() {
+  const el = document.getElementById('ai-activity');
+  el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:13px">Loading…</div>';
+  try {
+    const snap = await getDocs(collection(db,'auditLog'));
+    const events = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .sort((a,b)=>(b.timestamp?.seconds||b.deletedAt?.seconds||0)-(a.timestamp?.seconds||a.deletedAt?.seconds||0))
+      .slice(0,20);
+    if (!events.length) { el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">No system activity recorded yet.</div>'; return; }
+    const actionLabel = a => ({delete_session:'Session Deleted',create_user:'User Created',update_user:'User Updated'}[a]||a);
+    const actionColor = a => a==='delete_session'?'var(--red)':a==='create_user'?'var(--green)':'var(--blue)';
+    const rows = events.map(e => {
+      const ts = (e.timestamp||e.deletedAt)?.toDate
+        ? (e.timestamp||e.deletedAt).toDate().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'}) : '—';
+      const by = e.deletedByName || e.performedByName || '—';
+      const detail = e.sessionCode
+        ? ('Session ' + e.sessionCode + (e.coacheeName ? ' · '+e.coacheeName : ''))
+        : (e.targetName ? (e.targetName + (e.targetEmail ? ' ('+e.targetEmail+')' : '')) : (e.details||'—'));
+      return '<tr>'
+        + '<td style="font-size:12px;white-space:nowrap">'+esc(ts)+'</td>'
+        + '<td style="font-size:12px;font-weight:600;color:'+actionColor(e.action)+'">'+esc(actionLabel(e.action))+'</td>'
+        + '<td style="font-size:12px">'+esc(by)+'</td>'
+        + '<td style="font-size:12px;max-width:240px;word-break:break-word">'+esc(detail)+'</td>'
+        + '</tr>';
+    }).join('');
+    el.innerHTML = '<div class="table-wrap"><table class="rt-table" style="font-size:12px">'
+      + '<thead><tr><th style="min-width:160px">When</th><th style="min-width:140px">Action</th><th style="min-width:140px">By</th><th>Detail</th></tr></thead>'
+      + '<tbody>'+rows+'</tbody></table></div>';
+  } catch(e) {
+    el.innerHTML = '<div style="padding:16px;color:var(--red);font-size:13px">Error: '+esc(e.message)+'</div>';
+  }
+}
+
+async function updateAdminInboxBadge() {
+  const badgeEl = document.getElementById('ai-nav-badge');
+  if (!badgeEl) return;
+  try {
+    const snap = await getDocs(query(collection(db,'deletionRequests'), where('requestStatus','==','pending')));
+    const count = snap.size;
+    badgeEl.textContent = count;
+    badgeEl.style.display = count > 0 ? 'inline-block' : 'none';
+  } catch(e) { /* silent */ }
+}
+
 // ── Admin delete (any session status, with audit log) ────────
 let _adminDeleteTarget = null; // { id, coacheeName, coachName, sessionDate, status, sessionCode }
 
@@ -5873,10 +6305,15 @@ async function loadSessionFormAPNotes(sessionId) {
     ));
     if (snap.empty) return;
     const aps = snap.docs.map(d=>({id:d.id,...d.data()}));
-    const rows = document.querySelectorAll('#action-plan-tbody tr');
-    aps.forEach((ap, i) => {
-      if (!rows[i]) return;
-      const lastTd = rows[i].querySelector('td:last-child');
+    const rows = Array.from(document.querySelectorAll('#action-plan-tbody tr'));
+    aps.forEach(ap => {
+      const row = rows.find(tr => {
+        const id = tr.id.replace('ap-row-','');
+        const el = document.getElementById('ap-action-'+id);
+        return el && el.value.trim() === (ap.action||'').trim();
+      });
+      if (!row) return;
+      const lastTd = row.querySelector('td:last-child');
       if (!lastTd) return;
       const btn = document.createElement('button');
       btn.className = 'ap-notes-btn';
@@ -6170,6 +6607,7 @@ window.saveSigGate = async function() {
 
 // ── Wire up lazy-loaded views ────────────────────────────────
 VIEWS['all-sessions']['load']      = loadAllSessions;
+VIEWS['admin-inbox']['load']       = loadAdminInbox;
 VIEWS['coach-new-session']['load'] = loadSessionForm;
 VIEWS['coach-sessions']['load']    = loadCoachSessions;
 VIEWS['action-plans']['load']      = loadActionPlans;
