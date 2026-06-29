@@ -5105,30 +5105,31 @@ let pendingAPCoacheeFilter = null;  // set by viewCoacheeActionPlans()
 let sessionCodeMap = {};            // sessionId → sessionCode lookup
 
 async function loadActionPlans() {
-  if (!allUsers.length) await refreshUsers();
   const container = document.getElementById('apl-list');
+  if (!container) return;
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">Loading…</div>';
-
-  // Populate coachee filter from full subtree (includes skip-level coachees)
-  const _aplSubtree = getOrgSubtree(currentUser.uid);
-  _aplSubtree.delete(currentUser.uid);
-  const subtreeCoachees = allUsers.filter(u => _aplSubtree.has(u.uid) && u.active !== false);
-  const coacheeSel = document.getElementById('apl-filter-coachee');
-  coacheeSel.innerHTML = '<option value="">All Team Members</option>'
-    + subtreeCoachees.sort((a,b)=>(a.firstName+a.lastName).localeCompare(b.firstName+b.lastName))
-        .map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
-
   try {
-    // Query all APs for coachees in this coach's subtree — includes APs from previous coaches
+    if (!allUsers.length) await refreshUsers();
+
+    // Populate coachee filter from full subtree (includes skip-level coachees)
     const _myPerms = currentProfile.permissions || {};
-    let snap;
-    if (_myPerms.admin) {
-      snap = await getDocs(collection(db,'actionPlans'));
-    } else {
-      snap = await getDocs(collection(db,'actionPlans'));
+    const _isAdminAP = !!_myPerms.admin;
+    const _aplSubtree = getOrgSubtree(currentUser.uid);
+    _aplSubtree.delete(currentUser.uid);
+    const subtreeCoachees = _isAdminAP
+      ? allUsers.filter(u => (u.roles||[]).includes('coachee') && u.active !== false)
+      : allUsers.filter(u => _aplSubtree.has(u.uid) && u.active !== false);
+    const coacheeSel = document.getElementById('apl-filter-coachee');
+    if (coacheeSel) {
+      coacheeSel.innerHTML = '<option value="">All Team Members</option>'
+        + subtreeCoachees.sort((a,b)=>(a.firstName+a.lastName).localeCompare(b.firstName+b.lastName))
+            .map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
     }
+
+    // Fetch all APs — admin sees everything, coach sees subtree or own
+    const snap = await getDocs(collection(db,'actionPlans'));
     allActionPlans = snap.docs.map(d => ({id:d.id,...d.data()}))
-      .filter(p => _myPerms.admin || p.coachId === currentUser.uid || _aplSubtree.has(p.coacheeId))
+      .filter(p => _isAdminAP || p.coachId === currentUser.uid || _aplSubtree.has(p.coacheeId))
       .sort((a,b) => (a.dueDate||'').localeCompare(b.dueDate||''));
     // Fetch session codes for all unique sessionIds
     sessionCodeMap = {};
@@ -6692,13 +6693,14 @@ window.saveSigGate = async function() {
 };
 
 // ── Wire up lazy-loaded views ────────────────────────────────
-VIEWS['all-sessions']['load']      = loadAllSessions;
-VIEWS['admin-inbox']['load']       = loadAdminInbox;
-VIEWS['coach-new-session']['load'] = loadSessionForm;
-VIEWS['coach-sessions']['load']    = loadCoachSessions;
-VIEWS['action-plans']['load']      = loadActionPlans;
-VIEWS['my-action-plans']['load']   = loadMyActionPlans;
-VIEWS['coachee-prep']['load']      = loadCoacheePrepForm;
+const _vw = k => VIEWS[k] || (VIEWS[k] = { el:'', label:'', sub:'', load:null });
+_vw('all-sessions')['load']      = loadAllSessions;
+_vw('admin-inbox')['load']       = loadAdminInbox;
+_vw('coach-new-session')['load'] = loadSessionForm;
+_vw('coach-sessions')['load']    = loadCoachSessions;
+_vw('action-plans')['load']      = loadActionPlans;
+_vw('my-action-plans')['load']   = loadMyActionPlans;
+_vw('coachee-prep')['load']      = loadCoacheePrepForm;
 
 </script>
 <!-- Column manager panels (positioned via JS) -->
