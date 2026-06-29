@@ -5128,7 +5128,7 @@ async function loadActionPlans() {
       snap = await getDocs(collection(db,'actionPlans'));
     }
     allActionPlans = snap.docs.map(d => ({id:d.id,...d.data()}))
-      .filter(p => _myPerms.admin || _aplSubtree.has(p.coacheeId))
+      .filter(p => _myPerms.admin || p.coachId === currentUser.uid || _aplSubtree.has(p.coacheeId))
       .sort((a,b) => (a.dueDate||'').localeCompare(b.dueDate||''));
     // Fetch session codes for all unique sessionIds
     sessionCodeMap = {};
