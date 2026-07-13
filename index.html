@@ -1733,7 +1733,7 @@ const _colState = {
 };
 _colStateLoad(); // restore on page load
 
-const CS_COL_DEFS  = [{col:'code',label:'Session ID'},{col:'name',label:'Name'},{col:'type',label:'Type'},{col:'focus',label:'Focus Area'},{col:'date',label:'Session Date'},{col:'status',label:'Status'},{col:'delivery',label:'Delivery'}];
+const CS_COL_DEFS  = [{col:'code',label:'Session ID'},{col:'name',label:'Name'},{col:'coach',label:'Coach'},{col:'type',label:'Type'},{col:'focus',label:'Focus Area'},{col:'date',label:'Session Date'},{col:'status',label:'Status'},{col:'delivery',label:'Delivery'}];
 const MC_COL_DEFS  = [{col:'code',label:'Session ID'},{col:'type',label:'Type'},{col:'coach',label:'Coach'},{col:'focus',label:'Focus Area'},{col:'date',label:'Session Date'},{col:'status',label:'Status'},{col:'delivery',label:'Delivery'}];
 
 function _getThIdx(th) { return Array.from(th.parentElement.children).indexOf(th); }
@@ -4090,6 +4090,7 @@ window.filterCoachSessions = function() {
   const getVal = (s, col) => {
     if (col==='code') return s.sessionCode||'';
     if (col==='name') { const c=allUsers.find(u=>u.uid===s.coacheeId); return c?c.lastName+c.firstName:''; }
+    if (col==='coach') { const c=allUsers.find(u=>u.uid===s.coachId); return c?c.lastName+c.firstName:''; }
     if (col==='type') return s.flowType||'';
     if (col==='focus') return (s.focusAreas||[]).join('')+(s.focusOther||'');
     if (col==='date') return s.sessionDate||'';
@@ -4125,6 +4126,7 @@ function renderCoachSessions(sessions) {
   container.innerHTML = '<div class="table-wrap"><table class="rt-table" id="cs-table"><thead><tr>'
     + '<th data-col="code" style="width:1px;white-space:nowrap">Session ID</th>'
     + '<th data-col="name" style="width:1px;white-space:nowrap">Name</th>'
+    + '<th data-col="coach" style="width:1px;white-space:nowrap">Coach</th>'
     + '<th data-col="type" style="width:1px;white-space:nowrap">Type</th>'
     + '<th data-col="focus" style="width:1px;white-space:nowrap">Focus Area</th>'
     + '<th data-col="date" style="width:1px;white-space:nowrap">Session Date</th>'
@@ -4171,10 +4173,13 @@ function renderCoachSessions(sessions) {
         }
         actions += '</div>';
 
+        const coach    = allUsers.find(u=>u.uid===s.coachId);
+        const coachName = coach ? coach.firstName+' '+coach.lastName : '—';
         const isCoacheeLed = s.flowType === 'coachee-led';
         return '<tr>'
           + '<td style="white-space:nowrap"><a href="#" onclick="openExistingSession(\''+s.id+'\');return false" style="font-size:12px;font-weight:600;color:var(--blue);text-decoration:none" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">'+esc(code)+'</a></td>'
           + '<td style="white-space:nowrap"><div style="display:flex;align-items:center;gap:8px"><div class="avatar avatar-sm">'+(coachee?ini(coachee.firstName,coachee.lastName):'?')+'</div><span style="font-weight:500">'+esc(cName)+'</span></div></td>'
+          + '<td style="white-space:nowrap;font-size:12.5px">'+esc(coachName)+'</td>'
           + '<td style="white-space:nowrap"><span style="font-size:11.5px;font-weight:600;padding:2px 10px;border-radius:20px;white-space:nowrap;'+(isCoacheeLed?'background:#EDE9FE;color:#5B21B6':'background:var(--blue-lt);color:var(--blue)')+'">'+( isCoacheeLed?'Coachee-Led':'Coach-Led')+'</span></td>'
           + '<td style="font-size:12.5px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(focus)+'">'+esc(focus)+'</td>'
           + '<td style="font-size:12.5px">'+esc(d)+'</td>'
