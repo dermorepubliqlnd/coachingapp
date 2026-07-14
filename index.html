@@ -2742,6 +2742,7 @@ window.runCsvImport = async function() {
       if (row._action === 'update') {
         // Update existing user — only write fields that were explicitly provided in the CSV
         // Blank columns = leave the existing Firestore value untouched
+        const existingUser = allUsers.find(u => u.uid === row._existingUid) || {};
         const updates = {};
         if (row.firstname)   updates.firstName  = row.firstname;
         if (row.lastname)    updates.lastName   = row.lastname;
@@ -2749,11 +2750,16 @@ window.runCsvImport = async function() {
         if (row.employeeid)  updates.employeeId = row.employeeid;
         if (row.hiredate)    updates.hireDate   = row.hiredate;
         if (row._hasRoles)   updates.roles      = roles;
-        if (row._hasPerms)   updates.permissions = row.permissions;
+        // Merge, don't replace — the CSV template only has dashboard/sessionRecords
+        // columns, so a naive overwrite would silently strip an existing user's
+        // enterprise/admin flags (which only the Edit User modal can set) the moment
+        // someone runs an unrelated bulk update (e.g. fixing positions/departments).
+        if (row._hasPerms)   updates.permissions = { ...(existingUser.permissions||{}), ...row.permissions };
         if (row._hasCoach)   updates.coachId    = coachId;
         if (row._hasActive)  updates.active     = row._active;
         if (row._hasDept)    updates.department = row.department || null;
         await updateDoc(doc(db,'users',row._existingUid), updates);
+        await addDoc(collection(db,'auditLog'), { action:'update_user', targetUid:row._existingUid, targetName:(row.firstname||existingUser.firstName||'')+' '+(row.lastname||existingUser.lastName||''), performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'CSV import update.', timestamp:serverTimestamp() });
         updated++;
       } else {
         // Create new user
@@ -2769,9 +2775,11 @@ window.runCsvImport = async function() {
           roles,
           permissions: row.permissions,
           coachId,
+          reportsUpTo: [],
           active:      row._active,
           createdAt:   serverTimestamp()
         });
+        await addDoc(collection(db,'auditLog'), { action:'create_user', targetUid:cred.user.uid, targetName:(row.firstname||'')+' '+(row.lastname||''), targetEmail:row.email, performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'CSV import create.', timestamp:serverTimestamp() });
         // No email sent yet (per Sandra's request, 2026-07-14) — see note in saveUser().
         await signOut(auth2);
         created++;
@@ -2790,6 +2798,11 @@ window.runCsvImport = async function() {
   if (failed)  msg.push(failed  + ' failed');
   const createdNote = created ? ' New accounts use temporary password Boost2024! — no email sent.' : '';
   toast('Import complete — ' + (msg.join(', ') || 'nothing processed') + '.' + createdNote, failed ? 'error' : 'success', 8000);
+  // CSV rows can create/change coachId assignments — reportsUpTo needs to reflect that
+  // immediately rather than waiting for someone to remember the manual Settings button.
+  if (created + updated > 0) {
+    try { await window.recomputeAllReportsUpTo(); } catch(e) { console.error('Post-import hierarchy recompute failed', e); }
+  }
   await loadUsers();
   btn.disabled = false; btn.textContent = 'Confirm Import';
 };
