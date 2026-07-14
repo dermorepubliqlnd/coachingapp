@@ -2113,7 +2113,14 @@ onAuthStateChanged(auth, async (user) => {
         }
         await loadSettings();
         await loadDepartments();
-        await refreshUsers();
+        // Warm allUsers before the first sidebar render so a Manager/Director's automatic
+        // Dashboard nav item is correct immediately (see currentUserHasDownline). Isolated
+        // in its own try/catch — a transient failure here (e.g. a slow-to-propagate auth
+        // token right after sign-in) must NOT sign the user out of their whole session the
+        // way a failure to read their OWN profile document does just above. Views that need
+        // allUsers already lazy-reload it themselves (`if (!allUsers.length) await refreshUsers()`)
+        // and show a contained inline error if it fails again there.
+        try { await refreshUsers(); } catch (e) { console.error('Initial refreshUsers failed', e); }
         renderSidebar();
         loadNotificationBadges();
         showApp();
