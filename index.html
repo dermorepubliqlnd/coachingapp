@@ -535,7 +535,7 @@
             <div class="card">
               <div class="card-title" style="margin-bottom:14px">Compliance Summary</div>
               <div id="db-compliance-summary" style="display:flex;gap:16px;align-items:center">
-                <div style="position:relative;width:150px;height:150px;flex-shrink:0"><canvas id="db-compliance-donut"></canvas></div>
+                <div style="position:relative;width:210px;height:210px;flex-shrink:0"><canvas id="db-compliance-donut"></canvas></div>
                 <div id="db-compliance-legend" style="flex:1;min-width:0"></div>
               </div>
             </div>
@@ -1632,6 +1632,13 @@
       <div class="form-group" style="margin-bottom:4px">
         <label class="form-label">Department Name <span style="color:var(--red)">*</span></label>
         <input type="text" id="dept-modal-name" class="form-control" placeholder="e.g. Finance">
+      </div>
+      <div class="form-group" style="margin-bottom:4px">
+        <label class="form-label">Job Family <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <select id="dept-modal-jobfamily" class="form-control">
+          <option value="">— None (top-level) —</option>
+        </select>
+        <div class="form-hint" id="dept-modal-jobfamily-hint">Nest this department under a Job Family — e.g. "Sales" as the Job Family, with "Sales - Online" and "Sales - Offline" underneath. Leave blank if this stands on its own (like L&amp;D).</div>
       </div>
       <div id="dept-modal-error" class="form-error-msg"></div>
     </div>
@@ -3261,22 +3268,24 @@ function renderDepartmentList() {
   if (!el) return;
   const active   = allDepartments.filter(d => d.active !== false);
   const inactive = allDepartments.filter(d => d.active === false);
-  const sorted   = [...active.sort((a,b)=>a.name.localeCompare(b.name)),
-                    ...inactive.sort((a,b)=>a.name.localeCompare(b.name))];
-  if (!sorted.length) {
+  if (!active.length && !inactive.length) {
     el.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:4px 0">No departments yet. Add your first one above.</div>';
     return;
   }
   el.innerHTML = '';
-  sorted.forEach(d => {
+
+  const renderDeptRow = (d, indent) => {
     const userCount = allUsers.filter(u => u.department === d.name).length;
     const isActive  = d.active !== false;
+    const hasKids   = allDepartments.some(x => x.jobFamily === d.name);
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)';
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);padding-left:'+(indent?'24px':'0');
     const left = document.createElement('div');
     left.style.cssText = 'display:flex;align-items:center;gap:8px';
-    left.innerHTML = '<span style="font-size:13px;font-weight:500;color:'+(isActive?'var(--text)':'var(--muted)')+'">'+esc(d.name)+'</span>'
+    left.innerHTML = (indent ? '<span style="color:var(--muted);font-size:12px">&#8627;</span>' : '')
+      + '<span style="font-size:13px;font-weight:500;color:'+(isActive?'var(--text)':'var(--muted)')+'">'+esc(d.name)+'</span>'
       + '<span style="font-size:11.5px;color:var(--muted)">('+userCount+' user'+(userCount!==1?'s':'')+')</span>'
+      + (hasKids ? '<span style="font-size:11px;background:#EDE9FE;color:#6D28D9;padding:1px 6px;border-radius:8px">Job Family</span>' : '')
       + (!isActive ? '<span style="font-size:11px;background:#F3F4F6;color:#6B7280;padding:1px 6px;border-radius:8px">Inactive</span>' : '');
     const right = document.createElement('div');
     right.style.cssText = 'display:flex;gap:6px';
@@ -3294,7 +3303,25 @@ function renderDepartmentList() {
     row.appendChild(left);
     row.appendChild(right);
     el.appendChild(row);
+  };
+
+  // Active — each top-level department (no Job Family of its own) followed immediately
+  // by its own children indented beneath, matching the same grouping used in the
+  // Dashboard scope picker.
+  const shown = new Set();
+  active.filter(d => !d.jobFamily).sort((a,b)=>a.name.localeCompare(b.name)).forEach(top => {
+    renderDeptRow(top, false); shown.add(top.id);
+    active.filter(d => d.jobFamily === top.name).sort((a,b)=>a.name.localeCompare(b.name))
+      .forEach(child => { renderDeptRow(child, true); shown.add(child.id); });
   });
+  // Safety net: an active department whose Job Family reference doesn't resolve to a
+  // currently-active top-level entry (e.g. its parent was deactivated) still needs to
+  // show up, rather than silently disappearing from the list.
+  active.filter(d => !shown.has(d.id)).sort((a,b)=>a.name.localeCompare(b.name))
+    .forEach(d => renderDeptRow(d, false));
+
+  // Inactive — flat list, alphabetical (hierarchy matters less once deactivated)
+  inactive.sort((a,b)=>a.name.localeCompare(b.name)).forEach(d => renderDeptRow(d, !!d.jobFamily));
 }
 
 window.openDeptModal = function(id, name) {
@@ -3304,6 +3331,28 @@ window.openDeptModal = function(id, name) {
   document.getElementById('dept-modal-error').style.display = 'none';
   document.getElementById('dept-modal-save-btn').disabled = false;
   document.getElementById('dept-modal-save-btn').textContent = 'Save';
+
+  const current = id ? allDepartments.find(d => d.id === id) : null;
+  const hasChildren = !!(current && allDepartments.some(d => d.jobFamily === current.name));
+  const jfSel  = document.getElementById('dept-modal-jobfamily');
+  const jfHint = document.getElementById('dept-modal-jobfamily-hint');
+  // Valid Job Family candidates: any OTHER top-level department. Capped at 2 levels, so
+  // a department that already HAS its own Job Family can't itself be picked as one.
+  const candidates = allDepartments
+    .filter(d => d.id !== id && !d.jobFamily)
+    .sort((a,b) => a.name.localeCompare(b.name));
+  jfSel.innerHTML = '<option value="">— None (top-level) —</option>'
+    + candidates.map(d => '<option value="'+esc(d.name)+'">'+esc(d.name)+'</option>').join('');
+  if (hasChildren) {
+    jfSel.value = '';
+    jfSel.disabled = true;
+    jfHint.textContent = "This department already has its own sub-units, so it can't be nested under another Job Family (max 2 levels).";
+  } else {
+    jfSel.disabled = false;
+    jfSel.value = (current && current.jobFamily) || '';
+    jfHint.textContent = 'Nest this department under a Job Family — e.g. "Sales" as the Job Family, with "Sales - Online" and "Sales - Offline" underneath. Leave blank if this stands on its own (like L&D).';
+  }
+
   document.getElementById('modal-department').style.display = 'flex';
   setTimeout(() => document.getElementById('dept-modal-name').focus(), 50);
 };
@@ -3311,6 +3360,8 @@ window.openDeptModal = function(id, name) {
 window.saveDepartment = async function() {
   const id   = document.getElementById('dept-modal-id').value.trim();
   const name = document.getElementById('dept-modal-name').value.trim();
+  const jfSel = document.getElementById('dept-modal-jobfamily');
+  const jobFamily = jfSel.disabled ? '' : (jfSel.value || '');
   const errEl = document.getElementById('dept-modal-error');
   errEl.style.display = 'none';
   if (!name) { errEl.textContent = 'Department name is required.'; errEl.style.display='block'; return; }
@@ -3320,15 +3371,19 @@ window.saveDepartment = async function() {
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     if (id) {
-      await updateDoc(doc(db,'departments',id), { name, updatedAt:serverTimestamp() });
+      await updateDoc(doc(db,'departments',id), { name, jobFamily: jobFamily || null, updatedAt:serverTimestamp() });
       // Update all users with old name to new name
       const oldName = allDepartments.find(d=>d.id===id)?.name;
       if (oldName && oldName !== name) {
         const affected = allUsers.filter(u => u.department === oldName);
         for (const u of affected) await updateDoc(doc(db,'users',u.uid), { department:name });
+        // Any OTHER department pointing to the old name as its Job Family needs to
+        // follow the rename too, or the parent-child link silently breaks.
+        const children = allDepartments.filter(d => d.jobFamily === oldName);
+        for (const c of children) await updateDoc(doc(db,'departments',c.id), { jobFamily: name });
       }
     } else {
-      await addDoc(collection(db,'departments'), { name, active:true, createdAt:serverTimestamp() });
+      await addDoc(collection(db,'departments'), { name, jobFamily: jobFamily || null, active:true, createdAt:serverTimestamp() });
     }
     closeModal('modal-department');
     await loadDepartments();
@@ -4059,6 +4114,27 @@ window.toast = function(msg, type='info', dur=3500) {
 function toast(m,t,d){ window.toast(m,t,d); }
 
 // ── Dashboard (updated for real session count) ────────────────
+// An action plan is "overdue" purely by date + not-yet-terminal-status — it must NEVER
+// be judged by looking for a literal status string like "Overdue". (The status dropdown
+// on the Action Plans page offers "Overdue" as a legacy/manually-selectable option, but
+// nothing should rely on that ever actually being set — a plan sitting at "Not Started"
+// past its due date is exactly as overdue whether or not anyone flipped that dropdown.)
+function isAPOverdue(p, today) {
+  if (!p.dueDate) return false;
+  if (['Completed','Cancelled'].includes(p.status || 'Not Started')) return false;
+  return new Date(p.dueDate+'T00:00:00') < today;
+}
+
+// Expands a department name into itself + any departments nested under it as their
+// Job Family (max 2 levels, so this is a single-level lookup, not a recursive walk).
+// Selecting a Job Family-level department anywhere in the app should include everyone
+// directly in it AND everyone in its sub-units — this is what makes that work.
+function deptScopeSet(deptName) {
+  const set = new Set([deptName]);
+  allDepartments.forEach(d => { if (d.jobFamily === deptName) set.add(d.name); });
+  return set;
+}
+
 // ── Compliance helper ─────────────────────────────────────────
 // Returns true if user should be counted in compliance for the given YYYY-MM.
 // Rules: must be active, must have coachee role, hire date must be before the month
@@ -4096,15 +4172,25 @@ async function loadDashboard() {
   const selMonth = picker.value;
   const [selYear, selMo] = selMonth.split('-').map(Number);
 
-  // ── Scope picker (init once, then re-populate department options as roster changes) ──
+  // ── Scope picker (init once, then re-populate as departments change) ──────────
+  // Built from the Departments list itself (not just whoever currently has a department
+  // set) so a Job Family with no one directly attached to it — everyone's in its
+  // sub-units — is still selectable. Job Family-level entries are listed first, each
+  // followed immediately by its own sub-units indented beneath.
   const scopePicker = document.getElementById('db-scope-picker');
-  const deptNames = [...new Set(allUsers.map(u => u.department).filter(Boolean))].sort();
-  const scopePickerNeedsOptions = scopePicker.options.length !== deptNames.length + 1;
+  const scopeOptionDefs = [];
+  allDepartments.filter(d => d.active !== false && !d.jobFamily).sort((a,b)=>a.name.localeCompare(b.name))
+    .forEach(top => {
+      scopeOptionDefs.push({ value: top.name, label: top.name });
+      allDepartments.filter(d => d.active !== false && d.jobFamily === top.name).sort((a,b)=>a.name.localeCompare(b.name))
+        .forEach(child => scopeOptionDefs.push({ value: child.name, label: '\u2003— ' + child.name }));
+    });
+  const scopePickerNeedsOptions = scopePicker.options.length !== scopeOptionDefs.length + 1;
   if (scopePickerNeedsOptions) {
     const prevScope = scopePicker.value || 'ALL';
     scopePicker.innerHTML = '';
     scopePicker.add(new Option('Enterprise (All Departments)', 'ALL'));
-    deptNames.forEach(d => scopePicker.add(new Option(d, d)));
+    scopeOptionDefs.forEach(o => scopePicker.add(new Option(o.label, o.value)));
     scopePicker.value = [...scopePicker.options].some(o => o.value === prevScope) ? prevScope : 'ALL';
   }
   const scopeDept = scopePicker.value || 'ALL';
@@ -4128,7 +4214,7 @@ async function loadDashboard() {
   // Every section on this dashboard — KPI row, trend, Department Performance, leader
   // table, Priority Attention, Org Rollup — respects the active scope.
   const allCoacheesFull = allUsers.filter(u => (u.roles||[]).includes('coachee'));
-  const allCoachees = scopeDept === 'ALL' ? allCoacheesFull : allCoacheesFull.filter(u => u.department === scopeDept);
+  const allCoachees = scopeDept === 'ALL' ? allCoacheesFull : allCoacheesFull.filter(u => deptScopeSet(scopeDept).has(u.department));
   const coaches     = allUsers.filter(u => (u.roles||[]).includes('coach') && u.active !== false);
 
   // ── Last refreshed timestamp ────────────────────────────────────
@@ -4163,6 +4249,7 @@ async function loadDashboard() {
   const ytdPct = ytdRequired ? (ytdCompliant / ytdRequired * 100).toFixed(1) : '0.0';
 
   // ── Per-leader stats ─────────────────────────────────────────
+  const today = new Date(); today.setHours(0,0,0,0);
   const leaderStats = coaches.map(coach => {
     const team    = allCoachees.filter(c => c.coachId === coach.uid && c.active !== false);
     const teamReq = team.filter(c => isRequiredInMonth(c, curMonStr));
@@ -4179,7 +4266,7 @@ async function loadDashboard() {
     }
     const ytdL = lYtdR ? (lYtdC / lYtdR * 100).toFixed(1) : '0.0';
     const teamUidSet   = new Set(team.map(c => c.uid));
-    const teamOverdueAP = allAPs.filter(p => p.status === 'Overdue' && teamUidSet.has(p.coacheeId)).length;
+    const teamOverdueAP = allAPs.filter(p => isAPOverdue(p, today) && teamUidSet.has(p.coacheeId)).length;
     const teamSessDates = completedSess.filter(s => teamUidSet.has(s.coacheeId)).map(s => s.sessionDate).filter(Boolean).sort();
     const lastCoachingDate = teamSessDates.length ? teamSessDates[teamSessDates.length-1] : null;
     const status = req === 0 ? 'No Team' : pct >= 100 ? 'On Track' : pct >= COMPLIANCE_TARGET ? 'On Track' : pct > 0 ? 'Needs Attention' : 'Critical';
@@ -4193,7 +4280,7 @@ async function loadDashboard() {
   const apActive    = allAPs.filter(p => p.status !== 'Cancelled');
   const apCompleted = allAPs.filter(p => p.status === 'Completed');
   const apOpen      = allAPs.filter(p => p.status === 'Not Started' || p.status === 'In Progress');
-  const apOverdue   = allAPs.filter(p => p.status === 'Overdue');
+  const apOverdue   = allAPs.filter(p => isAPOverdue(p, today));
   const apClosureRate = apActive.length ? Math.round(apCompleted.length / apActive.length * 100) : 0;
 
   // ── usersByUid lookup (reused by the new metrics below) ───────
@@ -4244,7 +4331,6 @@ async function loadDashboard() {
   const apOnTime       = apDueInPeriod.filter(p => p.status === 'Completed' && (!p.completedDate || p.completedDate <= p.dueDate));
   const apOnTimeRate   = apDueInPeriod.length ? Math.round(apOnTime.length / apDueInPeriod.length * 100) : 0;
   const overdueActionRate = apActive.length ? Math.round(apOverdue.length / apActive.length * 100) : 0;
-  const today = new Date(); today.setHours(0,0,0,0);
   const daysOverdue = p => p.dueDate ? Math.round((today - new Date(p.dueDate+'T00:00:00')) / 86400000) : 0;
   const apDueSoon    = apOpen.filter(p => p.dueDate && new Date(p.dueDate+'T00:00:00') >= today && new Date(p.dueDate+'T00:00:00') <= new Date(today.getTime()+7*86400000));
   const apOverdue1_7 = apOverdue.filter(p => daysOverdue(p) >= 1  && daysOverdue(p) <= 7);
@@ -4295,7 +4381,7 @@ async function loadDashboard() {
 
   // ── Summary cards ────────────────────────────────────────────
   const mkDbCard = (icon, iconBg, iconColor, title, big, sub, deltaHtml) =>
-    '<div style="background:white;border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;display:flex;gap:14px;align-items:flex-start">'
+    '<div style="background:white;border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;display:flex;gap:14px;align-items:center">'
     + '<div style="width:42px;height:42px;border-radius:10px;background:'+iconBg+';color:'+iconColor+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'+icon+'</div>'
     + '<div style="min-width:0">'
     +   '<div style="font-size:11px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">'+title+'</div>'
@@ -4437,7 +4523,7 @@ async function loadDashboard() {
     + '<option value="lastcoaching-asc"'+(leaderSortMode==='lastcoaching-asc'?' selected':'')+'>Sort: Oldest Last Coaching</option>'
     + '<option value="teamsize-desc"'+(leaderSortMode==='teamsize-desc'?' selected':'')+'>Sort: Team Size</option>'
     + '</select></div>'
-    + '<div class="table-wrap" style="max-height:220px;overflow-y:auto"><table class="rt-table" style="font-size:12px">'
+    + '<div class="table-wrap"><table class="rt-table" style="font-size:12px">'
     + '<thead><tr>'
     + '<th style="min-width:140px">Leader</th>'
     + '<th style="text-align:center;min-width:70px">Team Size</th>'
@@ -4522,14 +4608,14 @@ async function loadDashboard() {
           const {ctx, chartArea:{top,left,right,bottom}} = chart;
           const cx = (left+right)/2, cy = (top+bottom)/2;
           ctx.save();
-          ctx.font = 'bold 17px Arial';
+          ctx.font = 'bold 24px Arial';
           ctx.fillStyle = '#1A2D3F';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(totalRequired+'', cx, cy-7);
-          ctx.font = '9px Arial';
+          ctx.fillText(totalRequired+'', cx, cy-9);
+          ctx.font = '12px Arial';
           ctx.fillStyle = '#6B7A8D';
-          ctx.fillText('Eligible', cx, cy+9);
+          ctx.fillText('Eligible', cx, cy+13);
           ctx.restore();
         }
       }]
@@ -4618,6 +4704,7 @@ window.loadDashboard = loadDashboard;
 function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, usersByUid) {
   const container = document.getElementById('db-dept-performance');
   if (!container) return;
+  const today = new Date(); today.setHours(0,0,0,0);
   const byDept = {};
   allCoachees.forEach(c => {
     const d = c.department || 'No Department';
@@ -4633,7 +4720,7 @@ function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, us
     const deptAPs      = allAPs.filter(p => d.coacheeUids.has(p.coacheeId));
     const deptActive   = deptAPs.filter(p => p.status !== 'Cancelled');
     const deptCompleted= deptAPs.filter(p => p.status === 'Completed');
-    const deptOverdue  = deptAPs.filter(p => p.status === 'Overdue');
+    const deptOverdue  = deptAPs.filter(p => isAPOverdue(p, today));
     const closureRate  = deptActive.length ? Math.round(deptCompleted.length/deptActive.length*100) : 0;
     const overdueRate  = deptActive.length ? Math.round(deptOverdue.length/deptActive.length*100) : 0;
     let status, statusColor, statusBg;
@@ -4659,7 +4746,7 @@ function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, us
     + '</tr>'
   ).join('');
 
-  container.innerHTML = '<div class="table-wrap" style="max-height:230px;overflow-y:auto"><table class="rt-table" style="font-size:12px">'
+  container.innerHTML = '<div class="table-wrap"><table class="rt-table" style="font-size:12px">'
     + '<thead><tr>'
     + '<th style="min-width:120px">Department</th>'
     + '<th style="text-align:center;min-width:60px">Eligible</th>'
