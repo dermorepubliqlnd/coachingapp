@@ -570,7 +570,11 @@
 
         <!-- DIRECTOR: USER MANAGEMENT -->
         <div class="view" id="view-users">
-          <div style="display:flex;justify-content:flex-end;align-items:center;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap">
+            <div style="position:relative;flex:1;min-width:200px;max-width:320px">
+              <input type="text" id="users-search" class="form-control" placeholder="Search name, email, ID, department, position…" oninput="usersSearchInput(this.value)" style="padding-right:28px">
+              <button id="users-search-clear" onclick="usersClearSearch()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:2px">&#10005;</button>
+            </div>
             <div style="display:flex;gap:8px">
               <button class="btn btn-ghost" onclick="openCsvImport()">&#8679; Import CSV</button>
               <button class="btn btn-primary" onclick="openUserModal()">+ Add User</button>
@@ -2294,6 +2298,7 @@ const usersSortState = { col: null, dir: 'asc' };
 let usersTableReady  = false;
 const usersPageState = { page: 1, size: 25 };
 let selectedUserIds  = new Set();
+let usersSearchQuery = '';
 async function refreshUsers() {
   // Role-aware directory load (least-privilege):
   //  • admin / enterprise → all users (Enterprise Dashboard needs the full roster too)
@@ -2344,6 +2349,16 @@ function renderUsersTable() {
     return;
   }
   let rows = [...allUsers];
+  if (usersSearchQuery) {
+    const q = usersSearchQuery.toLowerCase();
+    rows = rows.filter(u =>
+      ((u.firstName||'')+' '+(u.lastName||'')).toLowerCase().includes(q) ||
+      (u.email||'').toLowerCase().includes(q) ||
+      (u.employeeId||'').toLowerCase().includes(q) ||
+      (u.department||'').toLowerCase().includes(q) ||
+      (u.position||'').toLowerCase().includes(q)
+    );
+  }
   if (usersSortState.col) {
     rows.sort((a, b) => {
       const va = rtSortKey(a, usersSortState.col);
@@ -2368,6 +2383,16 @@ function renderUsersTable() {
   const startIdx = usersPageState.size === 'all' ? 0 : (usersPageState.page - 1) * size;
   const endIdx   = usersPageState.size === 'all' ? total : Math.min(startIdx + size, total);
   const pageRows = rows.slice(startIdx, endIdx);
+
+  if (!total) {
+    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">&#128269;</div><div class="empty-title">No matches</div><div class="empty-sub">No users match "'+esc(usersSearchQuery)+'". Try a different search.</div></div></td></tr>';
+    document.getElementById('users-page-info').textContent = 'Showing 0 of 0';
+    document.getElementById('users-page-label').textContent = 'Page 1 of 1';
+    document.getElementById('users-page-prev').disabled = true;
+    document.getElementById('users-page-next').disabled = true;
+    updateBulkBar();
+    return;
+  }
 
   tbody.innerHTML = pageRows.map(u => {
     const coach     = allUsers.find(c => c.uid === u.coachId);
@@ -2404,6 +2429,19 @@ function renderUsersTable() {
 }
 
 // ── Users table: pagination controls ──────────────────────────
+window.usersSearchInput = function(val) {
+  usersSearchQuery = val.trim();
+  usersPageState.page = 1;
+  document.getElementById('users-search-clear').style.display = usersSearchQuery ? 'block' : 'none';
+  renderUsersTable();
+};
+window.usersClearSearch = function() {
+  usersSearchQuery = '';
+  document.getElementById('users-search').value = '';
+  document.getElementById('users-search-clear').style.display = 'none';
+  usersPageState.page = 1;
+  renderUsersTable();
+};
 window.usersChangePageSize = function(val) {
   usersPageState.size = (val === 'all') ? 'all' : parseInt(val, 10);
   usersPageState.page = 1;
