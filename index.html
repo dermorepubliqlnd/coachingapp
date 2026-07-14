@@ -539,6 +539,12 @@
               <div id="db-insights"></div>
             </div>
           </div>
+          <!-- Row 4: Enterprise rollup — department, then reporting-chain drill-down -->
+          <div class="card" style="margin-top:16px">
+            <div class="card-title" style="margin-bottom:2px">Organization Rollup</div>
+            <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px">Grouped by department. Click a row to see the reporting-chain breakdown beneath it.</div>
+            <div id="db-org-rollup"></div>
+          </div>
         </div>
 
         <!-- DIRECTOR: USER MANAGEMENT -->
@@ -637,6 +643,12 @@
               <button class="btn btn-ghost btn-sm" onclick="openDeptModal()">+ Add Department</button>
             </div>
             <div id="dept-list"><div style="font-size:13px;color:var(--muted);padding:4px 0">Loading…</div></div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">Organization Hierarchy</div>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Recomputes the reporting chain used by Manager/Senior Manager dashboards and the Enterprise Dashboard's rollup — run this once after rolling out multi-level hierarchy support, and again any time a bulk re-org happens outside the normal Edit User flow (e.g. after a CSV import). Regular single-user "Reports To" changes already do this automatically.</p>
+            <button class="btn btn-ghost" id="recompute-hierarchy-btn" onclick="recomputeAllReportsUpTo()">&#8635; Recompute Reporting Hierarchy</button>
+            <div id="recompute-hierarchy-status" style="margin-top:10px;font-size:11.5px;color:var(--muted)"></div>
           </div>
           <div class="card" style="margin-bottom:12px;border:1px solid #FCA5A5">
             <div class="card-title" style="color:var(--red)">⚠️ Danger Zone</div>
@@ -1360,10 +1372,11 @@
         </div>
       </div>
       <div class="form-group" id="mu-coach-group" style="display:none">
-        <label class="form-label">Assigned Coach <span style="color:var(--red)">*</span></label>
+        <label class="form-label" id="mu-coach-label">Reports To <span id="mu-coach-required" style="color:var(--red)">*</span></label>
         <select id="mu-coach" class="form-control">
-          <option value="">— Select coach —</option>
+          <option value="">— Select coach / manager —</option>
         </select>
+        <div class="form-hint">Who this person reports to for coaching purposes. Chains up naturally — a Manager's "Reports To" is their Senior Manager, and so on. Leave blank for the top of a chain.</div>
       </div>
       <div class="form-group" id="mu-analytics-group">
         <label class="form-label">Analytics Access</label>
@@ -1375,10 +1388,13 @@
             <input type="checkbox" id="mu-perm-sessions"> View Session Records
           </label>
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+            <input type="checkbox" id="mu-perm-enterprise"> Enterprise Dashboard (org-wide, read-only)
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
             <input type="checkbox" id="mu-perm-admin"> System Admin (Settings &amp; User Management)
           </label>
         </div>
-        <div class="form-hint">Directors have full coaching visibility over their org tree. System Admin grants Settings &amp; User Management access to any user.</div>
+        <div class="form-hint">Everyone with reports automatically sees their own team/subtree — no toggle needed for that. Enterprise Dashboard is for named Chiefs/execs who need org-wide visibility without full System Admin rights. System Admin grants Settings &amp; User Management access to any user (includes Enterprise Dashboard).</div>
       </div>
       <div class="form-group" id="mu-active-group" style="display:none">
         <label class="form-label">Account Status</label>
@@ -1672,7 +1688,7 @@ import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
          setPersistence, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence }
   from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
-         collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction }
+         collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction, writeBatch }
   from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 
 // ── Firebase ─────────────────────────────────────────────────
@@ -2093,7 +2109,7 @@ function defaultView() {
   const r = currentProfile.roles || [];
   const p = currentProfile.permissions || {};
   if (r.includes('coach'))     return 'coach-home';
-  if (p.admin)                 return 'dashboard';
+  if (hasEnterpriseAccess(currentProfile)) return 'dashboard';
   return 'my-coaching';
 }
 
@@ -2134,9 +2150,9 @@ function renderSidebar() {
   let html = '';
   // Primary nav — analytics views (director always; others by permission)
   const perms = currentProfile.permissions || {};
-  // Dashboard is the org-wide compliance view — admin/director only (least-privilege).
-  // Coaches get their team scope via "My Team" (coach-home).
-  const canDash = !!perms.admin;
+  // Dashboard is the org-wide compliance view — Admin or explicitly-granted Enterprise
+  // access only (least-privilege). Coaches/Managers get their own scope via "My Team".
+  const canDash = hasEnterpriseAccess(currentProfile);
   if (roles.includes('coach')) {
     html += '<div class="nav-section-label">Coaching</div>';
     if (canDash) html += ni('dashboard', NAV_ICONS.dashboard, 'Dashboard');
@@ -2194,12 +2210,15 @@ const usersSortState = { col: null, dir: 'asc' };
 let usersTableReady  = false;
 async function refreshUsers() {
   // Role-aware directory load (least-privilege):
-  //  • admin   → all users
-  //  • coach   → self + directly-assigned coachees (coachId == my uid)
+  //  • admin / enterprise → all users (Enterprise Dashboard needs the full roster too)
+  //  • coach   → self + full org subtree beneath them (any depth, via reportsUpTo — this
+  //              is what makes "My Team" automatically become a Manager/Senior Manager
+  //              rollup once people are chained multiple levels deep; a plain Supervisor
+  //              with no one reporting further below just gets their direct reports back)
   //  • coachee → self + assigned coach
   const perms = (currentProfile && currentProfile.permissions) || {};
   const roles = (currentProfile && currentProfile.roles) || [];
-  if (perms.admin) {
+  if (hasEnterpriseAccess(currentProfile)) {
     const snap = await getDocs(collection(db, 'users'));
     allUsers = snap.docs.map(d => ({ uid:d.id, ...d.data() }));
     return;
@@ -2207,7 +2226,7 @@ async function refreshUsers() {
   const map = {};
   if (currentProfile && currentProfile.uid) map[currentProfile.uid] = { ...currentProfile };
   if (roles.includes('coach')) {
-    const snap = await getDocs(query(collection(db,'users'), where('coachId','==',currentUser.uid)));
+    const snap = await getDocs(query(collection(db,'users'), where('reportsUpTo','array-contains',currentUser.uid)));
     snap.docs.forEach(d => { map[d.id] = { uid:d.id, ...d.data() }; });
   }
   if (roles.includes('coachee') && currentProfile && currentProfile.coachId) {
@@ -2324,16 +2343,19 @@ window.overlayClose = (e, id) => { if (e.target.id === id) closeModal(id); };
 // ── User Modal ───────────────────────────────────────────────
 window.openUserModal = function(uid) {
   if (!allUsers.length) return;
-  const coaches = allUsers.filter(u => (u.roles||[]).includes('coach'));
+  // Exclude self and anyone already in this person's own subtree from the "Reports To"
+  // list — picking either would create a reporting-chain cycle.
+  const ownSubtree = uid ? getOrgSubtree(uid) : new Set();
+  const coaches = allUsers.filter(u => (u.roles||[]).includes('coach') && !ownSubtree.has(u.uid));
   const coachSel = document.getElementById('mu-coach');
-  coachSel.innerHTML = '<option value="">— Select coach —</option>'
+  coachSel.innerHTML = '<option value="">— Select coach / manager —</option>'
     + coaches.map(c => '<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
   ['mu-firstname','mu-lastname','mu-empid','mu-email','mu-position','mu-hiredate'].forEach(id => document.getElementById(id).value = '');
   const deptSel = document.getElementById('mu-dept');
   deptSel.innerHTML = '<option value="">— No department —</option>'
     + allDepartments.filter(d=>d.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(d=>'<option value="'+esc(d.name)+'">'+esc(d.name)+'</option>').join('');
   deptSel.value = '';
-  ['role-coach','role-coachee','mu-perm-dashboard','mu-perm-sessions','mu-perm-admin'].forEach(id => document.getElementById(id).checked = false);
+  ['role-coach','role-coachee','mu-perm-dashboard','mu-perm-sessions','mu-perm-enterprise','mu-perm-admin'].forEach(id => document.getElementById(id).checked = false);
   document.getElementById('mu-uid').value = '';
   document.getElementById('mu-error').style.display = 'none';
   document.getElementById('mu-active-group').style.display = 'none';
@@ -2357,6 +2379,7 @@ window.openUserModal = function(uid) {
     document.getElementById('mu-hiredate').value            = normalizeDate(u.hireDate) || '';
     document.getElementById('mu-perm-dashboard').checked   = !!(u.permissions||{}).dashboard;
     document.getElementById('mu-perm-sessions').checked    = !!(u.permissions||{}).sessionRecords;
+    document.getElementById('mu-perm-enterprise').checked  = !!(u.permissions||{}).enterprise;
     document.getElementById('mu-perm-admin').checked       = !!(u.permissions||{}).admin;
     (u.roles||[]).forEach(r => { const el = document.getElementById('role-'+r); if (el) el.checked = true; });
     if (u.coachId) coachSel.value = u.coachId;
@@ -2375,8 +2398,14 @@ window.openUserModal = function(uid) {
 };
 
 window.updateCoachField = function() {
-  document.getElementById('mu-coach-group').style.display =
-    document.getElementById('role-coachee').checked ? 'block' : 'none';
+  const isCoach   = document.getElementById('role-coach').checked;
+  const isCoachee = document.getElementById('role-coachee').checked;
+  document.getElementById('mu-coach-group').style.display = (isCoach || isCoachee) ? 'block' : 'none';
+  // Required only for coachees (every coachee needs a coach). Coaches/managers can be the
+  // top of a chain (no one above them) — e.g. a Chief or Sandra herself.
+  document.getElementById('mu-coach-required').style.display = isCoachee ? 'inline' : 'none';
+  document.getElementById('mu-coach-label').firstChild.textContent = isCoachee && !isCoach
+    ? 'Assigned Coach ' : 'Reports To ';
 };
 
 window.saveUser = async function() {
@@ -2394,6 +2423,7 @@ window.saveUser = async function() {
   const permissions = {
     dashboard:      document.getElementById('mu-perm-dashboard').checked,
     sessionRecords: document.getElementById('mu-perm-sessions').checked,
+    enterprise:     document.getElementById('mu-perm-enterprise').checked,
     admin:          document.getElementById('mu-perm-admin').checked
   };
   const roles     = ['coach','coachee'].filter(r => document.getElementById('role-'+r).checked);
@@ -2407,6 +2437,7 @@ window.saveUser = async function() {
 
   btn.disabled = true; btn.textContent = uid ? 'Saving…' : 'Creating…';
   try {
+    let targetUid = uid;
     if (uid) {
       const active = document.getElementById('mu-active').checked;
       await updateDoc(doc(db,'users',uid), { firstName,lastName,employeeId:empId,position,hireDate,department,permissions,roles,coachId,active,updatedAt:serverTimestamp() });
@@ -2414,12 +2445,17 @@ window.saveUser = async function() {
       toast('User updated.','success');
     } else {
       const cred = await createUserWithEmailAndPassword(auth2, email, 'Boost2024!');
-      await setDoc(doc(db,'users',cred.user.uid), { firstName,lastName,email,employeeId:empId,position,hireDate,department,permissions,roles,coachId,active:true,createdAt:serverTimestamp() });
-      await addDoc(collection(db,'auditLog'), { action:'create_user', targetUid:cred.user.uid, targetName:firstName+' '+lastName, targetEmail:email, performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'Roles: '+roles.join(', ')+'.', timestamp:serverTimestamp() });
+      targetUid = cred.user.uid;
+      await setDoc(doc(db,'users',targetUid), { firstName,lastName,email,employeeId:empId,position,hireDate,department,permissions,roles,coachId,reportsUpTo:[],active:true,createdAt:serverTimestamp() });
+      await addDoc(collection(db,'auditLog'), { action:'create_user', targetUid, targetName:firstName+' '+lastName, targetEmail:email, performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'Roles: '+roles.join(', ')+'.', timestamp:serverTimestamp() });
       await sendPasswordResetEmail(auth2, email);
       await signOut(auth2);
       toast('User created. Password setup email sent.','success');
     }
+    // Reporting line may have just been created/changed — recompute this user's org-chain
+    // position (and cascade to their existing subtree, if any) so hierarchy-scoped
+    // dashboards and Firestore rules stay accurate.
+    await recomputeReportsUpToForSubtree(targetUid);
     closeModal('modal-user');
     await loadUsers();
   } catch(e) { showErr(errEl, e.message); toast(e.message,'error'); btn.disabled=false; btn.textContent=uid?'Save Changes':'Create User'; }
@@ -2897,16 +2933,13 @@ window.exportActionPlansCsv = async function() {
   const btn = document.getElementById('apl-export-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Exporting…'; }
   try {
-    let snap;
-    const roles = currentProfile.roles || [];
-    const perms = currentProfile.permissions || {};
-    if (perms.admin) {
-      snap = await getDocs(collection(db,'actionPlans'));
+    let plans;
+    if (hasEnterpriseAccess(currentProfile)) {
+      plans = (await getDocs(collection(db,'actionPlans'))).docs.map(d=>({id:d.id,...d.data()}));
     } else {
-      // Coach export — action plans from sessions they ran (coachId == uid)
-      snap = await getDocs(query(collection(db,'actionPlans'), where('coachId','==',currentUser.uid)));
+      // Coach/manager export — action plans anywhere in their org subtree
+      plans = await fetchMySubtreeRecords('actionPlans');
     }
-    const plans = snap.docs.map(d=>({id:d.id,...d.data()}));
     const headers = ['Employee ID','Employee Name','Position','Coach','Action Item','Support/Resources','Due Date','Status','Remarks','Completed Date','Session Date','Created At'];
     const rows = plans.map(p => {
       const coachee = allUsers.find(u=>u.uid===p.coacheeId);
@@ -3095,7 +3128,12 @@ window.exportBackup = async function() {
 // ── Coach Home ───────────────────────────────────────────────
 async function loadCoachHome() {
   if (!allUsers.length) await refreshUsers();
-  const myCoachees = allUsers.filter(u => u.coachId === currentUser.uid && u.active !== false);
+  // Direct reports + everyone further down the chain (skip-level) — for a plain
+  // Supervisor with no sub-managers this is identical to "direct reports only"; for a
+  // Manager/Senior Manager it naturally becomes the full team rollup.
+  const mySubtree  = getOrgSubtree(currentUser.uid);
+  const myCoachees = allUsers.filter(u => u.uid !== currentUser.uid && mySubtree.has(u.uid)
+    && (u.roles||[]).includes('coachee') && u.active !== false);
   const grid    = document.getElementById('coach-coachee-grid');
   const statEl  = document.getElementById('myteam-stats');
   const sbEl    = document.getElementById('myteam-sidebar');
@@ -3106,13 +3144,12 @@ async function loadCoachHome() {
   let sessions = [], aps = [];
   let draftCount = 0, pendingAckCount = 0;
   try {
-    const [sSnap, aSnap] = await Promise.all([
-      getDocs(query(collection(db,'sessions'), where('coachId','==',currentUser.uid))),
-      getDocs(query(collection(db,'actionPlans'), where('coachId','==',currentUser.uid)))
+    const [allSess, allAps] = await Promise.all([
+      fetchMySubtreeRecords('sessions'),
+      fetchMySubtreeRecords('actionPlans'),
     ]);
-    const allSess   = sSnap.docs.map(d=>({id:d.id,...d.data()}));
     sessions        = allSess.filter(s => s.status !== 'draft');
-    aps             = aSnap.docs.map(d=>({id:d.id,...d.data()}));
+    aps             = allAps;
     draftCount      = allSess.filter(s => s.status === 'draft').length;
     // Coachee-led sessions surface the same "awaiting coachee" stage as 'pending-commitment' instead of 'pending' —
     // count both so this matches what's actually shown in the list below.
@@ -3880,9 +3917,67 @@ async function loadDashboard() {
     + '<div style="font-size:12.5px;color:'+i.color+';line-height:1.5">'+i.text+'</div>'
     + '</div>'
   ).join('');
+
+  // ── Organization Rollup — grouped by department, drills into reporting chain ──
+  renderOrgRollup(allCoachees, coaches, curMonStr, curCoachedSet);
 }
 // Expose to global scope so inline onchange="loadDashboard()" works inside type="module" script
 window.loadDashboard = loadDashboard;
+
+// Department is a flat tag (independent of the reporting hierarchy) — grouping by it
+// first means every department shows up here from day one, even before its management
+// chain is fully built out. The reporting chain (coachId) still drives the drill-down
+// underneath each department, one level at a time (senior leader → their direct coaches).
+function renderOrgRollup(allCoachees, coaches, curMonStr, curCoachedSet) {
+  const container = document.getElementById('db-org-rollup');
+  if (!container) return;
+  const pctColor = p => p >= 100 ? '#1A6B34' : p >= COMPLIANCE_TARGET ? '#A05A0A' : '#B91C1C';
+  const pctBg    = p => p >= 100 ? '#E6F4EB' : p >= COMPLIANCE_TARGET ? '#FEF0E0' : '#FEE2E2';
+  const complianceOf = members => {
+    const req = members.filter(c => isRequiredInMonth(c, curMonStr) && c.active !== false);
+    const coached = req.filter(c => curCoachedSet.has(c.uid)).length;
+    return { count: members.filter(c=>c.active!==false).length, req: req.length, coached, pct: req.length ? Math.round(coached/req.length*100) : 0 };
+  };
+
+  const byDept = {};
+  allCoachees.forEach(c => { const d = c.department || 'No Department'; (byDept[d] = byDept[d]||[]).push(c); });
+
+  const deptRows = Object.keys(byDept).sort().map((deptName, di) => {
+    const members = byDept[deptName];
+    const stats = complianceOf(members);
+    // Drill-down: group this department's members by their direct coach/manager
+    const byCoach = {};
+    members.forEach(c => { const k = c.coachId || '_none'; (byCoach[k] = byCoach[k]||[]).push(c); });
+    const subRows = Object.keys(byCoach).map(coachId => {
+      const coach = coaches.find(x => x.uid === coachId);
+      const s = complianceOf(byCoach[coachId]);
+      return { name: coach ? coach.firstName+' '+coach.lastName : 'No senior leader assigned', ...s };
+    }).sort((a,b) => b.count - a.count);
+
+    return { name: deptName, ...stats, subRows, idx: di };
+  }).sort((a,b) => b.count - a.count);
+
+  const rowHtml = (r, isSub) => {
+    const barColor = pctColor(r.pct);
+    return '<div style="display:grid;grid-template-columns:'+(isSub?'26px 1fr 90px 70px':'20px 1fr 90px 70px')+';align-items:center;gap:10px;padding:'+(isSub?'8px 10px 8px 34px':'10px')+';border-bottom:1px solid var(--border)'+(isSub?';background:#FAFCFD':'')+'">'
+      + (isSub ? '<span></span>' : '<span style="font-size:9px;color:var(--muted)">'+(r.subRows&&r.subRows.length?'&#9654;':'')+'</span>')
+      + '<div><div style="font-weight:'+(isSub?'500':'700')+';font-size:'+(isSub?'12px':'12.5px')+';color:'+(isSub?'#3A5568':'var(--text)')+'">'+esc(r.name)+'</div>'
+      + '<div style="font-size:10.5px;color:var(--muted)">'+r.count+' coachee'+(r.count===1?'':'s')+(r.req? ' &middot; '+r.coached+'/'+r.req+' coached':'')+'</div></div>'
+      + '<div class="bar-bg" style="background:#EEF4F7;border-radius:6px;height:6px;overflow:hidden"><div style="height:100%;border-radius:6px;width:'+r.pct+'%;background:'+barColor+'"></div></div>'
+      + '<div style="text-align:right;font-weight:700;font-size:12.5px;color:'+barColor+'">'+r.pct+'%</div>'
+      + '</div>';
+  };
+
+  container.innerHTML = deptRows.map(r =>
+    '<div class="org-rollup-row" data-idx="'+r.idx+'" style="cursor:'+(r.subRows.length?'pointer':'default')+'" onclick="toggleOrgRollupRow('+r.idx+')">'+rowHtml(r,false)+'</div>'
+    + '<div id="org-rollup-sub-'+r.idx+'" style="display:none">'+r.subRows.map(s=>rowHtml(s,true)).join('')+'</div>'
+  ).join('') || '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12.5px">No department data yet.</div>';
+}
+
+window.toggleOrgRollupRow = function(idx) {
+  const el = document.getElementById('org-rollup-sub-'+idx);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
 
 // ── Session Records (director — view-only audit log) ──────────
 let allSessionRecords = [];
@@ -3903,6 +3998,142 @@ function getOrgSubtree(rootUid) {
     frontier = next;
   }
   return tree;
+}
+
+// ── Org Hierarchy — reportsUpTo (denormalized ancestor chain) ─
+// reportsUpTo[uid] = every ancestor above this user, immediate coach/manager first, then
+// that person's own coach, and so on to the top of the chain. This is what lets a Manager
+// or Senior Manager's dashboard show their whole subtree (any depth, including skip-level)
+// via a single indexed Firestore query (`where('reportsUpTo','array-contains',myUid)`)
+// instead of walking the tree client-side on every read — and lets the security rules do
+// a cheap "is my uid in this record's ancestor list" check instead of an unbounded read.
+function computeReportsUpTo(coachId, usersByUid) {
+  const chain = [];
+  let cur = coachId;
+  let guard = 0;
+  while (cur && guard < 25) {
+    if (chain.includes(cur)) break; // cycle protection — bad data shouldn't infinite-loop
+    chain.push(cur);
+    const u = usersByUid[cur];
+    cur = u ? u.coachId : null;
+    guard++;
+  }
+  return chain;
+}
+
+// Call after a user's coachId is created/changed. That user's own reportsUpTo shifts, and
+// so does everyone already beneath them (their whole existing subtree now runs through the
+// new position) — recompute and batch-write reportsUpTo for the root + its full subtree.
+async function recomputeReportsUpToForSubtree(rootUid) {
+  await refreshUsers(); // admin/enterprise callers get the full roster back
+  const usersByUid = {};
+  allUsers.forEach(u => { usersByUid[u.uid] = u; });
+  if (!usersByUid[rootUid]) return;
+
+  const subtree = getOrgSubtree(rootUid); // rootUid + everyone beneath them, any depth
+  const batch = writeBatch(db);
+  let writes = 0;
+  for (const uid of subtree) {
+    const u = usersByUid[uid];
+    if (!u) continue;
+    const newChain = computeReportsUpTo(u.coachId, usersByUid);
+    const oldChain = u.reportsUpTo || [];
+    if (JSON.stringify(newChain) !== JSON.stringify(oldChain)) {
+      batch.update(doc(db,'users',uid), { reportsUpTo: newChain });
+      u.reportsUpTo = newChain;
+      writes++;
+    }
+  }
+  if (writes) await batch.commit();
+}
+
+// Independent of the reporting chain: does this profile have Enterprise Dashboard access?
+// Admins always do (superset); Enterprise is a separate, explicitly-granted flag for named
+// Chiefs/execs who need org-wide visibility without full System Admin rights.
+function hasEnterpriseAccess(profile) {
+  const p = (profile && profile.permissions) || {};
+  return !!(p.admin || p.enterprise);
+}
+
+// Firestore batches cap at 500 writes — chunk larger update sets across multiple batches.
+async function commitInChunks(updates, chunkSize = 450) {
+  for (let i = 0; i < updates.length; i += chunkSize) {
+    const batch = writeBatch(db);
+    updates.slice(i, i + chunkSize).forEach(u => batch.update(u.ref, u.data));
+    await batch.commit();
+  }
+}
+
+// One-time (or after-bulk-import) backfill: recompute reportsUpTo for every existing user
+// and coacheeReportsUpTo on every existing session/actionPlan. Needed because normal
+// single-user "Reports To" edits already self-maintain this (see saveUser), but existing
+// records created before the hierarchy rollout — or a CSV bulk import, which bypasses
+// saveUser — won't have it until this runs once.
+window.recomputeAllReportsUpTo = async function() {
+  const btn = document.getElementById('recompute-hierarchy-btn');
+  const statusEl = document.getElementById('recompute-hierarchy-status');
+  btn.disabled = true; btn.textContent = 'Recomputing…';
+  statusEl.textContent = 'Loading users…';
+  try {
+    const usersSnap = await getDocs(collection(db,'users'));
+    const usersByUid = {};
+    usersSnap.docs.forEach(d => { usersByUid[d.id] = { uid:d.id, ...d.data() }; });
+
+    statusEl.textContent = 'Updating '+Object.keys(usersByUid).length+' users…';
+    const userUpdates = [];
+    Object.values(usersByUid).forEach(u => {
+      const chain = computeReportsUpTo(u.coachId, usersByUid);
+      if (JSON.stringify(chain) !== JSON.stringify(u.reportsUpTo || [])) {
+        userUpdates.push({ ref: doc(db,'users',u.uid), data: { reportsUpTo: chain } });
+        u.reportsUpTo = chain; // keep local map fresh for the session/AP pass below
+      }
+    });
+    await commitInChunks(userUpdates);
+
+    statusEl.textContent = 'Updating sessions & action plans…';
+    const [sessSnap, apSnap] = await Promise.all([
+      getDocs(collection(db,'sessions')),
+      getDocs(collection(db,'actionPlans')),
+    ]);
+    const recordUpdates = [];
+    [['sessions', sessSnap], ['actionPlans', apSnap]].forEach(([collName, snap]) => {
+      snap.docs.forEach(d => {
+        const data = d.data();
+        const coachee = usersByUid[data.coacheeId];
+        const chain = (coachee && coachee.reportsUpTo) || [];
+        const existing = data.coacheeReportsUpTo || [];
+        if (JSON.stringify(chain) !== JSON.stringify(existing)) {
+          recordUpdates.push({ ref: doc(db,collName,d.id), data: { coacheeReportsUpTo: chain } });
+        }
+      });
+    });
+    await commitInChunks(recordUpdates);
+
+    statusEl.textContent = 'Done — '+userUpdates.length+' user(s), '+recordUpdates.length+' session/action-plan record(s) updated.';
+    toast('Reporting hierarchy recomputed.','success');
+    await refreshUsers();
+  } catch(e) {
+    statusEl.textContent = 'Error: '+e.message;
+    toast('Error: '+e.message,'error');
+  }
+  btn.disabled = false; btn.textContent = '⟲ Recompute Reporting Hierarchy';
+};
+
+// Fetch sessions/actionPlans "belonging to my team" for rollup views: sessions I
+// personally ran (coachId==me — always correct, even before the reportsUpTo rollout)
+// UNIONed with everything anywhere in my org subtree (coacheeReportsUpTo array-contains
+// me — populated once a record is created or backfilled after the hierarchy rollout).
+// Safe to call immediately: before any backfill runs this just returns today's
+// coachId-only results, so nothing regresses mid-rollout.
+async function fetchMySubtreeRecords(collName) {
+  const [directSnap, subtreeSnap] = await Promise.all([
+    getDocs(query(collection(db,collName), where('coachId','==',currentUser.uid))),
+    getDocs(query(collection(db,collName), where('coacheeReportsUpTo','array-contains',currentUser.uid))),
+  ]);
+  const byId = {};
+  directSnap.docs.forEach(d => { byId[d.id] = {id:d.id,...d.data()}; });
+  subtreeSnap.docs.forEach(d => { byId[d.id] = {id:d.id,...d.data()}; });
+  return Object.values(byId);
 }
 
 async function loadAllSessions() {
@@ -4816,9 +5047,14 @@ function getActionPlan() {
 
 // ── Build session data ────────────────────────────────────────
 function buildSessionData(status) {
+  // Snapshot the coachee's current reporting chain onto the session so a Manager/Senior
+  // Manager's Firestore query (coacheeReportsUpTo array-contains me) can find it without
+  // an unbounded read — matches the pattern already used for coacheeSignature below.
+  const coachee = allUsers.find(u => u.uid === currentSessionCoacheeId);
   return {
     coacheeId:         currentSessionCoacheeId,
     coachId:           currentUser.uid,
+    coacheeReportsUpTo:(coachee && coachee.reportsUpTo) || [],
     sessionDate:       document.getElementById('sf-session-date').value,
     lastSessionDate:   document.getElementById('sf-last-session').value,
     department:        document.getElementById('sf-department').value,
@@ -4999,6 +5235,7 @@ window.acknowledgeSession = async function() {
           sessionDate: sessionData.sessionDate,
           coacheeId:   sessionData.coacheeId,
           coachId:     sessionData.coachId,
+          coacheeReportsUpTo: sessionData.coacheeReportsUpTo || [],
           action:      row.action,
           support:     row.support || '',
           dueDate:     row.dueDate || '',
@@ -5178,8 +5415,7 @@ async function loadActionPlans() {
     if (!allUsers.length) await refreshUsers();
 
     // Populate coachee filter from full subtree (includes skip-level coachees)
-    const _myPerms = currentProfile.permissions || {};
-    const _isAdminAP = !!_myPerms.admin;
+    const _isAdminAP = hasEnterpriseAccess(currentProfile);
     const _aplSubtree = getOrgSubtree(currentUser.uid);
     _aplSubtree.delete(currentUser.uid);
     const subtreeCoachees = _isAdminAP
@@ -5192,11 +5428,12 @@ async function loadActionPlans() {
             .map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
     }
 
-    // Fetch APs — admin sees everything; coach sees action plans from sessions they ran (coachId == uid)
-    const snap = _isAdminAP
-      ? await getDocs(collection(db,'actionPlans'))
-      : await getDocs(query(collection(db,'actionPlans'), where('coachId','==',currentUser.uid)));
-    allActionPlans = snap.docs.map(d => ({id:d.id,...d.data()}))
+    // Fetch APs — admin/enterprise sees everything; coach sees action plans anywhere in
+    // their org subtree (sessions they ran directly, plus everything under their reports).
+    const allAps = _isAdminAP
+      ? (await getDocs(collection(db,'actionPlans'))).docs.map(d => ({id:d.id,...d.data()}))
+      : await fetchMySubtreeRecords('actionPlans');
+    allActionPlans = allAps
       .filter(p => _isAdminAP || p.coachId === currentUser.uid || _aplSubtree.has(p.coacheeId))
       .sort((a,b) => (a.dueDate||'').localeCompare(b.dueDate||''));
     // Fetch session codes for all unique sessionIds
@@ -6249,6 +6486,7 @@ window.sendPrepRequest = async function() {
     const data = {
       coachId:    currentUser.uid,
       coacheeId:  currentSessionCoacheeId,
+      coacheeReportsUpTo: (coachee && coachee.reportsUpTo) || [],
       flowType:   'coachee-led',
       status:     'prep-requested',
       sessionDate: targetEl ? targetEl.value : '',
