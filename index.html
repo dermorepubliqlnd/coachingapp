@@ -738,8 +738,8 @@
 
         <!-- COACH: MY TEAM -->
         <div class="view" id="view-coach-home">
-          <div style="display:flex;justify-content:flex-start;margin-bottom:14px">
-            <div style="position:relative;display:inline-block">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:14px">
+            <div style="position:relative;display:inline-block;flex-shrink:0">
               <button class="btn btn-primary" onclick="toggleNewSessionDD(event,'ns-dd-home')">+ New Session <span style="font-size:10px;opacity:.75">&#9660;</span></button>
               <div id="ns-dd-home" style="display:none;position:absolute;left:0;top:calc(100% + 4px);background:white;border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:210px;z-index:200;overflow:hidden">
                 <button onclick="newSessionFromNav('coach-led')" style="display:flex;align-items:center;gap:10px;width:100%;padding:11px 16px;background:none;border:none;cursor:pointer;text-align:left" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='none'">
@@ -751,6 +751,7 @@
                 </button>
               </div>
             </div>
+            <div style="flex:1;min-width:0;padding:10px 14px;border-radius:var(--radius);background:var(--blue-lt);color:var(--blue);font-size:12.5px;display:flex;gap:8px;align-items:center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/></svg><span>Keep your coaching conversations regular and your action plans updated to drive progress.</span></div>
           </div>
           <div id="myteam-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin-bottom:16px"></div>
           <div style="display:flex;gap:16px;align-items:flex-start">
@@ -4018,13 +4019,7 @@ async function loadCoachHome() {
       +'</div>';
   }).join('');
 
-  // Info banner
-  const banner = '<div style="margin-top:4px;padding:10px 14px;border-radius:var(--radius);background:var(--blue-lt);color:var(--blue);font-size:12.5px;display:flex;gap:8px;align-items:center">'
-    +'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/></svg>'
-    +' Keep your coaching conversations regular and your action plans updated to drive progress.'
-    +'</div>';
-
-  grid.innerHTML = cardHtml + banner;
+  grid.innerHTML = cardHtml;
 }
 
 // Kebab toggle helper
