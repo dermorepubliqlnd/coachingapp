@@ -3683,6 +3683,7 @@ async function loadDashboard() {
   const totalRequired = curRequired.length;
   const totalCoached  = curRequired.filter(c => curCoachedSet.has(c.uid)).length;
   const curPct = totalRequired ? Math.round(totalCoached / totalRequired * 100) : 0;
+  const sessThisMonth = completedSess.filter(s => sessMon(s) === curMonStr);
 
   // ── YTD ───────────────────────────────────────────────────────
   let ytdCompliant = 0, ytdRequired = 0;
@@ -3791,7 +3792,6 @@ async function loadDashboard() {
   // Completed sessions this month (unique coachees capped at 1)
   const volCompleted = totalCoached;
   // Extra = total completed sessions this month minus one-per-coachee
-  const sessThisMonth = completedSess.filter(s => sessMon(s) === curMonStr);
   const volTotal     = sessThisMonth.length;
   const curRequiredUidSet   = new Set(curRequired.map(u => u.uid));
   const requiredSessThisMonth = sessThisMonth.filter(s => curRequiredUidSet.has(s.coacheeId));
