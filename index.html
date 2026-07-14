@@ -2356,7 +2356,8 @@ window.openUserModal = function(uid) {
   // Exclude self and anyone already in this person's own subtree from the "Reports To"
   // list — picking either would create a reporting-chain cycle.
   const ownSubtree = uid ? getOrgSubtree(uid) : new Set();
-  const coaches = allUsers.filter(u => (u.roles||[]).includes('coach') && !ownSubtree.has(u.uid));
+  const coaches = allUsers.filter(u => (u.roles||[]).includes('coach') && !ownSubtree.has(u.uid))
+    .sort((a,b)=>(a.firstName+a.lastName).localeCompare(b.firstName+b.lastName));
   const coachSel = document.getElementById('mu-coach');
   coachSel.innerHTML = '<option value="">— Select coach / manager —</option>'
     + coaches.map(c => '<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
