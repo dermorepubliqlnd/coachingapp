@@ -650,6 +650,12 @@
             <button class="btn btn-ghost" id="recompute-hierarchy-btn" onclick="recomputeAllReportsUpTo()">&#8635; Recompute Reporting Hierarchy</button>
             <div id="recompute-hierarchy-status" style="margin-top:10px;font-size:11.5px;color:var(--muted)"></div>
           </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">Coachee Signature Backfill</div>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Fixes coaching logs that were acknowledged before the e-signature capture fix — these have status "Acknowledged"/"Completed" but no signature saved. Runs once: applies each coachee's <em>current</em> signature on file (My Profile) retroactively. Sessions that already have a signature are left untouched.</p>
+            <button class="btn btn-ghost" id="backfill-signatures-btn" onclick="backfillCoacheeSignatures()">&#8635; Backfill Coachee Signatures</button>
+            <div id="backfill-signatures-status" style="margin-top:10px;font-size:11.5px;color:var(--muted)"></div>
+          </div>
           <div class="card" style="margin-bottom:12px;border:1px solid #FCA5A5">
             <div class="card-title" style="color:var(--red)">⚠️ Danger Zone</div>
             <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Permanently delete all coaching sessions and action plans, and reset the session counter to CS-001. Users and settings are not affected. This cannot be undone.</p>
@@ -3164,10 +3170,22 @@ async function loadCoachHome() {
   // ── Per-coachee computed data ──────────────────────────────
   const data = myCoachees.map(c => {
     const cSess    = sessions.filter(s=>s.coacheeId===c.uid).sort((a,b)=>(b.sessionDate||'').localeCompare(a.sessionDate||''));
-    const last     = cSess[0] || null;
-    const lastDate = last?.sessionDate     ? fmtD(last.sessionDate)     : null;
-    const nextDate = last?.nextSessionDate ? fmtD(last.nextSessionDate) : null;
-    const nextRaw  = last?.nextSessionDate || null;
+    // "Last session" should only reflect a session that has actually occurred —
+    // an early coachee-led prep stage (prep-requested / coachee-preparing) carries a
+    // future TARGET date in sessionDate, not an occurrence date, so it must be excluded
+    // here or it wrongly wins the "most recent" sort and masks the real last session.
+    const EARLY_PREP_STAGES = ['prep-requested','coachee-preparing'];
+    const occurredSess = cSess.filter(s=>!EARLY_PREP_STAGES.includes(s.status));
+    const last     = occurredSess[0] || null;
+    const lastDate = last?.sessionDate ? fmtD(last.sessionDate) : null;
+    // "Next session" should prefer an already-scheduled upcoming session (an early-stage
+    // prep doc with a future target date) over a stale nextSessionDate noted on an older,
+    // already-closed-out session.
+    const upcomingSess = cSess
+      .filter(s=>EARLY_PREP_STAGES.includes(s.status) && s.sessionDate)
+      .sort((a,b)=>(a.sessionDate||'').localeCompare(b.sessionDate||''))[0] || null;
+    const nextRaw  = upcomingSess?.sessionDate || last?.nextSessionDate || null;
+    const nextDate = nextRaw ? fmtD(nextRaw) : null;
     const nextDt   = nextRaw ? new Date(nextRaw+'T00:00:00') : null;
 
     const cAP         = aps.filter(p=>p.coacheeId===c.uid);
@@ -4117,6 +4135,46 @@ window.recomputeAllReportsUpTo = async function() {
     toast('Error: '+e.message,'error');
   }
   btn.disabled = false; btn.textContent = '⟲ Recompute Reporting Hierarchy';
+};
+
+// One-time backfill: sessions acknowledged/completed BEFORE the coacheeSignature capture
+// fix (acknowledgeSession now writes it live) have status acknowledged/completed but an
+// empty coacheeSignature field. This applies each coachee's CURRENT signature on file
+// (users/{uid}.signature) retroactively — note that reflects their signature-on-file
+// today, not a proven historical snapshot from the exact moment they originally
+// acknowledged. Sessions that already have a coacheeSignature are left untouched.
+window.backfillCoacheeSignatures = async function() {
+  const btn = document.getElementById('backfill-signatures-btn');
+  const statusEl = document.getElementById('backfill-signatures-status');
+  btn.disabled = true; btn.textContent = 'Backfilling…';
+  statusEl.textContent = 'Loading users & sessions…';
+  try {
+    const usersSnap = await getDocs(collection(db,'users'));
+    const usersByUid = {};
+    usersSnap.docs.forEach(d => { usersByUid[d.id] = { uid:d.id, ...d.data() }; });
+
+    const sessSnap = await getDocs(collection(db,'sessions'));
+    const updates = [];
+    let skippedNoSig = 0;
+    sessSnap.docs.forEach(d => {
+      const data = d.data();
+      if (!['acknowledged','completed'].includes(data.status)) return;
+      if (data.coacheeSignature) return; // already captured — don't overwrite
+      const coachee = usersByUid[data.coacheeId];
+      const sig = coachee && coachee.signature;
+      if (!sig) { skippedNoSig++; return; } // coachee has no signature on file yet either
+      updates.push({ ref: doc(db,'sessions',d.id), data: { coacheeSignature: sig, coacheeSignatureBackfilled: true } });
+    });
+    await commitInChunks(updates);
+
+    statusEl.textContent = 'Done — '+updates.length+' session(s) updated'
+      + (skippedNoSig ? ', '+skippedNoSig+' skipped (coachee has no signature on file yet)' : '') + '.';
+    toast('Coachee signatures backfilled.','success');
+  } catch(e) {
+    statusEl.textContent = 'Error: '+e.message;
+    toast('Error: '+e.message,'error');
+  }
+  btn.disabled = false; btn.textContent = '⟲ Backfill Coachee Signatures';
 };
 
 // Fetch sessions/actionPlans "belonging to my team" for rollup views: sessions I
