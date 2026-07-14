@@ -1668,7 +1668,8 @@
 import { initializeApp }
   from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
-         sendPasswordResetEmail, createUserWithEmailAndPassword }
+         sendPasswordResetEmail, createUserWithEmailAndPassword,
+         setPersistence, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence }
   from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc,
          collection, getDocs, query, where, orderBy, serverTimestamp, runTransaction }
@@ -1686,6 +1687,24 @@ const FC = {
 const primaryApp   = initializeApp(FC);
 const auth         = getAuth(primaryApp);
 const db           = getFirestore(primaryApp);
+
+// ── Cross-browser storage resilience ─────────────────────────
+// Edge/Safari "Tracking Prevention" (and hardened privacy modes) can block IndexedDB/
+// localStorage for the Firebase auth domain. Progressively fall back so sign-in still
+// works: durable IndexedDB → localStorage → in-memory (session-only). Without this,
+// a blocked store surfaces as a confusing "Missing or insufficient permissions" error.
+let _authPersistenceMode = 'indexeddb';
+(async () => {
+  const chain = [
+    ['indexeddb', indexedDBLocalPersistence],
+    ['local',     browserLocalPersistence],
+    ['memory',    inMemoryPersistence]
+  ];
+  for (const [mode, p] of chain) {
+    try { await setPersistence(auth, p); _authPersistenceMode = mode; return; }
+    catch (e) { /* blocked — try next */ }
+  }
+})();
 // Secondary app: create users without signing out the Director
 const secondaryApp = initializeApp(FC, 'secondary');
 const auth2        = getAuth(secondaryApp);
@@ -2047,6 +2066,11 @@ function showApp() {
   hideAll();
   document.getElementById('app').style.display = 'block';
   if ((currentProfile.permissions||{}).admin) updateAdminInboxBadge();
+  // If the browser blocked durable storage (e.g. Edge/Safari strict tracking prevention),
+  // auth is session-only — let the user know they'll need to sign in again next visit.
+  if (_authPersistenceMode === 'memory') {
+    setTimeout(() => toast("Your browser's privacy settings are blocking saved sign-in, so you'll need to log in again each visit. To stay signed in, allow this site in your browser's tracking-prevention settings.", 'info', 8000), 800);
+  }
 }
 
 // ── Navigation ───────────────────────────────────────────────
@@ -2069,8 +2093,7 @@ function defaultView() {
   const r = currentProfile.roles || [];
   const p = currentProfile.permissions || {};
   if (r.includes('coach'))     return 'coach-home';
-  if (p.dashboard)             return 'dashboard';
-  // sessionRecords permission no longer has a dedicated nav page
+  if (p.admin)                 return 'dashboard';
   return 'my-coaching';
 }
 
@@ -2111,11 +2134,12 @@ function renderSidebar() {
   let html = '';
   // Primary nav — analytics views (director always; others by permission)
   const perms = currentProfile.permissions || {};
-  const canDash = roles.includes('coach') || perms.dashboard;
-  const canSess = roles.includes('coach') || perms.sessionRecords;
+  // Dashboard is the org-wide compliance view — admin/director only (least-privilege).
+  // Coaches get their team scope via "My Team" (coach-home).
+  const canDash = !!perms.admin;
   if (roles.includes('coach')) {
     html += '<div class="nav-section-label">Coaching</div>';
-    html += ni('dashboard',      NAV_ICONS.dashboard, 'Dashboard');
+    if (canDash) html += ni('dashboard', NAV_ICONS.dashboard, 'Dashboard');
     html += ni('coach-home',     NAV_ICONS.team,      'My Team');
     html += ni('action-plans',   NAV_ICONS.checklist, 'Action Plans');
     html += ni('coach-sessions', NAV_ICONS.clipboard, 'Team Sessions');
@@ -2169,8 +2193,30 @@ function statCard(label, value, sub) {
 const usersSortState = { col: null, dir: 'asc' };
 let usersTableReady  = false;
 async function refreshUsers() {
-  const snap = await getDocs(collection(db, 'users'));
-  allUsers = snap.docs.map(d => ({ uid:d.id, ...d.data() }));
+  // Role-aware directory load (least-privilege):
+  //  • admin   → all users
+  //  • coach   → self + directly-assigned coachees (coachId == my uid)
+  //  • coachee → self + assigned coach
+  const perms = (currentProfile && currentProfile.permissions) || {};
+  const roles = (currentProfile && currentProfile.roles) || [];
+  if (perms.admin) {
+    const snap = await getDocs(collection(db, 'users'));
+    allUsers = snap.docs.map(d => ({ uid:d.id, ...d.data() }));
+    return;
+  }
+  const map = {};
+  if (currentProfile && currentProfile.uid) map[currentProfile.uid] = { ...currentProfile };
+  if (roles.includes('coach')) {
+    const snap = await getDocs(query(collection(db,'users'), where('coachId','==',currentUser.uid)));
+    snap.docs.forEach(d => { map[d.id] = { uid:d.id, ...d.data() }; });
+  }
+  if (roles.includes('coachee') && currentProfile && currentProfile.coachId) {
+    try {
+      const c = await getDoc(doc(db,'users',currentProfile.coachId));
+      if (c.exists()) map[c.id] = { uid:c.id, ...c.data() };
+    } catch(e) {}
+  }
+  allUsers = Object.values(map);
 }
 
 async function loadUsers() {
@@ -2857,10 +2903,8 @@ window.exportActionPlansCsv = async function() {
     if (perms.admin) {
       snap = await getDocs(collection(db,'actionPlans'));
     } else {
-      // Include APs from all coaches for coachees in this coach's subtree
-      const _rptSubtree = getOrgSubtree(currentUser.uid);
-      snap = await getDocs(collection(db,'actionPlans'));
-      snap = { docs: snap.docs.filter(d => _rptSubtree.has(d.data().coacheeId)) };
+      // Coach export — action plans from sessions they ran (coachId == uid)
+      snap = await getDocs(query(collection(db,'actionPlans'), where('coachId','==',currentUser.uid)));
     }
     const plans = snap.docs.map(d=>({id:d.id,...d.data()}));
     const headers = ['Employee ID','Employee Name','Position','Coach','Action Item','Support/Resources','Due Date','Status','Remarks','Completed Date','Session Date','Created At'];
@@ -4496,9 +4540,11 @@ window.backToFlowPicker = function() {
 
 async function fetchLastSessionDate(coacheeId) {
   try {
-    const snap = await getDocs(collection(db,'sessions'));
+    // Coach reads only their own sessions with this coachee (coachId == me AND coacheeId == them)
+    const snap = await getDocs(query(collection(db,'sessions'),
+      where('coachId','==',currentUser.uid), where('coacheeId','==',coacheeId)));
     const last = snap.docs.map(d=>({...d.data()}))
-      .filter(s => s.coacheeId === coacheeId && s.status !== 'draft' && s.sessionDate)
+      .filter(s => s.status !== 'draft' && s.sessionDate)
       .sort((a,b) => b.sessionDate.localeCompare(a.sessionDate));
     if (last.length) document.getElementById('sf-last-session').value = last[0].sessionDate;
   } catch(e) {}
@@ -5132,8 +5178,10 @@ async function loadActionPlans() {
             .map(u => '<option value="'+u.uid+'">'+esc(u.firstName)+' '+esc(u.lastName)+'</option>').join('');
     }
 
-    // Fetch all APs — admin sees everything, coach sees subtree or own
-    const snap = await getDocs(collection(db,'actionPlans'));
+    // Fetch APs — admin sees everything; coach sees action plans from sessions they ran (coachId == uid)
+    const snap = _isAdminAP
+      ? await getDocs(collection(db,'actionPlans'))
+      : await getDocs(query(collection(db,'actionPlans'), where('coachId','==',currentUser.uid)));
     allActionPlans = snap.docs.map(d => ({id:d.id,...d.data()}))
       .filter(p => _isAdminAP || p.coachId === currentUser.uid || _aplSubtree.has(p.coacheeId))
       .sort((a,b) => (a.dueDate||'').localeCompare(b.dueDate||''));
@@ -5678,18 +5726,18 @@ window.saveProfileSig = async function() {
 async function loadNotificationBadges() {
   if (!currentUser || !currentProfile) return;
   try {
-    const snap = await getDocs(collection(db,'sessions'));
-    const allSess = snap.docs.map(d=>({id:d.id,...d.data()}));
     const roles = currentProfile.roles || [];
     let coachBadge = 0, coacheeBadge = 0;
     if (roles.includes('coach')) {
-      coachBadge = allSess.filter(s => s.coachId === currentUser.uid && (s.status === 'prep-submitted' || s.status === 'coach-review')).length;
+      // Only sessions I ran (matches least-privilege rules)
+      const cSnap = await getDocs(query(collection(db,'sessions'), where('coachId','==',currentUser.uid)));
+      coachBadge = cSnap.docs.map(d=>d.data())
+        .filter(s => s.status === 'prep-submitted' || s.status === 'coach-review').length;
     }
     if (roles.includes('coachee')) {
-      coacheeBadge = allSess.filter(s =>
-        s.coacheeId === currentUser.uid &&
-        ['prep-requested','coachee-preparing','pending-commitment','pending'].includes(s.status)
-      ).length;
+      const eSnap = await getDocs(query(collection(db,'sessions'), where('coacheeId','==',currentUser.uid)));
+      coacheeBadge = eSnap.docs.map(d=>d.data())
+        .filter(s => ['prep-requested','coachee-preparing','pending-commitment','pending'].includes(s.status)).length;
     }
     setBadge('coach-sessions', coachBadge);
     setBadge('my-coaching',    coacheeBadge);
