@@ -3829,7 +3829,7 @@ async function loadCoachHome() {
   statEl.innerHTML =
     mkStat(ICON_PEOPLE,   '#E8F4FA',          '#156082',      'Total Coachees',          myCoachees.length, '', '')
   + mkStat(ICON_CAL,      '#E6F4EB',          '#1A6B34',      'Upcoming Sessions',       upcomingCt,        '', '')
-  + mkStat(ICON_CHECK,    '#EDE9FE',          '#6D28D9',      'Completed This Month',    completedMo,       '', '')
+  + mkStat(ICON_CHECK,    '#E6F4EB',          '#1A6B34',      'Completed This Month',    completedMo,       '', '')
   + mkStat(ICON_PENDING2, '#FEF0E0',          '#A05A0A',      'Pending Acknowledgement', pendingAckCount,   pendingAckCount > 0 ? 'Awaiting coachee' : '', '')
   + mkStat(ICON_DRAFT2,   '#EEF4F7',          '#5A7A8E',      'Drafts',                  draftCount,        draftCount > 0 ? 'View sessions' : '', draftCount > 0 ? "navigateTo('coach-sessions')" : '')
   + mkStat(ICON_WARN,     '#FEE2E2',          '#B91C1C',      'Overdue Follow-ups',      overdueFollowups,  '', '')
@@ -3999,8 +3999,7 @@ async function loadMyCoaching() {
 
     // ── Coachee stat cards (same mkStat pattern as My Team) ──
     const mcNeedAction = sessions.filter(s => ['pending-commitment','pending'].includes(s.status)).length;
-    const mcAck        = sessions.filter(s => s.status === 'acknowledged').length;
-    const mcComp       = sessions.filter(s => s.status === 'completed').length;
+    const mcComp       = sessions.filter(s => s.status === 'acknowledged' || s.status === 'completed').length;
     const MC_LIST  = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>';
     const MC_WARN  = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
     const MC_CHECK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
@@ -4013,7 +4012,6 @@ async function loadMyCoaching() {
     if (statsEl) statsEl.innerHTML =
         mkMC(MC_LIST,  '#E8F4FA', '#156082', 'Total Sessions',  sessions.length)
       + mkMC(MC_WARN,  '#FEE2E2', '#B91C1C', 'Action Required', mcNeedAction)
-      + mkMC(MC_CHECK, '#EDE9FE', '#6D28D9', 'Acknowledged',    mcAck)
       + mkMC(MC_CHECK, '#E6F4EB', '#1A6B34', 'Completed',       mcComp);
 
     allMyCoachingSessions = sessions;
