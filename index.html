@@ -4163,6 +4163,20 @@ const COMPLIANCE_TARGET = 90; // % threshold for "below target" indicator
 let _dbTrendChart   = null;
 let _dbApDonut      = null;
 let _dbApHealthChart = null;
+// Leader Compliance Overview sort — clickable column headers (any column, either
+// direction) replaced the old fixed dropdown of pre-picked sort combos.
+let leaderSortState = { col: 'pct', dir: 'asc' };
+window.sortLeaderTable = function(col) {
+  if (leaderSortState.col === col) {
+    leaderSortState.dir = leaderSortState.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    leaderSortState.col = col;
+    // Sensible starting direction per column — "worst first" for the columns where
+    // that's the useful default, alphabetical A-Z for text columns.
+    leaderSortState.dir = (col === 'overdueAP') ? 'desc' : 'asc';
+  }
+  loadDashboard();
+};
 
 async function loadDashboard() {
   if (!allUsers.length) await refreshUsers();
@@ -4501,13 +4515,15 @@ async function loadDashboard() {
   const statusColor = st => st==='On Track' ? '#1A6B34' : st==='Needs Attention' ? '#A05A0A' : st==='Critical' ? '#B91C1C' : '#6B7A8D';
   const statusBg    = st => st==='On Track' ? '#E6F4EB' : st==='Needs Attention' ? '#FEF0E0' : st==='Critical' ? '#FEE2E2' : 'var(--light)';
 
-  let leaderSortMode = document.getElementById('db-leader-sort')?.value || 'pct-asc';
+  const leaderSortVal = (l, col) => {
+    if (col === 'name') return (l.coach.firstName+' '+l.coach.lastName).toLowerCase();
+    if (col === 'status') return l.status;
+    return l[col];
+  };
   const sortedLeaderStats = [...leaderStats].sort((a,b) => {
-    if (leaderSortMode === 'pct-asc')     return a.pct - b.pct;
-    if (leaderSortMode === 'gap-desc')    return a.gap - b.gap;
-    if (leaderSortMode === 'overdue-desc') return b.overdueAP - a.overdueAP;
-    if (leaderSortMode === 'teamsize-desc') return b.teamSize - a.teamSize;
-    return b.pct - a.pct;
+    const av = leaderSortVal(a, leaderSortState.col), bv = leaderSortVal(b, leaderSortState.col);
+    const cmp = typeof av === 'string' ? (av < bv ? -1 : av > bv ? 1 : 0) : (av - bv);
+    return leaderSortState.dir === 'asc' ? cmp : -cmp;
   });
 
   const leaderRows = sortedLeaderStats.map(l => {
@@ -4526,24 +4542,25 @@ async function loadDashboard() {
       + '</tr>';
   }).join('');
 
+  // Clickable, direction-aware header cell — shows an arrow on whichever column is
+  // currently driving the sort; clicking a column again flips its direction, clicking
+  // a different column switches to it (see window.sortLeaderTable above).
+  const thSort = (label, col, style) => {
+    const active = leaderSortState.col === col;
+    const arrow  = active ? (leaderSortState.dir === 'asc' ? ' &#9650;' : ' &#9660;') : '';
+    return '<th style="cursor:pointer;user-select:none;white-space:nowrap;'+(style||'')+'" onclick="sortLeaderTable(\''+col+'\')" title="Click to sort">'+label+arrow+'</th>';
+  };
   document.getElementById('db-leader-table').innerHTML =
-    '<div style="display:flex;justify-content:flex-end;margin-bottom:8px">'
-    + '<select id="db-leader-sort" class="form-control" style="max-width:210px;font-size:11.5px;padding:4px 8px;height:26px" onchange="loadDashboard()">'
-    + '<option value="pct-asc"'+(leaderSortMode==='pct-asc'?' selected':'')+'>Sort: Lowest Compliance</option>'
-    + '<option value="gap-desc"'+(leaderSortMode==='gap-desc'?' selected':'')+'>Sort: Largest Gap</option>'
-    + '<option value="overdue-desc"'+(leaderSortMode==='overdue-desc'?' selected':'')+'>Sort: Most Overdue Actions</option>'
-    + '<option value="teamsize-desc"'+(leaderSortMode==='teamsize-desc'?' selected':'')+'>Sort: Team Size</option>'
-    + '</select></div>'
-    + '<div class="table-wrap"><table class="rt-table" style="font-size:12px">'
+    '<div class="table-wrap"><table class="rt-table" style="font-size:12px">'
     + '<thead><tr>'
-    + '<th style="min-width:160px">Leader</th>'
-    + '<th style="text-align:center;min-width:70px">Team Size</th>'
-    + '<th style="text-align:center;min-width:90px">Compliance</th>'
-    + '<th style="text-align:center;min-width:80px">Required</th>'
-    + '<th style="text-align:center;min-width:80px">Coached</th>'
-    + '<th style="text-align:center;min-width:60px">Gap</th>'
-    + '<th style="text-align:center;min-width:90px">Overdue Actions</th>'
-    + '<th style="text-align:center;min-width:110px">Status</th>'
+    + thSort('Leader','name','min-width:160px')
+    + thSort('Team Size','teamSize','text-align:center;min-width:70px')
+    + thSort('Compliance','pct','text-align:center;min-width:90px')
+    + thSort('Required','req','text-align:center;min-width:80px')
+    + thSort('Coached','coached','text-align:center;min-width:80px')
+    + thSort('Gap','gap','text-align:center;min-width:60px')
+    + thSort('Overdue Actions','overdueAP','text-align:center;min-width:90px')
+    + thSort('Status','status','text-align:center;min-width:110px')
     + '</tr></thead>'
     + '<tbody>'+leaderRows+'</tbody>'
     + '<tfoot><tr style="background:#F8FAFC;font-weight:600;border-top:2px solid var(--border)">'
