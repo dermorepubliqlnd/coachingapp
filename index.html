@@ -1863,6 +1863,11 @@ let currentUser    = null;
 let currentProfile = null;
 let allUsers       = [];
 let allDepartments = [];
+let deptCollapsedSet = new Set(); // Job Family names currently collapsed in Settings > Departments
+window.toggleDeptCollapse = function(name) {
+  if (deptCollapsedSet.has(name)) deptCollapsedSet.delete(name); else deptCollapsedSet.add(name);
+  renderDepartmentList();
+};
 let appSettings    = { emailNotifications: false };
 
 // ── Table sort + resize + reorder + column-manager utility ──────────
@@ -3280,19 +3285,16 @@ function renderDepartmentList() {
     const userCount = allUsers.filter(u => u.department === d.name).length;
     const isActive  = d.active !== false;
     const hasKids   = allDepartments.some(x => x.jobFamily === d.name);
+    const collapsed = hasKids && deptCollapsedSet.has(d.name);
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);padding-left:'+(indent?'24px':'0');
     const left = document.createElement('div');
     left.style.cssText = 'display:flex;align-items:center;gap:8px';
     left.innerHTML = (indent ? '<span style="color:var(--muted);font-size:12px">&#8627;</span>' : '')
+      + (hasKids ? '<button type="button" onclick="toggleDeptCollapse(\''+esc(d.name)+'\')" style="background:none;border:none;cursor:pointer;padding:0;color:var(--muted);font-size:11px;line-height:1;width:14px" title="'+(collapsed?'Expand':'Collapse')+'">'+(collapsed?'&#9656;':'&#9662;')+'</button>' : '')
       + '<span style="font-size:13px;font-weight:500;color:'+(isActive?'var(--text)':'var(--muted)')+'">'+esc(d.name)+'</span>'
       + '<span style="font-size:11.5px;color:var(--muted)">('+userCount+' user'+(userCount!==1?'s':'')+')</span>'
       + (hasKids ? '<span style="font-size:11px;background:#EDE9FE;color:#6D28D9;padding:1px 6px;border-radius:8px">Job Family</span>' : '')
-      // For any department nested under a Job Family, name it explicitly rather than
-      // relying on indentation alone — the Inactive section below lists departments
-      // alphabetically (not grouped under their parent), so indentation by itself
-      // wouldn't show which Job Family an inactive child belongs to.
-      + (d.jobFamily ? '<span style="font-size:11px;color:var(--muted)">Job Family: '+esc(d.jobFamily)+'</span>' : '')
       + (!isActive ? '<span style="font-size:11px;background:#F3F4F6;color:#6B7280;padding:1px 6px;border-radius:8px">Inactive</span>' : '');
     const right = document.createElement('div');
     right.style.cssText = 'display:flex;gap:6px';
@@ -3318,8 +3320,12 @@ function renderDepartmentList() {
   const shown = new Set();
   active.filter(d => !d.jobFamily).sort((a,b)=>a.name.localeCompare(b.name)).forEach(top => {
     renderDeptRow(top, false); shown.add(top.id);
-    active.filter(d => d.jobFamily === top.name).sort((a,b)=>a.name.localeCompare(b.name))
-      .forEach(child => { renderDeptRow(child, true); shown.add(child.id); });
+    const kids = active.filter(d => d.jobFamily === top.name).sort((a,b)=>a.name.localeCompare(b.name));
+    // Mark children as accounted-for regardless of collapse state, so the safety-net
+    // pass below doesn't re-render them as orphaned flat rows while just hidden.
+    kids.forEach(child => shown.add(child.id));
+    if (deptCollapsedSet.has(top.name)) return; // children hidden while collapsed
+    kids.forEach(child => renderDeptRow(child, true));
   });
   // Safety net: an active department whose Job Family reference doesn't resolve to a
   // currently-active top-level entry (e.g. its parent was deactivated) still needs to
