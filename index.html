@@ -3114,7 +3114,9 @@ async function loadCoachHome() {
     sessions        = allSess.filter(s => s.status !== 'draft');
     aps             = aSnap.docs.map(d=>({id:d.id,...d.data()}));
     draftCount      = allSess.filter(s => s.status === 'draft').length;
-    pendingAckCount = allSess.filter(s => s.status === 'pending').length;
+    // Coachee-led sessions surface the same "awaiting coachee" stage as 'pending-commitment' instead of 'pending' —
+    // count both so this matches what's actually shown in the list below.
+    pendingAckCount = allSess.filter(s => ['pending','pending-commitment'].includes(s.status)).length;
   } catch(e) { /* fall back */ }
 
   const today  = new Date(); today.setHours(0,0,0,0);
@@ -4058,7 +4060,9 @@ async function loadCoachSessions() {
     const now2  = new Date();
     const csAll        = allCoachSessions.filter(s => s.status !== 'draft');
     const csDraft      = allCoachSessions.filter(s => s.status === 'draft').length;
-    const csPending    = allCoachSessions.filter(s => s.status === 'pending').length;
+    // Coachee-led sessions surface the same "awaiting coachee" stage as 'pending-commitment' instead of 'pending' —
+    // count both so this matches what's actually shown in the list below.
+    const csPending    = allCoachSessions.filter(s => ['pending','pending-commitment'].includes(s.status)).length;
     const csNeedAction = allCoachSessions.filter(s => ['prep-submitted','coach-review','for-review'].includes(s.status)).length;
     const csComp       = allCoachSessions.filter(s => {
       if (s.status !== 'completed' && s.status !== 'acknowledged') return false;
@@ -4946,6 +4950,15 @@ window.acknowledgeSession = async function() {
   if (!commitment) {
     toast('Please add your commitment before acknowledging.','error'); return;
   }
+  // The employee's signature is captured onto the session record at the moment of
+  // acknowledgement (mirrors employeeCommitment/acknowledgedAt) so the PDF has a durable
+  // snapshot. Everyone is gated into setting a signature on first login, but guard anyway.
+  const coacheeSig = (currentProfile && currentProfile.signature) || '';
+  if (!coacheeSig) {
+    toast('Please add your e-signature in My Profile before acknowledging.','error');
+    checkSignatureGate();
+    return;
+  }
   if (_acknowledgingSession) return;
   _acknowledgingSession = true;
 
@@ -4972,6 +4985,7 @@ window.acknowledgeSession = async function() {
         acknowledgedAt:      serverTimestamp(),
         updatedAt:           serverTimestamp(),
         employeeCommitment:  commitment,
+        coacheeSignature:    coacheeSig,
         apsSynced:           true,
       });
       shouldCreateAPs = true;
