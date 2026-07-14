@@ -505,7 +505,7 @@
               <span id="db-last-refreshed" style="font-size:11.5px;color:var(--muted)"></span>
             </div>
             <div style="display:flex;gap:8px;align-items:center">
-              <button class="btn btn-ghost btn-sm" onclick="loadDashboard()" title="Refresh">&#8635; Refresh</button>
+              <button class="btn btn-ghost btn-sm" onclick="loadDashboard(true)" title="Refresh">&#8635; Refresh</button>
               <select id="db-month-picker" class="form-control" style="max-width:175px" onchange="loadDashboard()"></select>
             </div>
           </div>
@@ -4183,6 +4183,15 @@ const COMPLIANCE_TARGET = 90; // % threshold for "below target" indicator
 let _dbTrendChart   = null;
 let _dbApDonut      = null;
 let _dbApHealthChart = null;
+// Sessions/actionPlans are the two heaviest Firestore reads on this dashboard (every
+// document, no filters) and previously re-fetched on EVERY loadDashboard() call —
+// including scope/month dropdown changes and, since this session's sort-header
+// additions, every single header click. None of those need fresh data (the numbers
+// are all computed client-side from these same two arrays); only an explicit Refresh
+// click should hit Firestore again. Cached here, invalidated only by loadDashboard(true).
+let _dbSessionsCache = null;
+let _dbAPsCache      = null;
+let _dbLastFetchTime = null;
 // Leader Compliance Overview sort — clickable column headers (any column, either
 // direction) replaced the old fixed dropdown of pre-picked sort combos.
 let leaderSortState = { col: 'pct', dir: 'asc' };
@@ -4211,7 +4220,7 @@ window.sortDeptTable = function(col) {
   loadDashboard();
 };
 
-async function loadDashboard() {
+async function loadDashboard(forceRefresh) {
   if (!allUsers.length) await refreshUsers();
 
   // ── Month picker (init once) ─────────────────────────────────
@@ -4252,15 +4261,19 @@ async function loadDashboard() {
   const scopeDept = scopePicker.value || 'ALL';
 
   // ── Fetch data ────────────────────────────────────────────────
-  let allSessions = [], allAPs = [];
-  try {
-    const [sSnap, apSnap] = await Promise.all([
-      getDocs(collection(db,'sessions')),
-      getDocs(collection(db,'actionPlans'))
-    ]);
-    allSessions = sSnap.docs.map(d=>({id:d.id,...d.data()}));
-    allAPs      = apSnap.docs.map(d=>({id:d.id,...d.data()}));
-  } catch(e) { console.error('Dashboard fetch error',e); }
+  if (forceRefresh || _dbSessionsCache === null) {
+    try {
+      const [sSnap, apSnap] = await Promise.all([
+        getDocs(collection(db,'sessions')),
+        getDocs(collection(db,'actionPlans'))
+      ]);
+      _dbSessionsCache = sSnap.docs.map(d=>({id:d.id,...d.data()}));
+      _dbAPsCache      = apSnap.docs.map(d=>({id:d.id,...d.data()}));
+      _dbLastFetchTime = new Date();
+    } catch(e) { console.error('Dashboard fetch error',e); _dbSessionsCache = _dbSessionsCache || []; _dbAPsCache = _dbAPsCache || []; }
+  }
+  const allSessions = _dbSessionsCache || [];
+  const allAPs      = _dbAPsCache || [];
 
   const completedSess = allSessions.filter(s => s.status === 'completed' || s.status === 'acknowledged');
   const sessMon = s => (s.sessionDate||'').slice(0,7);
@@ -4284,7 +4297,7 @@ async function loadDashboard() {
 
   // ── Last refreshed timestamp ────────────────────────────────────
   const refreshedEl = document.getElementById('db-last-refreshed');
-  if (refreshedEl) refreshedEl.textContent = 'Last refreshed: ' + new Date().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'});
+  if (refreshedEl && _dbLastFetchTime) refreshedEl.textContent = 'Last refreshed: ' + _dbLastFetchTime.toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'});
 
   // Required set for a given month — respects hire date + active status
   const requiredInMonth = mStr => allCoachees.filter(u => isRequiredInMonth(u, mStr));
@@ -4677,8 +4690,12 @@ async function loadDashboard() {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(totalRequired+'', cx, cy-9);
-          ctx.font = '12px Arial';
-          ctx.fillStyle = '#6B7A8D';
+          // "Eligible" was drawn at 12px in the same soft blue-gray as the muted-text
+          // fix elsewhere on this dashboard — same low-contrast/"blurred" look at small
+          // size. Darkened + semi-bold for legibility, matching the #6B7280 used for
+          // the card description text fix above.
+          ctx.font = '600 12px Arial';
+          ctx.fillStyle = '#6B7280';
           ctx.fillText('Eligible', cx, cy+13);
           ctx.restore();
         }
