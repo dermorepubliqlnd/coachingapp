@@ -2129,7 +2129,7 @@ const VIEWS = {
   'settings':          { el:'view-settings',          label:'Settings',         sub:'App configuration and administration',                               load:loadSettingsView },
   'coach-home':        { el:'view-coach-home',        label:'My Team',          sub:'Overview of your coachees and their coaching progress.',              load:loadCoachHome },
   'coach-new-session': { el:'view-coach-new-session', label:'New Session',      sub:'',                                                                   load:null },
-  'coach-sessions':    { el:'view-coach-sessions',    label:'Team Sessions',    sub:'All sessions you have recorded.',                                     load:null },
+  'coach-sessions':    { el:'view-coach-sessions',    label:'Coaching Sessions', sub:'All sessions you have recorded.',                                    load:null },
   'action-plans':      { el:'view-action-plans',      label:'Action Plans',     sub:'Track action items across all your coaching sessions.',               load:null },
   'my-coaching':       { el:'view-my-coaching',       label:'My Coaching',      sub:'Sessions shared with you for review and acknowledgement.',            load:loadMyCoaching },
   'my-action-plans':   { el:'view-my-action-plans',   label:'My Action Plans',  sub:'Your committed actions and progress from coaching sessions.',         load:null },
@@ -2185,26 +2185,34 @@ function renderSidebar() {
   // Dashboard is the org-wide compliance view — Admin or explicitly-granted Enterprise
   // access only (least-privilege). Coaches/Managers get their own scope via "My Team".
   const canDash = hasEnterpriseAccess(currentProfile);
+  // Overview — Dashboard on its own, separate from the day-to-day Coaching section
+  // (matches the intended nav grouping: Overview / Coaching / My Development / Reports).
+  if (canDash) {
+    html += '<div class="nav-section-label">Overview</div>';
+    html += ni('dashboard', NAV_ICONS.dashboard, 'Dashboard');
+  }
   if (roles.includes('coach')) {
     html += '<div class="nav-section-label">Coaching</div>';
-    if (canDash) html += ni('dashboard', NAV_ICONS.dashboard, 'Dashboard');
     html += ni('coach-home',     NAV_ICONS.team,      'My Team');
+    html += ni('coach-sessions', NAV_ICONS.clipboard, 'Coaching Sessions');
     html += ni('action-plans',   NAV_ICONS.checklist, 'Action Plans');
-    html += ni('coach-sessions', NAV_ICONS.clipboard, 'Team Sessions');
-  } else if (canDash) {
-    html += ni('dashboard', NAV_ICONS.dashboard, 'Dashboard');
   }
   if (roles.includes('coachee')) {
     html += '<div class="nav-section-label">My Development</div>';
     html += ni('my-coaching',      NAV_ICONS.coaching,  roles.length > 1 ? 'My Coaching' : 'My Sessions');
     html += ni('my-action-plans',  NAV_ICONS.checklist, 'My Action Plans');
   }
-  // Admin section — pushed to bottom
+  // Admin section — pushed to bottom. Reports gets its own section label (matching the
+  // intended nav grouping) but stays as the single existing Reports view internally —
+  // no need for separate standalone Leader Compliance/Department Rollup/Trend pages
+  // when that ground is already covered by the Dashboard and the Reports exports.
   const canAdmin = perms.admin;
   if (canAdmin) {
     html += '<div class="nav-spacer"></div>';
-    html += '<div class="nav-section-label">Admin</div>';
+    html += '<div class="nav-section-label">Reports</div>';
     html += ni('reports',  NAV_ICONS.reports,  'Reports');
+    html += '<div class="nav-spacer"></div>';
+    html += '<div class="nav-section-label">Admin</div>';
     html += ni('settings', NAV_ICONS.settings, 'Settings');
     html += ni('users',    NAV_ICONS.users,    'User Management');
     html += niBadge('admin-inbox', NAV_ICONS.inbox, 'Admin Inbox', 'ai-nav-badge');
