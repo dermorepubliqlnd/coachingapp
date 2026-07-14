@@ -120,6 +120,10 @@
 
     /* CARDS */
     .card{background:white;border-radius:var(--radius);border:1px solid var(--border);padding:16px}
+    .vol-info{position:relative;display:inline-block;margin-left:3px;color:var(--muted);cursor:help;font-size:11px;line-height:1;vertical-align:middle}
+    .vol-info .vol-tip{visibility:hidden;opacity:0;position:absolute;left:50%;transform:translateX(-50%);bottom:165%;width:220px;background:#0E2841;color:#fff;font-size:11px;font-weight:400;line-height:1.45;padding:8px 10px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.18);z-index:60;white-space:normal;pointer-events:none;transition:opacity .12s ease}
+    .vol-info .vol-tip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#0E2841}
+    .vol-info:hover .vol-tip,.vol-info:focus .vol-tip{visibility:visible;opacity:1}
     .card-title{font-size:13px;font-weight:600;color:var(--navy);margin-bottom:12px}
 
     /* STATS */
@@ -4698,26 +4702,26 @@ async function loadDashboard(forceRefresh) {
 
   // ── Volume vs Requirement ────────────────────────────────────
   const maxBar = Math.max(volRequired, volTotal, 1);
-  const barHtml = (label, val, color) =>
-    '<div style="margin-bottom:14px">'
+  const barHtml = (label, val, color, info) =>
+    '<div style="margin-bottom:9px">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
-    +   '<span style="font-size:12.5px;color:var(--text)">'+label+'</span>'
+    +   '<span style="font-size:12.5px;color:var(--text)">'+label+(info?' <span class="vol-info" tabindex="0">&#9432;<span class="vol-tip">'+info+'</span></span>':'')+'</span>'
     +   '<span style="font-size:13px;font-weight:600;color:var(--text)">'+val+'</span>'
     + '</div>'
     + '<div style="height:10px;background:var(--light-dk);border-radius:5px;overflow:hidden">'
     +   '<div style="height:100%;width:'+Math.round(val/maxBar*100)+'%;background:'+color+';border-radius:5px;transition:width .5s ease"></div>'
     + '</div></div>';
   const extraNote = volExtra > 0
-    ? '<div style="margin-top:-6px;margin-bottom:10px;font-size:11px;color:var(--muted)">Beyond the first required session per employee — never increases compliance.</div>'
+    ? '<div style="margin-top:-4px;margin-bottom:7px;font-size:11px;color:var(--muted)">Beyond the first required session per employee — never increases compliance.</div>'
     : '';
   document.getElementById('db-volume').innerHTML =
-    barHtml('Required Sessions',   volRequired, '#1D6FA4')
-  + barHtml('Completed Sessions',  volCompleted,'#1A6B34')
-  + barHtml('Excess Sessions',     volExtra,    '#6D28D9')
+    barHtml('Required Sessions',   volRequired, '#1D6FA4', 'One session is expected per eligible employee this month. Eligibility starts the month after the hire month.')
+  + barHtml('Completed Sessions',  volCompleted,'#1A6B34', 'Eligible employees who received at least one session this month, counted once each. This drives the compliance rate.')
+  + barHtml('Excess Sessions',     volExtra,    '#6D28D9', 'Extra sessions for employees already covered this month, beyond the one required. Does not raise compliance.')
   + extraNote
-  + barHtml('Early / Non-required Coaching', earlyCoachingCount, '#A05A0A')
-  + '<div style="margin-top:-6px;margin-bottom:10px;font-size:11px;color:var(--muted)">Coached during hire month, before eligibility — never counts toward compliance or excess.</div>'
-  + barHtml('Total Sessions Delivered', volTotal, '#6B7A8D');
+  + barHtml('Early / Non-required Coaching', earlyCoachingCount, '#A05A0A', 'Sessions logged during the hire month, before the employee is eligible for required coaching. Never counts toward compliance or excess.')
+  + '<div style="margin-top:-4px;margin-bottom:7px;font-size:11px;color:var(--muted)">Coached during hire month, before eligibility — never counts toward compliance or excess.</div>'
+  + barHtml('Total Sessions Delivered', volTotal, '#6B7A8D', 'Every session logged this month of any type: required, excess, and early coaching combined.');
 
   const legendItem = (color, label, cnt, pct) =>
     '<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">'
