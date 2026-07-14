@@ -1547,7 +1547,7 @@
     </div>
     <div class="modal-body">
       <p id="mc-msg" style="font-size:13.5px;color:var(--text);line-height:1.6"></p>
-      <div id="mc-name-list" style="display:none;max-height:110px;overflow-y:auto;background:var(--light);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);margin-top:8px;line-height:1.6"></div>
+      <div id="mc-name-list" style="display:none;margin-top:8px"></div>
       <div id="mc-confirm-wrap" style="display:none;margin-top:10px">
         <input id="mc-confirm-text" type="text" class="form-control" placeholder="Type DELETE to confirm" autocomplete="off">
         <div id="mc-confirm-err" style="display:none;color:var(--red);font-size:12px;margin-top:4px">Type DELETE (all caps) to confirm.</div>
@@ -1651,7 +1651,7 @@
     </div>
     <div class="modal-body">
       <p id="bulk-dept-count" style="font-size:13px;color:var(--muted);margin:0 0 8px">Applying to 0 users.</p>
-      <div id="bulk-dept-names" style="max-height:110px;overflow-y:auto;background:var(--light);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);margin-bottom:12px;line-height:1.6"></div>
+      <div id="bulk-dept-names" style="margin-bottom:12px"></div>
       <div class="form-group" style="margin-bottom:4px">
         <label class="form-label">New Department <span style="color:var(--red)">*</span></label>
         <select id="bulk-dept-select" class="form-control">
@@ -1676,7 +1676,7 @@
     </div>
     <div class="modal-body">
       <p id="bulk-coach-count" style="font-size:13px;color:var(--muted);margin:0 0 8px">Applying to 0 users.</p>
-      <div id="bulk-coach-names" style="max-height:110px;overflow-y:auto;background:var(--light);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);margin-bottom:12px;line-height:1.6"></div>
+      <div id="bulk-coach-names" style="margin-bottom:12px"></div>
       <div class="form-group" style="margin-bottom:4px">
         <label class="form-label">New Coach / Manager <span style="color:var(--red)">*</span></label>
         <select id="bulk-coach-select" class="form-control">
@@ -1702,7 +1702,7 @@
     </div>
     <div class="modal-body">
       <p id="bulk-roles-count" style="font-size:13px;color:var(--muted);margin:0 0 8px">Applying to 0 users.</p>
-      <div id="bulk-roles-names" style="max-height:110px;overflow-y:auto;background:var(--light);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--text);margin-bottom:12px;line-height:1.6"></div>
+      <div id="bulk-roles-names" style="margin-bottom:12px"></div>
       <div class="form-group" style="margin-bottom:4px">
         <label class="form-label">Roles <span style="color:var(--red)">*</span></label>
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -2527,19 +2527,40 @@ function updateBulkBar() {
 }
 
 // ── Bulk: Change Department ────────────────────────────────────
+function namesForUids(uids) {
+  return uids.map(uid => {
+    const u = allUsers.find(x => x.uid === uid);
+    return u ? u.firstName + ' ' + u.lastName : uid;
+  });
+}
+
 // Shared "who exactly is this about" list for bulk-action modals/confirms — lets Sandra
 // double-check the right people are selected before committing an action that touches
-// many users at once, rather than trusting a bare count.
-function buildNameListHtml(uids, cap) {
-  cap = cap || 30;
-  const names = uids.map(uid => {
-    const u = allUsers.find(x => x.uid === uid);
-    return esc(u ? u.firstName + ' ' + u.lastName : uid);
-  });
-  let html = names.slice(0, cap).join(', ');
-  if (names.length > cap) html += ' <span style="color:var(--muted)">+' + (names.length - cap) + ' more</span>';
-  return html;
+// many users at once, rather than trusting a bare count. Short selections just show the
+// names directly; longer ones collapse behind a "Show names" toggle so the modal doesn't
+// balloon in height for a 40-person batch.
+function buildNameListHtml(containerId, uids) {
+  const names = namesForUids(uids).map(esc);
+  const THRESHOLD = 10;
+  if (names.length <= THRESHOLD) {
+    return '<div style="font-size:12px;color:var(--text);line-height:1.6">' + names.join(', ') + '</div>';
+  }
+  return '<div style="font-size:12px;color:var(--muted)">'
+    + names.length + ' people selected &nbsp;'
+    + '<button type="button" id="' + containerId + '-toggle" onclick="toggleNameListExpand(\'' + containerId + '\')" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:12px;text-decoration:underline;padding:0">Show names</button>'
+    + '</div>'
+    + '<div id="' + containerId + '-list" style="display:none;max-height:130px;overflow-y:auto;background:var(--light);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-top:6px;font-size:12px;color:var(--text);line-height:1.6">'
+    + names.join(', ') + '</div>';
 }
+
+window.toggleNameListExpand = function(containerId) {
+  const list = document.getElementById(containerId + '-list');
+  const btn  = document.getElementById(containerId + '-toggle');
+  if (!list) return;
+  const show = list.style.display === 'none';
+  list.style.display = show ? 'block' : 'none';
+  if (btn) btn.textContent = show ? 'Hide names' : 'Show names';
+};
 
 window.openBulkDeptModal = function() {
   const sel = document.getElementById('bulk-dept-select');
@@ -2547,7 +2568,7 @@ window.openBulkDeptModal = function() {
     + allDepartments.filter(d=>d.active!==false).sort((a,b)=>a.name.localeCompare(b.name))
         .map(d=>'<option value="'+esc(d.name)+'">'+esc(d.name)+'</option>').join('');
   const uids = Array.from(selectedUserIds);
-  document.getElementById('bulk-dept-names').innerHTML = buildNameListHtml(uids);
+  document.getElementById('bulk-dept-names').innerHTML = buildNameListHtml('bulk-dept-names', uids);
   document.getElementById('bulk-dept-count').textContent = 'Applying to ' + uids.length + ' user' + (uids.length===1?'':'s') + '.';
   document.getElementById('bulk-dept-error').style.display = 'none';
   document.getElementById('modal-bulk-dept').style.display = 'flex';
@@ -2594,7 +2615,7 @@ window.openBulkCoachModal = function() {
   const sel = document.getElementById('bulk-coach-select');
   sel.innerHTML = '<option value="">— Select coach / manager —</option>'
     + coaches.map(c=>'<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
-  document.getElementById('bulk-coach-names').innerHTML = buildNameListHtml(uids);
+  document.getElementById('bulk-coach-names').innerHTML = buildNameListHtml('bulk-coach-names', uids);
   document.getElementById('bulk-coach-count').textContent = 'Applying to ' + uids.length + ' user' + (uids.length===1?'':'s') + '.';
   document.getElementById('bulk-coach-error').style.display = 'none';
   document.getElementById('modal-bulk-coach').style.display = 'flex';
@@ -2653,7 +2674,7 @@ window.runBulkCoachChange = async function() {
 // ── Bulk: Change Roles ──────────────────────────────────────────
 window.openBulkRolesModal = function() {
   const uids = Array.from(selectedUserIds);
-  document.getElementById('bulk-roles-names').innerHTML = buildNameListHtml(uids);
+  document.getElementById('bulk-roles-names').innerHTML = buildNameListHtml('bulk-roles-names', uids);
   document.getElementById('bulk-roles-count').textContent = 'Applying to ' + uids.length + ' user' + (uids.length===1?'':'s') + '.';
   document.getElementById('bulk-role-coach').checked = false;
   document.getElementById('bulk-role-coachee').checked = false;
@@ -2673,7 +2694,7 @@ window.runBulkRolesChange = async function() {
   if (roles.includes('coachee')) {
     const missing = uids.filter(uid => { const u = allUsers.find(x=>x.uid===uid); return u && !u.coachId; });
     if (missing.length) {
-      showErr(errEl, missing.length+' selected user(s) have no coach assigned yet ('+buildNameListHtml(missing).replace(/<[^>]+>/g,'')+') — use Assign Reports To first, or edit them individually.');
+      showErr(errEl, missing.length+' selected user(s) have no coach assigned yet ('+namesForUids(missing).join(', ')+') — use Assign Reports To first, or edit them individually.');
       return;
     }
   }
@@ -2711,7 +2732,7 @@ window.openBulkStatusModal = function(makeActive) {
     ? 'These users will be able to sign in again.'
     : 'These users will no longer be able to sign in.') + (skippedSelf ? ' Your own account was left out of this action.' : '');
   const nameList = document.getElementById('mc-name-list');
-  nameList.innerHTML = buildNameListHtml(uids);
+  nameList.innerHTML = buildNameListHtml('mc-name-list', uids);
   nameList.style.display = 'block';
   const btn = document.getElementById('mc-action-btn');
   btn.textContent = makeActive ? 'Reactivate' : 'Deactivate';
