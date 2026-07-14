@@ -139,6 +139,7 @@
     tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
     tbody tr:last-child td{border-bottom:none}
     tbody tr:hover{background:var(--light)}
+    tfoot td{padding:10px 12px}
 
     /* RESIZABLE + SORTABLE COLUMNS */
     .rt-table th{position:relative;user-select:none;overflow:hidden}
@@ -2323,7 +2324,11 @@ function renderSidebar() {
   // when that ground is already covered by the Dashboard and the Reports exports.
   const canAdmin = perms.admin;
   if (canAdmin) {
-    html += '<div class="nav-spacer"></div>';
+    // No spacer before Reports — it was using the same greedy flex:1 spacer as the
+    // Admin section below, which pushed Reports down toward the bottom of the sidebar
+    // and made it look disconnected from Coaching/My Development above it. Reports now
+    // sits with normal section spacing right after the main nav; only Admin
+    // (Settings/User Management/Admin Inbox) still gets pushed to the very bottom.
     html += '<div class="nav-section-label">Reports</div>';
     html += ni('reports',  NAV_ICONS.reports,  'Reports');
     html += '<div class="nav-spacer"></div>';
@@ -4788,7 +4793,8 @@ function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, us
     else if (compliance >= 90)                        { status='On Track';       statusColor='#1A6B34'; statusBg='#E6F4EB'; }
     else if (compliance >= 50)                        { status='Needs Attention';statusColor='#A05A0A'; statusBg='#FEF0E0'; }
     else                                               { status='Critical';       statusColor='#B91C1C'; statusBg='#FEE2E2'; }
-    return { dept:d.dept, eligible:d.eligible, coached:d.coached, compliance, closureRate, overdueRate, status, statusColor, statusBg };
+    return { dept:d.dept, eligible:d.eligible, coached:d.coached, compliance, closureRate, overdueRate, status, statusColor, statusBg,
+      apActiveCount:deptActive.length, apCompletedCount:deptCompleted.length, apOverdueCount:deptOverdue.length };
   });
   const deptSortVal = (d, col) => {
     if (col === 'dept')       return d.dept.toLowerCase();
@@ -4821,6 +4827,15 @@ function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, us
     const arrow  = active ? (deptSortState.dir === 'asc' ? ' &#9650;' : ' &#9660;') : '';
     return '<th style="cursor:pointer;user-select:none;white-space:nowrap;'+(style||'')+'" onclick="sortDeptTable(\''+col+'\')" title="Click to sort">'+label+arrow+'</th>';
   };
+  const totalEligible   = rows.reduce((s,d)=>s+d.eligible,0);
+  const totalCoachedAll = rows.reduce((s,d)=>s+d.coached,0);
+  const totalCompliance = totalEligible ? Math.round(totalCoachedAll/totalEligible*100) : 0;
+  const totalApActive    = rows.reduce((s,d)=>s+d.apActiveCount,0);
+  const totalApCompleted = rows.reduce((s,d)=>s+d.apCompletedCount,0);
+  const totalApOverdue   = rows.reduce((s,d)=>s+d.apOverdueCount,0);
+  const totalClosureRate = totalApActive ? Math.round(totalApCompleted/totalApActive*100) : 0;
+  const totalOverdueRate = totalApActive ? Math.round(totalApOverdue/totalApActive*100) : 0;
+
   container.innerHTML = '<div class="table-wrap"><table class="rt-table" style="font-size:12px">'
     + '<thead><tr>'
     + thSortDept('Department','dept','min-width:120px')
@@ -4831,7 +4846,17 @@ function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, us
     + thSortDept('Overdue','overdueRate','text-align:center;min-width:75px')
     + thSortDept('Status','status','text-align:center;min-width:110px')
     + '</tr></thead>'
-    + '<tbody>'+trs+'</tbody></table></div>';
+    + '<tbody>'+trs+'</tbody>'
+    + '<tfoot><tr style="background:#F8FAFC;font-weight:600;border-top:2px solid var(--border)">'
+    + '<td style="font-size:12px;color:#1D6FA4">Total / Average</td>'
+    + '<td style="text-align:center;font-size:12px">'+totalEligible+'</td>'
+    + '<td style="text-align:center;font-size:12px">'+totalCoachedAll+'</td>'
+    + '<td style="text-align:center;font-size:12px;font-weight:700">'+totalCompliance+'%</td>'
+    + '<td style="text-align:center;font-size:12px">'+totalClosureRate+'%</td>'
+    + '<td style="text-align:center;font-size:12px">'+totalOverdueRate+'%</td>'
+    + '<td></td>'
+    + '</tr></tfoot>'
+    + '</table></div>';
 }
 
 // Priority Attention — surfaces the handful of things that most need a human to look at.
