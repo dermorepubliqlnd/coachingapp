@@ -2480,9 +2480,11 @@ window.saveUser = async function() {
       targetUid = cred.user.uid;
       await setDoc(doc(db,'users',targetUid), { firstName,lastName,email,employeeId:empId,position,hireDate,department,permissions,roles,coachId,reportsUpTo:[],active:true,createdAt:serverTimestamp() });
       await addDoc(collection(db,'auditLog'), { action:'create_user', targetUid, targetName:firstName+' '+lastName, targetEmail:email, performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'Roles: '+roles.join(', ')+'.', timestamp:serverTimestamp() });
-      await sendPasswordResetEmail(auth2, email);
+      // No email sent yet (per Sandra's request, 2026-07-14) — account is created with a
+      // default temporary password. Use the "Send Reset Email" button in Edit User later,
+      // once you're ready for new users to receive emails.
       await signOut(auth2);
-      toast('User created. Password setup email sent.','success');
+      toast('User created. No email sent — temporary password: Boost2024! Use "Send Reset Email" in Edit User when ready.','success', 8000);
     }
     // Reporting line may have just been created/changed — recompute this user's org-chain
     // position (and cascade to their existing subtree, if any) so hierarchy-scoped
@@ -2761,7 +2763,7 @@ window.runCsvImport = async function() {
           active:      row._active,
           createdAt:   serverTimestamp()
         });
-        await sendPasswordResetEmail(auth2, row.email);
+        // No email sent yet (per Sandra's request, 2026-07-14) — see note in saveUser().
         await signOut(auth2);
         created++;
       }
@@ -2777,7 +2779,8 @@ window.runCsvImport = async function() {
   if (created) msg.push(created + ' created');
   if (updated) msg.push(updated + ' updated');
   if (failed)  msg.push(failed  + ' failed');
-  toast('Import complete — ' + (msg.join(', ') || 'nothing processed') + '.', failed ? 'error' : 'success');
+  const createdNote = created ? ' New accounts use temporary password Boost2024! — no email sent.' : '';
+  toast('Import complete — ' + (msg.join(', ') || 'nothing processed') + '.' + createdNote, failed ? 'error' : 'success', 8000);
   await loadUsers();
   btn.disabled = false; btn.textContent = 'Confirm Import';
 };
