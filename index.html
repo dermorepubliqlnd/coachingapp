@@ -4708,14 +4708,10 @@ async function loadDashboard(forceRefresh) {
     + '<div style="height:10px;background:var(--light-dk);border-radius:5px;overflow:hidden">'
     +   '<div style="height:100%;width:'+Math.round(val/maxBar*100)+'%;background:'+color+';border-radius:5px;transition:width .5s ease"></div>'
     + '</div></div>';
-  const extraNote = volExtra > 0
-    ? '<div style="margin-top:-4px;margin-bottom:7px;font-size:11px;color:var(--muted)">Beyond the first required session per employee — never increases compliance.</div>'
-    : '';
   document.getElementById('db-volume').innerHTML =
     barHtml('Required Sessions',   volRequired, '#1D6FA4', 'One session is expected per eligible employee this month. Eligibility starts the month after the hire month.')
   + barHtml('Completed Sessions',  volCompleted,'#1A6B34', 'Eligible employees who received at least one session this month, counted once each. This drives the compliance rate.')
   + barHtml('Excess Sessions',     volExtra,    '#6D28D9', 'Extra sessions for employees already covered this month, beyond the one required. Does not raise compliance.')
-  + extraNote
   + barHtml('Early / Non-required Coaching', earlyCoachingCount, '#A05A0A', 'Sessions logged during the hire month, before the employee is eligible for required coaching. Never counts toward compliance or excess.')
   + barHtml('Total Sessions Delivered', volTotal, '#6B7A8D', 'Every session logged this month of any type: required, excess, and early coaching combined.');
 
