@@ -2104,7 +2104,7 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
     try {
-      const snap = await getDoc(doc(db, 'users', user.uid));
+      const snap = await withAuthRetry(() => getDoc(doc(db, 'users', user.uid)));
       if (snap.exists()) {
         currentProfile = { uid: user.uid, ...snap.data() };
         if (!currentProfile.active) {
@@ -2382,7 +2382,29 @@ let usersTableReady  = false;
 const usersPageState = { page: 1, size: 25 };
 let selectedUserIds  = new Set();
 let usersSearchQuery = '';
+
+// Firestore reads made in the first moment after sign-in can occasionally race the ID
+// token attaching to the request — this surfaces as a transient "Missing or insufficient
+// permissions" that has nothing to do with the security rules themselves; retrying a beat
+// later succeeds. Only worth a couple of quick attempts: a genuine rules rejection will
+// just fail again immediately, and callers still see (and can handle) that final error.
+async function withAuthRetry(fn, attempts = 3, delayMs = 600) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); }
+    catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  throw lastErr;
+}
+
 async function refreshUsers() {
+  return withAuthRetry(() => refreshUsersOnce());
+}
+
+async function refreshUsersOnce() {
   // Role-aware directory load (least-privilege):
   //  • admin / enterprise → all users (Enterprise Dashboard needs the full roster too)
   //  • coach   → self + full org subtree beneath them (any depth, via reportsUpTo — this
@@ -3739,7 +3761,20 @@ window.exportBackup = async function() {
 
 // ── Coach Home ───────────────────────────────────────────────
 async function loadCoachHome() {
-  if (!allUsers.length) await refreshUsers();
+  if (!allUsers.length) {
+    try {
+      await refreshUsers();
+    } catch (e) {
+      // Previously an uncaught failure here left the whole page blank (no nav item
+      // issue, just a silently-dead view) — show something actionable instead.
+      console.error('loadCoachHome refreshUsers failed', e);
+      const gridEl = document.getElementById('coach-coachee-grid');
+      if (gridEl) gridEl.innerHTML = '<div class="empty-state"><div class="empty-sub">Could not load your team. Please refresh the page — if this keeps happening, try a different browser (some browsers\' tracking-prevention settings can block sign-in).</div></div>';
+      const s1 = document.getElementById('myteam-stats');   if (s1) s1.innerHTML = '';
+      const s2 = document.getElementById('myteam-sidebar'); if (s2) s2.innerHTML = '';
+      return;
+    }
+  }
   // Direct reports + everyone further down the chain (skip-level) — for a plain
   // Supervisor with no sub-managers this is identical to "direct reports only"; for a
   // Manager/Senior Manager it naturally becomes the full team rollup.
