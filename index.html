@@ -576,11 +576,20 @@
               <button class="btn btn-primary" onclick="openUserModal()">+ Add User</button>
             </div>
           </div>
+          <div id="users-bulk-bar" style="display:none;align-items:center;gap:10px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--radius);padding:10px 14px;margin-bottom:12px">
+            <span id="users-bulk-count" style="font-size:13px;font-weight:600;color:var(--navy)">0 selected</span>
+            <div style="display:flex;gap:8px;margin-left:auto">
+              <button class="btn btn-ghost btn-sm" onclick="openBulkDeptModal()">Change Department</button>
+              <button class="btn btn-ghost btn-sm" onclick="openBulkCoachModal()">Assign Reports To</button>
+              <button class="btn btn-ghost btn-sm" onclick="clearUserSelection()">Clear</button>
+            </div>
+          </div>
           <div class="card" style="padding:0">
             <div class="table-wrap">
               <table id="users-table" class="rt-table">
                 <thead>
                   <tr>
+                    <th style="width:34px"><input type="checkbox" id="users-select-all" onchange="toggleSelectAllUsers(this.checked)"></th>
                     <th data-sort="name" style="min-width:150px">Name</th>
                     <th data-sort="employeeId" style="min-width:110px">Employee ID</th>
                     <th style="min-width:170px">Email</th>
@@ -595,6 +604,22 @@
                 </thead>
                 <tbody id="users-tbody"></tbody>
               </table>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-top:1px solid var(--border);flex-wrap:wrap">
+              <div style="font-size:12px;color:var(--muted)" id="users-page-info">Showing 0 of 0</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <label style="font-size:12px;color:var(--muted)">Rows per page
+                  <select id="users-page-size" class="form-control" style="display:inline-block;width:auto;margin-left:6px;padding:4px 8px;font-size:12px" onchange="usersChangePageSize(this.value)">
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="all">All</option>
+                  </select>
+                </label>
+                <button class="btn btn-ghost btn-sm" id="users-page-prev" onclick="usersGoToPage(-1)">&#8249; Prev</button>
+                <span style="font-size:12px;color:var(--muted)" id="users-page-label">Page 1 of 1</span>
+                <button class="btn btn-ghost btn-sm" id="users-page-next" onclick="usersGoToPage(1)">Next &#8250;</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1608,6 +1633,55 @@
   </div>
 </div>
 
+<!-- MODAL: BULK CHANGE DEPARTMENT -->
+<div id="modal-bulk-dept" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-bulk-dept')">
+  <div class="modal-box sm">
+    <div class="modal-header">
+      <div class="modal-title">Change Department</div>
+      <button class="modal-close" onclick="closeModal('modal-bulk-dept')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p id="bulk-dept-count" style="font-size:13px;color:var(--muted);margin:0 0 12px">Applying to 0 users.</p>
+      <div class="form-group" style="margin-bottom:4px">
+        <label class="form-label">New Department <span style="color:var(--red)">*</span></label>
+        <select id="bulk-dept-select" class="form-control">
+          <option value="">— Select department —</option>
+        </select>
+      </div>
+      <div id="bulk-dept-error" class="form-error-msg"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-bulk-dept')">Cancel</button>
+      <button class="btn btn-primary" id="bulk-dept-save-btn" onclick="runBulkDeptChange()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: BULK ASSIGN REPORTS TO -->
+<div id="modal-bulk-coach" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-bulk-coach')">
+  <div class="modal-box sm">
+    <div class="modal-header">
+      <div class="modal-title">Assign Reports To</div>
+      <button class="modal-close" onclick="closeModal('modal-bulk-coach')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p id="bulk-coach-count" style="font-size:13px;color:var(--muted);margin:0 0 12px">Applying to 0 users.</p>
+      <div class="form-group" style="margin-bottom:4px">
+        <label class="form-label">New Coach / Manager <span style="color:var(--red)">*</span></label>
+        <select id="bulk-coach-select" class="form-control">
+          <option value="">— Select coach / manager —</option>
+        </select>
+        <div class="form-hint">Anyone who'd create a reporting-chain cycle for one or more selected users is left out of this list.</div>
+      </div>
+      <div id="bulk-coach-error" class="form-error-msg"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-bulk-coach')">Cancel</button>
+      <button class="btn btn-primary" id="bulk-coach-save-btn" onclick="runBulkCoachChange()">Apply</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: REJECT SESSION -->
 <div id="modal-reject" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-reject')">
   <div class="modal-box sm">
@@ -2218,6 +2292,8 @@ function niBadge(view, icon, label, badgeId) {
 // ── User management ──────────────────────────────────────────
 const usersSortState = { col: null, dir: 'asc' };
 let usersTableReady  = false;
+const usersPageState = { page: 1, size: 25 };
+let selectedUserIds  = new Set();
 async function refreshUsers() {
   // Role-aware directory load (least-privilege):
   //  • admin / enterprise → all users (Enterprise Dashboard needs the full roster too)
@@ -2250,7 +2326,7 @@ async function refreshUsers() {
 
 async function loadUsers() {
   document.getElementById('users-tbody').innerHTML =
-    '<tr><td colspan="10"><div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Loading...</div></td></tr>';
+    '<tr><td colspan="11"><div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">Loading...</div></td></tr>';
   await refreshUsers();
   renderUsersTable();
   if (!usersTableReady) {
@@ -2262,7 +2338,9 @@ async function loadUsers() {
 function renderUsersTable() {
   const tbody = document.getElementById('users-tbody');
   if (!allUsers.length) {
-    tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">&#128101;</div><div class="empty-title">No users yet</div><div class="empty-sub">Add your first user to get started.</div></div></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11"><div class="empty-state"><div class="empty-icon">&#128101;</div><div class="empty-title">No users yet</div><div class="empty-sub">Add your first user to get started.</div></div></td></tr>';
+    document.getElementById('users-page-info').textContent = 'Showing 0 of 0';
+    document.getElementById('users-page-label').textContent = 'Page 1 of 1';
     return;
   }
   let rows = [...allUsers];
@@ -2273,12 +2351,32 @@ function renderUsersTable() {
       return usersSortState.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
     });
   }
-  tbody.innerHTML = rows.map(u => {
+  // Jump back to page 1 whenever the sort itself changes — landing mid-list after a
+  // re-sort would show an arbitrary, disorienting slice of the newly-ordered rows.
+  const sortSig = usersSortState.col + ':' + usersSortState.dir;
+  if (usersPageState._lastSortSig !== sortSig) {
+    usersPageState._lastSortSig = sortSig;
+    usersPageState.page = 1;
+  }
+
+  // Pagination — clamp current page in case sorting/filtering/page-size changed the count
+  const total = rows.length;
+  const size  = usersPageState.size === 'all' ? total : usersPageState.size;
+  const totalPages = Math.max(1, Math.ceil(total / (size || total || 1)));
+  if (usersPageState.page > totalPages) usersPageState.page = totalPages;
+  if (usersPageState.page < 1) usersPageState.page = 1;
+  const startIdx = usersPageState.size === 'all' ? 0 : (usersPageState.page - 1) * size;
+  const endIdx   = usersPageState.size === 'all' ? total : Math.min(startIdx + size, total);
+  const pageRows = rows.slice(startIdx, endIdx);
+
+  tbody.innerHTML = pageRows.map(u => {
     const coach     = allUsers.find(c => c.uid === u.coachId);
     const coachName = coach ? coach.firstName + ' ' + coach.lastName : '—';
     const badges    = (u.roles||[]).map(r => '<span class="badge badge-' + r + '" style="margin-right:3px">' + cap(r) + '</span>').join('');
     const isSelf    = u.uid === currentUser.uid;
+    const checked   = selectedUserIds.has(u.uid) ? ' checked' : '';
     return '<tr>'
+      + '<td><input type="checkbox" class="users-row-check" data-uid="' + u.uid + '"' + checked + ' onchange="toggleSelectUser(\'' + u.uid + '\',this.checked)"></td>'
       + '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar avatar-sm">' + ini(u.firstName,u.lastName) + '</div><span style="font-weight:500">' + esc(u.firstName) + ' ' + esc(u.lastName) + '</span></div></td>'
       + '<td>' + esc(u.employeeId||'—') + '</td>'
       + '<td style="font-size:12px">' + esc(u.email) + '</td>'
@@ -2294,7 +2392,168 @@ function renderUsersTable() {
       + '</div></td>'
       + '</tr>';
   }).join('');
+
+  document.getElementById('users-page-info').textContent =
+    total === 0 ? 'Showing 0 of 0' : 'Showing ' + (startIdx+1) + '–' + endIdx + ' of ' + total;
+  document.getElementById('users-page-label').textContent = 'Page ' + usersPageState.page + ' of ' + totalPages;
+  document.getElementById('users-page-prev').disabled = usersPageState.page <= 1;
+  document.getElementById('users-page-next').disabled = usersPageState.page >= totalPages;
+
+  updateSelectAllCheckbox(pageRows);
+  updateBulkBar();
 }
+
+// ── Users table: pagination controls ──────────────────────────
+window.usersChangePageSize = function(val) {
+  usersPageState.size = (val === 'all') ? 'all' : parseInt(val, 10);
+  usersPageState.page = 1;
+  renderUsersTable();
+};
+window.usersGoToPage = function(delta) {
+  usersPageState.page += delta;
+  renderUsersTable();
+};
+
+// ── Users table: bulk selection ────────────────────────────────
+function updateSelectAllCheckbox(pageRows) {
+  const el = document.getElementById('users-select-all');
+  if (!pageRows.length) { el.checked = false; el.indeterminate = false; return; }
+  const selectedOnPage = pageRows.filter(u => selectedUserIds.has(u.uid)).length;
+  el.checked       = selectedOnPage === pageRows.length;
+  el.indeterminate = selectedOnPage > 0 && selectedOnPage < pageRows.length;
+}
+window.toggleSelectAllUsers = function(checked) {
+  document.querySelectorAll('.users-row-check').forEach(cb => {
+    const uid = cb.dataset.uid;
+    if (checked) selectedUserIds.add(uid); else selectedUserIds.delete(uid);
+    cb.checked = checked;
+  });
+  updateBulkBar();
+};
+window.toggleSelectUser = function(uid, checked) {
+  if (checked) selectedUserIds.add(uid); else selectedUserIds.delete(uid);
+  const pageRows = document.querySelectorAll('.users-row-check');
+  updateSelectAllCheckbox(Array.from(pageRows).map(cb => ({ uid: cb.dataset.uid })));
+  updateBulkBar();
+};
+window.clearUserSelection = function() {
+  selectedUserIds.clear();
+  renderUsersTable();
+};
+function updateBulkBar() {
+  const bar = document.getElementById('users-bulk-bar');
+  const n = selectedUserIds.size;
+  bar.style.display = n ? 'flex' : 'none';
+  if (n) document.getElementById('users-bulk-count').textContent = n + ' selected';
+}
+
+// ── Bulk: Change Department ────────────────────────────────────
+window.openBulkDeptModal = function() {
+  const sel = document.getElementById('bulk-dept-select');
+  sel.innerHTML = '<option value="">— Select department —</option>'
+    + allDepartments.filter(d=>d.active!==false).sort((a,b)=>a.name.localeCompare(b.name))
+        .map(d=>'<option value="'+esc(d.name)+'">'+esc(d.name)+'</option>').join('');
+  const n = selectedUserIds.size;
+  document.getElementById('bulk-dept-count').textContent = 'Applying to ' + n + ' user' + (n===1?'':'s') + '.';
+  document.getElementById('bulk-dept-error').style.display = 'none';
+  document.getElementById('modal-bulk-dept').style.display = 'flex';
+};
+
+window.runBulkDeptChange = async function() {
+  const errEl = document.getElementById('bulk-dept-error');
+  errEl.style.display = 'none';
+  const dept = document.getElementById('bulk-dept-select').value;
+  if (!dept) { showErr(errEl, 'Please select a department.'); return; }
+  const btn = document.getElementById('bulk-dept-save-btn');
+  btn.disabled = true; btn.textContent = 'Applying…';
+  try {
+    const uids = Array.from(selectedUserIds);
+    const updates = uids.map(uid => ({ ref: doc(db,'users',uid), data: { department: dept, updatedAt: serverTimestamp() } }));
+    await commitInChunks(updates);
+    const names = uids.map(uid => { const u = allUsers.find(x=>x.uid===uid); return u ? u.firstName+' '+u.lastName : uid; });
+    await addDoc(collection(db,'auditLog'), {
+      action:'bulk_update_department',
+      targetName: names.slice(0,10).join(', ') + (names.length>10 ? ' +'+(names.length-10)+' more' : ''),
+      performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''),
+      details:'Changed department to "'+dept+'" for '+uids.length+' user(s).', timestamp:serverTimestamp()
+    });
+    toast(uids.length+' user(s) moved to '+dept+'.','success');
+    closeModal('modal-bulk-dept');
+    selectedUserIds.clear();
+    await loadUsers();
+  } catch(e) {
+    showErr(errEl, e.message); toast('Error: '+e.message,'error');
+  }
+  btn.disabled = false; btn.textContent = 'Apply';
+};
+
+// ── Bulk: Assign Reports To ─────────────────────────────────────
+window.openBulkCoachModal = function() {
+  const uids = Array.from(selectedUserIds);
+  // Exclude the selected users themselves (self-assignment) and anyone inside ANY
+  // selected user's own subtree — either would create a reporting-chain cycle for
+  // that particular user. Whatever remains in the list is safe for the whole batch.
+  const excluded = new Set(uids);
+  uids.forEach(uid => { getOrgSubtree(uid).forEach(x => excluded.add(x)); });
+  const coaches = allUsers.filter(u => (u.roles||[]).includes('coach') && !excluded.has(u.uid))
+    .sort((a,b)=>(a.firstName+a.lastName).localeCompare(b.firstName+b.lastName));
+  const sel = document.getElementById('bulk-coach-select');
+  sel.innerHTML = '<option value="">— Select coach / manager —</option>'
+    + coaches.map(c=>'<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
+  document.getElementById('bulk-coach-count').textContent = 'Applying to ' + uids.length + ' user' + (uids.length===1?'':'s') + '.';
+  document.getElementById('bulk-coach-error').style.display = 'none';
+  document.getElementById('modal-bulk-coach').style.display = 'flex';
+};
+
+window.runBulkCoachChange = async function() {
+  const errEl = document.getElementById('bulk-coach-error');
+  errEl.style.display = 'none';
+  const coachId = document.getElementById('bulk-coach-select').value;
+  if (!coachId) { showErr(errEl, 'Please select a coach/manager.'); return; }
+  const btn = document.getElementById('bulk-coach-save-btn');
+  btn.disabled = true; btn.textContent = 'Applying…';
+  try {
+    const uids = Array.from(selectedUserIds);
+    const namesBefore = uids.map(uid => { const u = allUsers.find(x=>x.uid===uid); return u ? u.firstName+' '+u.lastName : uid; });
+    const newCoach = allUsers.find(c=>c.uid===coachId);
+
+    const updates = uids.map(uid => ({ ref: doc(db,'users',uid), data: { coachId, updatedAt: serverTimestamp() } }));
+    await commitInChunks(updates);
+
+    // Reporting-chain resync — mirrors saveUser()'s single-edit behavior, run once per
+    // affected user (each call refreshes the roster + recomputes that user's own subtree).
+    for (const uid of uids) {
+      await recomputeReportsUpToForSubtree(uid);
+    }
+    // Re-stamp each affected COACHEE's own existing sessions/action plans so their new
+    // manager sees full coaching history immediately, same as a single "Reports To" edit.
+    const freshUsersSnap = await getDocs(collection(db,'users'));
+    const usersByUidNow = {};
+    freshUsersSnap.docs.forEach(d => { usersByUidNow[d.id] = { uid:d.id, ...d.data() }; });
+    for (const uid of uids) {
+      const u = usersByUidNow[uid];
+      if (u && (u.roles||[]).includes('coachee')) {
+        const newChain = computeReportsUpTo(coachId, usersByUidNow);
+        await restampCoacheeReportsUpTo(uid, newChain);
+      }
+    }
+
+    await addDoc(collection(db,'auditLog'), {
+      action:'bulk_update_reports_to',
+      targetName: namesBefore.slice(0,10).join(', ') + (namesBefore.length>10 ? ' +'+(namesBefore.length-10)+' more' : ''),
+      performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''),
+      details:'Reassigned "Reports To" = '+(newCoach?newCoach.firstName+' '+newCoach.lastName:coachId)+' for '+uids.length+' user(s).',
+      timestamp:serverTimestamp()
+    });
+    toast(uids.length+' user(s) reassigned.','success');
+    closeModal('modal-bulk-coach');
+    selectedUserIds.clear();
+    await loadUsers();
+  } catch(e) {
+    showErr(errEl, e.message); toast('Error: '+e.message,'error');
+  }
+  btn.disabled = false; btn.textContent = 'Apply';
+};
 
 function rtSortKey(u, col) {
   if (col === 'name')       return ((u.firstName||'') + ' ' + (u.lastName||'')).toLowerCase();
