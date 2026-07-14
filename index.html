@@ -516,7 +516,7 @@
                content needed, all dead whitespace. -->
           <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:16px">
             <div class="card" style="min-width:0">
-              <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px">
                 Coaching Compliance Trend
                 <select id="db-trend-range" class="form-control" style="max-width:140px;font-size:11.5px;padding:4px 8px;height:28px" onchange="loadDashboard()">
                   <option value="3">Last 3 months</option>
@@ -525,17 +525,20 @@
                   <option value="0">This Year</option>
                 </select>
               </div>
+              <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Monthly compliance rate for the selected scope.</div>
               <div style="position:relative;height:190px"><canvas id="db-trend-chart"></canvas></div>
             </div>
             <div class="card" style="min-width:0">
-              <div class="card-title" style="margin-bottom:14px">Compliance Summary</div>
+              <div class="card-title" style="margin-bottom:2px">Compliance Summary</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Eligible employees this month, compliant vs. still due.</div>
               <div id="db-compliance-summary" style="display:flex;gap:16px;align-items:center">
                 <div style="position:relative;width:210px;height:210px;flex-shrink:0"><canvas id="db-compliance-donut"></canvas></div>
                 <div id="db-compliance-legend" style="flex:1;min-width:0"></div>
               </div>
             </div>
             <div class="card">
-              <div class="card-title" style="margin-bottom:14px">Coaching Volume</div>
+              <div class="card-title" style="margin-bottom:2px">Coaching Volume</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Sessions delivered against what was required this month.</div>
               <div id="db-volume"></div>
             </div>
           </div>
@@ -549,19 +552,22 @@
               <div id="db-dept-performance"></div>
             </div>
             <div class="card" style="min-width:0">
-              <div class="card-title" style="margin-bottom:12px">Leader Compliance Overview</div>
+              <div class="card-title" style="margin-bottom:2px">Leader Compliance Overview</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Each leader's team compliance, gaps, and overdue actions.</div>
               <div id="db-leader-table"></div>
             </div>
           </div>
           <!-- Row 4: Action Plan Health + Priority Attention -->
           <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px">
             <div class="card">
-              <div class="card-title" style="margin-bottom:10px">Action Plan Health</div>
+              <div class="card-title" style="margin-bottom:2px">Action Plan Health</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Status breakdown of all active action plans.</div>
               <div style="position:relative;height:30px;margin-bottom:12px"><canvas id="db-ap-health-chart"></canvas></div>
               <div id="db-ap-health"></div>
             </div>
             <div class="card" style="min-width:0">
-              <div class="card-title" style="margin-bottom:12px">Priority Attention</div>
+              <div class="card-title" style="margin-bottom:2px">Priority Attention</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Items most needing follow-up right now.</div>
               <div id="db-priority-attention"></div>
             </div>
           </div>
