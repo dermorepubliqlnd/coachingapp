@@ -4526,7 +4526,7 @@ async function loadDashboard(forceRefresh) {
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio||1, 2),
         plugins: {
           legend: { display: false },
           tooltip: {
@@ -4670,7 +4670,7 @@ async function loadDashboard(forceRefresh) {
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio||1, 2),
         cutout: '70%',
         plugins: {
           legend: { display:false },
@@ -4747,7 +4747,7 @@ async function loadDashboard(forceRefresh) {
       },
       options: {
         indexAxis: 'y',
-        responsive: true, maintainAspectRatio: false,
+        responsive: true, maintainAspectRatio: false, devicePixelRatio: Math.max(window.devicePixelRatio||1, 2),
         scales: {
           x: { stacked:true, display:false, max:apHealthTotal },
           y: { stacked:true, display:false }
