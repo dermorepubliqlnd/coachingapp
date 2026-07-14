@@ -4177,6 +4177,19 @@ window.sortLeaderTable = function(col) {
   }
   loadDashboard();
 };
+// Department Performance sort — same clickable-header pattern as Leader Compliance
+// Overview above. Defaults to Compliance ascending (lowest first), matching the
+// table's previous fixed (non-sortable) behavior.
+let deptSortState = { col: 'compliance', dir: 'asc' };
+window.sortDeptTable = function(col) {
+  if (deptSortState.col === col) {
+    deptSortState.dir = deptSortState.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    deptSortState.col = col;
+    deptSortState.dir = (col === 'overdueRate') ? 'desc' : 'asc';
+  }
+  loadDashboard();
+};
 
 async function loadDashboard() {
   if (!allUsers.length) await refreshUsers();
@@ -4238,12 +4251,16 @@ async function loadDashboard() {
   // table, Priority Attention, Org Rollup — respects the active scope.
   const allCoacheesFull = allUsers.filter(u => (u.roles||[]).includes('coachee'));
   const allCoachees = scopeDept === 'ALL' ? allCoacheesFull : allCoacheesFull.filter(u => deptScopeSet(scopeDept).has(u.department));
-  // Leaders themselves are scoped the same way — filtering by department/Job Family
-  // should only surface leaders who belong to that scope, not every leader company-wide
-  // with an empty team. (Previously this list ignored scopeDept entirely, so switching
-  // to a department filter left every out-of-scope leader showing as a noisy "No Team".)
+  // Leaders are scoped by whether they actually HAVE at least one team member inside
+  // the selected department/Job Family scope — not by the leader's OWN department field.
+  // (First attempt at this filtered by the leader's own department, which wrongly hid
+  // leaders who manage people in the scoped department but are themselves tagged with a
+  // different department, e.g. a Purchasing team's manager filed under "Management" —
+  // Sandra caught this from a real screenshot: Purchasing had 1 eligible employee but
+  // the Leader table showed no leader at all.) Matches the same coachId membership test
+  // used to build each leader's own "team" a few lines below.
   const coachesFull = allUsers.filter(u => (u.roles||[]).includes('coach') && u.active !== false);
-  const coaches     = scopeDept === 'ALL' ? coachesFull : coachesFull.filter(u => deptScopeSet(scopeDept).has(u.department));
+  const coaches     = scopeDept === 'ALL' ? coachesFull : coachesFull.filter(coach => allCoachees.some(c => c.coachId === coach.uid));
 
   // ── Last refreshed timestamp ────────────────────────────────────
   const refreshedEl = document.getElementById('db-last-refreshed');
@@ -4757,7 +4774,18 @@ function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, us
     else if (compliance >= 50)                        { status='Needs Attention';statusColor='#A05A0A'; statusBg='#FEF0E0'; }
     else                                               { status='Critical';       statusColor='#B91C1C'; statusBg='#FEE2E2'; }
     return { dept:d.dept, eligible:d.eligible, coached:d.coached, compliance, closureRate, overdueRate, status, statusColor, statusBg };
-  }).sort((a,b) => (a.compliance ?? -1) - (b.compliance ?? -1));
+  });
+  const deptSortVal = (d, col) => {
+    if (col === 'dept')       return d.dept.toLowerCase();
+    if (col === 'status')     return d.status;
+    if (col === 'compliance') return d.compliance ?? -1;
+    return d[col];
+  };
+  rows.sort((a,b) => {
+    const av = deptSortVal(a, deptSortState.col), bv = deptSortVal(b, deptSortState.col);
+    const cmp = typeof av === 'string' ? (av < bv ? -1 : av > bv ? 1 : 0) : (av - bv);
+    return deptSortState.dir === 'asc' ? cmp : -cmp;
+  });
 
   if (!rows.length) { container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12.5px">No department data yet.</div>'; return; }
 
@@ -4773,15 +4801,20 @@ function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, us
     + '</tr>'
   ).join('');
 
+  const thSortDept = (label, col, style) => {
+    const active = deptSortState.col === col;
+    const arrow  = active ? (deptSortState.dir === 'asc' ? ' &#9650;' : ' &#9660;') : '';
+    return '<th style="cursor:pointer;user-select:none;white-space:nowrap;'+(style||'')+'" onclick="sortDeptTable(\''+col+'\')" title="Click to sort">'+label+arrow+'</th>';
+  };
   container.innerHTML = '<div class="table-wrap"><table class="rt-table" style="font-size:12px">'
     + '<thead><tr>'
-    + '<th style="min-width:120px">Department</th>'
-    + '<th style="text-align:center;min-width:60px">Eligible</th>'
-    + '<th style="text-align:center;min-width:65px">Coached</th>'
-    + '<th style="text-align:center;min-width:85px">Compliance</th>'
-    + '<th style="text-align:center;min-width:95px">Action Closure</th>'
-    + '<th style="text-align:center;min-width:75px">Overdue</th>'
-    + '<th style="text-align:center;min-width:110px">Status</th>'
+    + thSortDept('Department','dept','min-width:120px')
+    + thSortDept('Eligible','eligible','text-align:center;min-width:60px')
+    + thSortDept('Coached','coached','text-align:center;min-width:65px')
+    + thSortDept('Compliance','compliance','text-align:center;min-width:85px')
+    + thSortDept('Action Closure','closureRate','text-align:center;min-width:95px')
+    + thSortDept('Overdue','overdueRate','text-align:center;min-width:75px')
+    + thSortDept('Status','status','text-align:center;min-width:110px')
     + '</tr></thead>'
     + '<tbody>'+trs+'</tbody></table></div>';
 }
