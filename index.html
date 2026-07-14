@@ -532,11 +532,10 @@
               </div>
             </div>
           </div>
-          <!-- Row 3: Department Performance + Leader Compliance Overview. align-items:start
-               so each card's height follows its OWN row count — e.g. filtering down to a
-               department with fewer sub-units/leaders shrinks that card instead of both
-               cards being stretched to match whichever table is taller. -->
-          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px;align-items:start">
+          <!-- Row 3: Department Performance + Leader Compliance Overview. Default
+               align-items:stretch so the two cards always match height (Sandra's
+               explicit preference), even though row counts naturally differ. -->
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px">
             <div class="card" style="min-width:0">
               <div class="card-title" style="margin-bottom:2px">Department Performance</div>
               <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Grouped by each employee's current department.</div>
@@ -4225,7 +4224,12 @@ async function loadDashboard() {
   // table, Priority Attention, Org Rollup — respects the active scope.
   const allCoacheesFull = allUsers.filter(u => (u.roles||[]).includes('coachee'));
   const allCoachees = scopeDept === 'ALL' ? allCoacheesFull : allCoacheesFull.filter(u => deptScopeSet(scopeDept).has(u.department));
-  const coaches     = allUsers.filter(u => (u.roles||[]).includes('coach') && u.active !== false);
+  // Leaders themselves are scoped the same way — filtering by department/Job Family
+  // should only surface leaders who belong to that scope, not every leader company-wide
+  // with an empty team. (Previously this list ignored scopeDept entirely, so switching
+  // to a department filter left every out-of-scope leader showing as a noisy "No Team".)
+  const coachesFull = allUsers.filter(u => (u.roles||[]).includes('coach') && u.active !== false);
+  const coaches     = scopeDept === 'ALL' ? coachesFull : coachesFull.filter(u => deptScopeSet(scopeDept).has(u.department));
 
   // ── Last refreshed timestamp ────────────────────────────────────
   const refreshedEl = document.getElementById('db-last-refreshed');
@@ -4502,7 +4506,6 @@ async function loadDashboard() {
     if (leaderSortMode === 'pct-asc')     return a.pct - b.pct;
     if (leaderSortMode === 'gap-desc')    return a.gap - b.gap;
     if (leaderSortMode === 'overdue-desc') return b.overdueAP - a.overdueAP;
-    if (leaderSortMode === 'lastcoaching-asc') return (a.lastCoachingDate||'') > (b.lastCoachingDate||'') ? 1 : -1;
     if (leaderSortMode === 'teamsize-desc') return b.teamSize - a.teamSize;
     return b.pct - a.pct;
   });
@@ -4512,14 +4515,13 @@ async function loadDashboard() {
     const gap  = l.coached - l.req;
     const gapColor = gap >= 0 ? '#1A6B34' : '#B91C1C';
     return '<tr>'
-      + '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar avatar-sm">'+ini(l.coach.firstName,l.coach.lastName)+'</div><span style="font-weight:500;font-size:12.5px">'+name+'</span></div></td>'
+      + '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar avatar-sm">'+ini(l.coach.firstName,l.coach.lastName)+'</div><span style="font-weight:500;font-size:12.5px;white-space:nowrap">'+name+'</span></div></td>'
       + '<td style="text-align:center;font-size:12.5px">'+l.teamSize+'</td>'
       + '<td style="text-align:center"><span style="font-size:12.5px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+pctBg(l.pct)+';color:'+pctColor(l.pct)+'">'+l.pct+'%</span></td>'
       + '<td style="text-align:center;font-size:12.5px">'+l.req+'</td>'
       + '<td style="text-align:center;font-size:12.5px">'+l.coached+'</td>'
       + '<td style="text-align:center;font-size:12.5px;font-weight:600;color:'+gapColor+'">'+(gap >= 0 ? '0' : gap)+'</td>'
       + '<td style="text-align:center;font-size:12.5px;font-weight:600;color:'+(l.overdueAP>0?'#B91C1C':'var(--text)')+'">'+l.overdueAP+'</td>'
-      + '<td style="text-align:center;font-size:12.5px">'+(l.lastCoachingDate ? new Date(l.lastCoachingDate+'T00:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric'}) : '&mdash;')+'</td>'
       + '<td style="text-align:center"><span style="font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+statusBg(l.status)+';color:'+statusColor(l.status)+'">'+l.status+'</span></td>'
       + '</tr>';
   }).join('');
@@ -4530,19 +4532,17 @@ async function loadDashboard() {
     + '<option value="pct-asc"'+(leaderSortMode==='pct-asc'?' selected':'')+'>Sort: Lowest Compliance</option>'
     + '<option value="gap-desc"'+(leaderSortMode==='gap-desc'?' selected':'')+'>Sort: Largest Gap</option>'
     + '<option value="overdue-desc"'+(leaderSortMode==='overdue-desc'?' selected':'')+'>Sort: Most Overdue Actions</option>'
-    + '<option value="lastcoaching-asc"'+(leaderSortMode==='lastcoaching-asc'?' selected':'')+'>Sort: Oldest Last Coaching</option>'
     + '<option value="teamsize-desc"'+(leaderSortMode==='teamsize-desc'?' selected':'')+'>Sort: Team Size</option>'
     + '</select></div>'
     + '<div class="table-wrap"><table class="rt-table" style="font-size:12px">'
     + '<thead><tr>'
-    + '<th style="min-width:140px">Leader</th>'
+    + '<th style="min-width:160px">Leader</th>'
     + '<th style="text-align:center;min-width:70px">Team Size</th>'
     + '<th style="text-align:center;min-width:90px">Compliance</th>'
     + '<th style="text-align:center;min-width:80px">Required</th>'
     + '<th style="text-align:center;min-width:80px">Coached</th>'
     + '<th style="text-align:center;min-width:60px">Gap</th>'
     + '<th style="text-align:center;min-width:90px">Overdue Actions</th>'
-    + '<th style="text-align:center;min-width:100px">Last Coaching</th>'
     + '<th style="text-align:center;min-width:110px">Status</th>'
     + '</tr></thead>'
     + '<tbody>'+leaderRows+'</tbody>'
@@ -4554,7 +4554,7 @@ async function loadDashboard() {
     + '<td style="text-align:center;font-size:12px">'+totalCoachedAll+'</td>'
     + '<td style="text-align:center;font-size:12px;font-weight:700;color:'+(totalGapAll>=0?'#1A6B34':'#B91C1C')+'">'+(totalGapAll>=0?'0':totalGapAll)+'</td>'
     + '<td style="text-align:center;font-size:12px">'+leaderStats.reduce((s,l)=>s+l.overdueAP,0)+'</td>'
-    + '<td></td><td></td>'
+    + '<td></td>'
     + '</tr></tfoot>'
     + '</table></div>';
 
