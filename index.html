@@ -1415,12 +1415,6 @@
         <label class="form-label">Analytics Access</label>
         <div style="display:flex;flex-direction:column;gap:8px">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-            <input type="checkbox" id="mu-perm-dashboard"> View Dashboard
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-            <input type="checkbox" id="mu-perm-sessions"> View Session Records
-          </label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
             <input type="checkbox" id="mu-perm-enterprise"> Enterprise Dashboard (org-wide, read-only)
           </label>
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
@@ -1480,13 +1474,11 @@
               <tr style="background:#f0faf4"><td style="padding:3px 8px;border:1px solid var(--border)">G</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">roleCoach</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — assign Coach role</td></tr>
               <tr style="background:#f0faf4"><td style="padding:3px 8px;border:1px solid var(--border)">H</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">roleCoachee</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — assign Coachee role</td></tr>
               <tr style="background:#f0faf4"><td style="padding:3px 8px;border:1px solid var(--border)">I</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">roleDirector</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — assign Director role</td></tr>
-              <tr style="background:#f0f6ff"><td style="padding:3px 8px;border:1px solid var(--border)">J</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">permDashboard</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — grant Dashboard access (non-coaches)</td></tr>
-              <tr style="background:#f0f6ff"><td style="padding:3px 8px;border:1px solid var(--border)">K</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">permSessionRecords</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — grant Session Records access (non-coaches)</td></tr>
-              <tr><td style="padding:3px 8px;border:1px solid var(--border)">L</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">coachEmail</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">Email of assigned coach (for coachees)</td></tr>
-              <tr><td style="padding:3px 8px;border:1px solid var(--border)">M</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">active</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — defaults to true if blank</td></tr>
+              <tr><td style="padding:3px 8px;border:1px solid var(--border)">J</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">coachEmail</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">Email of assigned coach (for coachees)</td></tr>
+              <tr><td style="padding:3px 8px;border:1px solid var(--border)">K</td><td style="padding:3px 8px;border:1px solid var(--border);font-weight:600">active</td><td style="padding:3px 8px;border:1px solid var(--border)">—</td><td style="padding:3px 8px;border:1px solid var(--border)">true / false — defaults to true if blank</td></tr>
             </tbody>
           </table>
-          <p style="margin:8px 0 0;font-size:11px;color:#9ca3af">Lines starting with # in the CSV are treated as comments and skipped. Directors always have full access — permDashboard and permSessionRecords only affect non-director users.</p>
+          <p style="margin:8px 0 0;font-size:11px;color:#9ca3af">Lines starting with # in the CSV are treated as comments and skipped. Enterprise Dashboard and System Admin access cannot be granted via CSV — use Edit User for those.</p>
         </div>
       </details>
       <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="downloadCsvTemplate()">&#11015; Download Template</button>
@@ -1510,8 +1502,6 @@
               <th style="min-width:75px">Hire Date</th>
               <th style="min-width:55px;text-align:center">Coach</th>
               <th style="min-width:60px;text-align:center">Coachee</th>
-              <th style="min-width:60px;text-align:center">Dashboard</th>
-              <th style="min-width:70px;text-align:center">Sess. Rec.</th>
               <th style="min-width:110px">Coach Email</th>
               <th style="min-width:50px;text-align:center">Active</th>
               <th style="min-width:65px">Action</th>
@@ -2396,7 +2386,7 @@ window.openUserModal = function(uid) {
   deptSel.innerHTML = '<option value="">— No department —</option>'
     + allDepartments.filter(d=>d.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(d=>'<option value="'+esc(d.name)+'">'+esc(d.name)+'</option>').join('');
   deptSel.value = '';
-  ['role-coach','role-coachee','mu-perm-dashboard','mu-perm-sessions','mu-perm-enterprise','mu-perm-admin'].forEach(id => document.getElementById(id).checked = false);
+  ['role-coach','role-coachee','mu-perm-enterprise','mu-perm-admin'].forEach(id => document.getElementById(id).checked = false);
   document.getElementById('mu-uid').value = '';
   document.getElementById('mu-error').style.display = 'none';
   document.getElementById('mu-active-group').style.display = 'none';
@@ -2418,8 +2408,6 @@ window.openUserModal = function(uid) {
     document.getElementById('mu-position').value           = u.position || '';
     document.getElementById('mu-dept').value              = u.department || '';
     document.getElementById('mu-hiredate').value            = normalizeDate(u.hireDate) || '';
-    document.getElementById('mu-perm-dashboard').checked   = !!(u.permissions||{}).dashboard;
-    document.getElementById('mu-perm-sessions').checked    = !!(u.permissions||{}).sessionRecords;
     document.getElementById('mu-perm-enterprise').checked  = !!(u.permissions||{}).enterprise;
     document.getElementById('mu-perm-admin').checked       = !!(u.permissions||{}).admin;
     (u.roles||[]).forEach(r => { const el = document.getElementById('role-'+r); if (el) el.checked = true; });
@@ -2462,8 +2450,6 @@ window.saveUser = async function() {
   const hireDate    = document.getElementById('mu-hiredate').value || null;
   const department  = document.getElementById('mu-dept').value.trim() || null;
   const permissions = {
-    dashboard:      document.getElementById('mu-perm-dashboard').checked,
-    sessionRecords: document.getElementById('mu-perm-sessions').checked,
     enterprise:     document.getElementById('mu-perm-enterprise').checked,
     admin:          document.getElementById('mu-perm-admin').checked
   };
@@ -2560,12 +2546,11 @@ window.downloadCsvTemplate = function() {
     '# Col B-D: firstName, lastName, email (email required for new users only; cannot be changed for existing)',
     '# Col E-G: position, department, hireDate (YYYY-MM-DD format)',
     '# Col H-I: roleCoach, roleCoachee (true/false)',
-    '# Col J-K: permDashboard, permSessionRecords (true/false)',
-    '# Col L-M: coachEmail, active (true/false — defaults to true if blank)',
+    '# Col J-K: coachEmail, active (true/false — defaults to true if blank)',
     '# Lines starting with # are ignored by the importer.',
-    'employeeId,firstName,lastName,email,position,department,hireDate,roleCoach,roleCoachee,permDashboard,permSessionRecords,coachEmail,active',
-    '240401-001,Juan,dela Cruz,jdelacruz@dermorepubliq.com,Sales Associate,Operations,2024-04-01,false,true,false,false,mcoach@dermorepubliq.com,true',
-    '240402-002,Maria,Santos,msantos@dermorepubliq.com,Senior Team Lead,Finance,2024-04-15,true,false,true,true,,true'
+    'employeeId,firstName,lastName,email,position,department,hireDate,roleCoach,roleCoachee,coachEmail,active',
+    '240401-001,Juan,dela Cruz,jdelacruz@dermorepubliq.com,Sales Associate,Operations,2024-04-01,false,true,mcoach@dermorepubliq.com,true',
+    '240402-002,Maria,Santos,msantos@dermorepubliq.com,Senior Team Lead,Finance,2024-04-15,true,false,,true'
   ].join('\n') + '\n';
   const a = Object.assign(document.createElement('a'), {href:URL.createObjectURL(new Blob([data],{type:'text/csv'})),download:'boost_users_template.csv'});
   a.click();
@@ -2644,12 +2629,6 @@ window.parseCsv = function(file) {
         roles = row.roles.split(';').map(r=>r.trim()).filter(Boolean);
       }
 
-      // Build permissions from separate boolean columns
-      const permissions = {
-        dashboard:      row.permdashboard      === 'true',
-        sessionRecords: row.permsessionrecords === 'true'
-      };
-
       const existing = empId ? allUsers.find(u => (u.employeeId||'') === empId) : null;
       let action = existing ? 'update' : 'create';
       let err = '';
@@ -2669,12 +2648,11 @@ window.parseCsv = function(file) {
       // For updates, only fields with explicit values will be written — blanks = leave unchanged
       const _hasRoles  = row.rolecoach !== '' || row.rolecoachee !== '';
       const _hasDept   = row.department !== '';
-      const _hasPerms  = row.permdashboard !== '' || row.permsessionrecords !== '';
       const _hasCoach  = row.coachemail !== '';
       const _hasActive = row.active !== '';
-      csvParsed.push({ ...row, hiredate: normHireDate, roles, permissions,
+      csvParsed.push({ ...row, hiredate: normHireDate, roles,
         _action: action, _err: err, _existingUid: existing?.uid||null, _active: activeVal,
-        _hasRoles, _hasPerms, _hasCoach, _hasActive, _hasDept });
+        _hasRoles, _hasCoach, _hasActive, _hasDept });
 
       const rowBg = action === 'error'  ? '#fff5f5' : action === 'create' ? '#f0faf4' : '#f0f6ff';
       const actionBadge = action === 'error'
@@ -2699,8 +2677,6 @@ window.parseCsv = function(file) {
         <td style="font-size:11px">${normHireDate || '<span style="color:#9ca3af">—</span>'}</td>
         <td style="text-align:center">${_boolCell(roles.includes('coach'))}</td>
         <td style="text-align:center">${_boolCell(roles.includes('coachee'))}</td>
-        <td style="text-align:center">${_boolCell(permissions.dashboard)}</td>
-        <td style="text-align:center">${_boolCell(permissions.sessionRecords)}</td>
         <td style="font-size:11px">${esc(row.coachemail||'')}</td>
         <td style="text-align:center">${_boolCell(activeVal)}</td>
         <td>${actionBadge}</td>
@@ -2750,11 +2726,8 @@ window.runCsvImport = async function() {
         if (row.employeeid)  updates.employeeId = row.employeeid;
         if (row.hiredate)    updates.hireDate   = row.hiredate;
         if (row._hasRoles)   updates.roles      = roles;
-        // Merge, don't replace — the CSV template only has dashboard/sessionRecords
-        // columns, so a naive overwrite would silently strip an existing user's
-        // enterprise/admin flags (which only the Edit User modal can set) the moment
-        // someone runs an unrelated bulk update (e.g. fixing positions/departments).
-        if (row._hasPerms)   updates.permissions = { ...(existingUser.permissions||{}), ...row.permissions };
+        // Note: permissions (Enterprise/Admin) are intentionally NOT touched here —
+        // CSV import has no permissions columns; those stay manual-only via Edit User.
         if (row._hasCoach)   updates.coachId    = coachId;
         if (row._hasActive)  updates.active     = row._active;
         if (row._hasDept)    updates.department = row.department || null;
@@ -2773,7 +2746,7 @@ window.runCsvImport = async function() {
           hireDate:    row.hiredate||null,
           department:  row.department||null,
           roles,
-          permissions: row.permissions,
+          permissions: {},
           coachId,
           reportsUpTo: [],
           active:      row._active,
