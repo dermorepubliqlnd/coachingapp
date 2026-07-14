@@ -3883,12 +3883,14 @@ async function loadCoachHome() {
     return '<div class="mt-card">'
       // Top row: avatar + info + meta cols + status
       +'<div style="display:flex;align-items:center;gap:14px">'
-      // Avatar + name
-      +'<div style="display:flex;align-items:center;gap:10px;min-width:160px;flex-shrink:0">'
+      // Avatar + name — FIXED width (not min-width) so a long name/position can't
+      // stretch this block and push the meta-columns grid out of alignment with
+      // the row above/below it; overflowing text truncates with an ellipsis instead.
+      +'<div style="display:flex;align-items:center;gap:10px;width:180px;flex:0 0 180px;overflow:hidden">'
       +'<div class="avatar avatar-md">'+ini(d.c.firstName,d.c.lastName)+'</div>'
-      +'<div>'
-      +'<div style="font-weight:600;font-size:13.5px">'+esc(d.c.firstName)+' '+esc(d.c.lastName)+'</div>'
-      +'<div style="font-size:11.5px;color:var(--muted)">'+esc(d.c.position||'')+'</div>'
+      +'<div style="min-width:0;overflow:hidden">'
+      +'<div style="font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(d.c.firstName)+' '+esc(d.c.lastName)+'">'+esc(d.c.firstName)+' '+esc(d.c.lastName)+'</div>'
+      +'<div style="font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(d.c.position||'')+'">'+esc(d.c.position||'')+'</div>'
       +'</div></div>'
       // Meta columns
       +'<div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:8px 12px">'
@@ -4629,20 +4631,23 @@ async function loadDashboard() {
     + '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:11.5px;color:var(--muted)">'+totalRequired+' eligible employees this month</div>'
     : '<div style="font-size:12.5px;color:var(--muted)">No eligible employees this month.</div>';
 
-  // ── Action Plan Health — completed on-time vs late, open buckets, overdue aging ──
+  // ── Action Plan Health — consolidated to 4 statuses: Open, Completed On Time,
+  // Completed Late, Overdue (previously 7 finer-grained buckets — Sandra asked to
+  // simplify). "Open" here means not-yet-overdue (open-and-not-due + due-soon merged);
+  // "Overdue" is the total across all aging bands — the aging split is no longer
+  // shown at a glance but daysOverdue()/apOverdue1_7/830/30p remain available if a
+  // future drill-down needs them.
   const apCompletedLate = apDueInPeriod.filter(p => p.status==='Completed').length - apOnTime.length;
+  const apOpenNotOverdue = apOpen.length - apOverdue.length;
   const apHealthRow = (label, cnt, color) =>
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">'
     + '<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text)"><div style="width:9px;height:9px;border-radius:50%;background:'+color+';flex-shrink:0"></div>'+label+'</div>'
     + '<div style="font-size:13px;font-weight:600;color:var(--text)">'+cnt+'</div></div>';
   document.getElementById('db-ap-health').innerHTML =
-    apHealthRow('Completed On-Time',        apOnTime.length,               '#1A6B34')
+    apHealthRow('Open',                     Math.max(0,apOpenNotOverdue),  '#1D6FA4')
+  + apHealthRow('Completed On Time',        apOnTime.length,               '#1A6B34')
   + apHealthRow('Completed Late',           Math.max(0,apCompletedLate),   '#A05A0A')
-  + apHealthRow('Open — Not Due',           apOpen.length - apDueSoon.length, '#1D6FA4')
-  + apHealthRow('Due Within 7 Days',        apDueSoon.length,              '#F2A93B')
-  + apHealthRow('Overdue 1&ndash;7 Days',   apOverdue1_7.length,           '#F2A93B')
-  + apHealthRow('Overdue 8&ndash;30 Days',  apOverdue830.length,           '#D9700E')
-  + apHealthRow('Overdue &gt; 30 Days',     apOverdue30p.length,           '#B91C1C')
+  + apHealthRow('Overdue',                  apOverdue.length,              '#B91C1C')
   + '<div style="margin-top:10px;padding-top:4px;font-size:11.5px;color:var(--muted)">'+apActive.length+' total active action plans &middot; '+overdueActionRate+'% overdue</div>';
 
   // Single horizontal stacked bar — a quick-glance proportional view of the same buckets
@@ -4650,13 +4655,10 @@ async function loadDashboard() {
   if (_dbApHealthChart) { _dbApHealthChart.destroy(); _dbApHealthChart = null; }
   const apHealthCtx = document.getElementById('db-ap-health-chart');
   const apHealthBuckets = [
-    { label:'Completed On-Time', val:apOnTime.length,                          color:'#1A6B34' },
-    { label:'Completed Late',    val:Math.max(0,apCompletedLate),              color:'#A05A0A' },
-    { label:'Open — Not Due',    val:apOpen.length - apDueSoon.length,         color:'#1D6FA4' },
-    { label:'Due Within 7 Days',val:apDueSoon.length,                          color:'#F2A93B' },
-    { label:'Overdue 1-7 Days', val:apOverdue1_7.length,                       color:'#F2A93B' },
-    { label:'Overdue 8-30 Days',val:apOverdue830.length,                       color:'#D9700E' },
-    { label:'Overdue > 30 Days',val:apOverdue30p.length,                       color:'#B91C1C' },
+    { label:'Open',              val:Math.max(0,apOpenNotOverdue),           color:'#1D6FA4' },
+    { label:'Completed On Time', val:apOnTime.length,                        color:'#1A6B34' },
+    { label:'Completed Late',    val:Math.max(0,apCompletedLate),            color:'#A05A0A' },
+    { label:'Overdue',           val:apOverdue.length,                       color:'#B91C1C' },
   ];
   const apHealthTotal = apHealthBuckets.reduce((s,b)=>s+b.val, 0);
   if (apHealthCtx && apHealthTotal > 0) {
