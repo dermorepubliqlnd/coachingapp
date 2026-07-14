@@ -1,4 +1,10 @@
 rules_version = '2';
+// ==========================================================================
+// BOOST Hub — Firestore Security Rules
+// Version: 2026-07-14c  (adds create-time canCoach() check on sessions/actionPlans:
+//                        creator must be the coachee's coach or an ancestor in the org tree)
+// Publishing this version enables "My Team" for all coaches & managers.
+// ==========================================================================
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -24,6 +30,15 @@ service cloud.firestore {
     function isFirstRun() {
       return isSignedIn() && request.auth.token.email == 'sbarlao@dermorepubliq.com';
     }
+    // Create-time relationship check: requester must be the coachee's direct coach
+    // OR anywhere above them in the org tree (reportsUpTo = any-depth skip-level) OR admin.
+    // Reads the coachee's OWN user doc server-side, so a forged request can't fake it.
+    function canCoach(coacheeId) {
+      return isAdmin()
+        || request.auth.uid == get(/databases/$(database)/documents/users/$(coacheeId)).data.coachId
+        || (get(/databases/$(database)/documents/users/$(coacheeId)).data.reportsUpTo is list
+            && request.auth.uid in get(/databases/$(database)/documents/users/$(coacheeId)).data.reportsUpTo);
+    }
 
     // USERS — least-privilege directory:
     //  • own doc     (request.auth.uid == userId)
@@ -32,12 +47,23 @@ service cloud.firestore {
     //                (request.auth.uid in resource.data.reportsUpTo)
     //  • coachee     reading their own assigned coach      (my coachId == userId)
     match /users/{userId} {
-      allow read: if isSignedIn() && (
+      // Single-document reads (get): full guarded conditions, safe on docs that
+      // may be missing the reportsUpTo field.
+      allow get: if isSignedIn() && (
         request.auth.uid == userId
         || isEnterprise()
         || resource.data.coachId == request.auth.uid
         || (resource.data.reportsUpTo is list && request.auth.uid in resource.data.reportsUpTo)
         || (iExist() && myDoc().coachId == userId)
+      );
+      // Collection queries (list): conditions must line up with the query's own
+      // constraints. NO "is list" guard here — that guard blocks Firestore's
+      // query-time validation of array-contains and silently denies the whole query.
+      // The app's coach/manager "My Team" query is where('reportsUpTo','array-contains',uid).
+      allow list: if isSignedIn() && (
+        isEnterprise()
+        || resource.data.coachId == request.auth.uid
+        || request.auth.uid in resource.data.reportsUpTo
       );
       allow create: if isAdmin() || isFirstRun();
       allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
@@ -50,13 +76,23 @@ service cloud.firestore {
     // App queries are constrained by coachId==uid, coacheeId==uid, or
     // coacheeReportsUpTo array-contains uid, so these reads are permitted.
     match /sessions/{sessionId} {
-      allow read: if isSignedIn() && (
+      allow get: if isSignedIn() && (
         isEnterprise() ||
         resource.data.coachId == request.auth.uid ||
         resource.data.coacheeId == request.auth.uid ||
         (resource.data.coacheeReportsUpTo is list && request.auth.uid in resource.data.coacheeReportsUpTo)
       );
-      allow create: if isSignedIn();
+      // list: clean patterns so coachId==, coacheeId== and coacheeReportsUpTo
+      // array-contains queries all validate (no is-list guard).
+      allow list: if isSignedIn() && (
+        isEnterprise() ||
+        resource.data.coachId == request.auth.uid ||
+        resource.data.coacheeId == request.auth.uid ||
+        request.auth.uid in resource.data.coacheeReportsUpTo
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.coachId == request.auth.uid
+        && canCoach(request.resource.data.coacheeId);
       allow update: if isSignedIn() && (
         isAdmin() ||
         resource.data.coachId == request.auth.uid ||
@@ -67,13 +103,21 @@ service cloud.firestore {
 
     // ACTION PLANS — same ownership + hierarchy-rollup model as sessions.
     match /actionPlans/{apId} {
-      allow read: if isSignedIn() && (
+      allow get: if isSignedIn() && (
         isEnterprise() ||
         resource.data.coachId == request.auth.uid ||
         resource.data.coacheeId == request.auth.uid ||
         (resource.data.coacheeReportsUpTo is list && request.auth.uid in resource.data.coacheeReportsUpTo)
       );
-      allow create: if isSignedIn();
+      allow list: if isSignedIn() && (
+        isEnterprise() ||
+        resource.data.coachId == request.auth.uid ||
+        resource.data.coacheeId == request.auth.uid ||
+        request.auth.uid in resource.data.coacheeReportsUpTo
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.coachId == request.auth.uid
+        && canCoach(request.resource.data.coacheeId);
       allow update: if isSignedIn() && (
         isAdmin() ||
         resource.data.coachId == request.auth.uid ||
