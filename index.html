@@ -497,16 +497,24 @@
 
         <!-- DIRECTOR: DASHBOARD -->
         <div class="view" id="view-dashboard">
-          <div style="display:flex;justify-content:flex-end;margin-bottom:14px">
-            <select id="db-month-picker" class="form-control" style="max-width:175px" onchange="loadDashboard()"></select>
+          <!-- Header: scope + period controls -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <select id="db-scope-picker" class="form-control" style="max-width:190px" onchange="loadDashboard()"></select>
+              <span id="db-last-refreshed" style="font-size:11.5px;color:var(--muted)"></span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn-ghost btn-sm" onclick="loadDashboard()" title="Refresh">&#8635; Refresh</button>
+              <select id="db-month-picker" class="form-control" style="max-width:175px" onchange="loadDashboard()"></select>
+            </div>
           </div>
           <!-- Summary cards -->
           <div id="db-summary-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px"></div>
-          <!-- Row 2: Trend + Leader table -->
-          <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:16px;margin-bottom:16px">
+          <!-- Row 2: Trend + Department Performance -->
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:16px;margin-bottom:16px">
             <div class="card" style="min-width:0">
               <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-                Monthly Coaching Compliance Trend
+                Coaching Compliance Trend
                 <select id="db-trend-range" class="form-control" style="max-width:140px;font-size:11.5px;padding:4px 8px;height:28px" onchange="loadDashboard()">
                   <option value="3">Last 3 months</option>
                   <option value="6" selected>Last 6 months</option>
@@ -517,29 +525,41 @@
               <div style="position:relative;height:190px"><canvas id="db-trend-chart"></canvas></div>
             </div>
             <div class="card" style="min-width:0">
-              <div class="card-title" style="margin-bottom:12px">Leader / Coach Compliance Summary</div>
-              <div id="db-leader-table"></div>
+              <div class="card-title" style="margin-bottom:2px">Department Performance</div>
+              <div style="font-size:11.5px;color:var(--muted);margin-bottom:10px">Grouped by each employee's current department.</div>
+              <div id="db-dept-performance"></div>
             </div>
           </div>
-          <!-- Row 3: Volume + AP donut + Insight -->
-          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px">
+          <!-- Row 3: Compliance Summary + Volume + Action Plan Health -->
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:16px">
             <div class="card">
-              <div class="card-title" style="margin-bottom:14px">Coaching Volume vs Requirement</div>
-              <div id="db-volume"></div>
-            </div>
-            <div class="card">
-              <div class="card-title" style="margin-bottom:14px">Action Plan Follow-through</div>
-              <div id="db-ap-followthrough" style="display:flex;gap:20px;align-items:center">
-                <div style="position:relative;width:130px;height:130px;flex-shrink:0"><canvas id="db-ap-donut"></canvas></div>
-                <div id="db-ap-legend" style="flex:1;min-width:0"></div>
+              <div class="card-title" style="margin-bottom:14px">Compliance Summary</div>
+              <div id="db-compliance-summary" style="display:flex;gap:20px;align-items:center">
+                <div style="position:relative;width:110px;height:110px;flex-shrink:0"><canvas id="db-compliance-donut"></canvas></div>
+                <div id="db-compliance-legend" style="flex:1;min-width:0"></div>
               </div>
             </div>
             <div class="card">
-              <div class="card-title" style="margin-bottom:14px">Department Insight</div>
-              <div id="db-insights"></div>
+              <div class="card-title" style="margin-bottom:14px">Coaching Volume</div>
+              <div id="db-volume"></div>
+            </div>
+            <div class="card">
+              <div class="card-title" style="margin-bottom:14px">Action Plan Health</div>
+              <div id="db-ap-health"></div>
             </div>
           </div>
-          <!-- Row 4: Enterprise rollup — department, then reporting-chain drill-down -->
+          <!-- Row 4: Leader Compliance Overview + Priority Attention -->
+          <div style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin-bottom:16px">
+            <div class="card" style="min-width:0">
+              <div class="card-title" style="margin-bottom:12px">Leader Compliance Overview</div>
+              <div id="db-leader-table"></div>
+            </div>
+            <div class="card" style="min-width:0">
+              <div class="card-title" style="margin-bottom:12px">Priority Attention</div>
+              <div id="db-priority-attention"></div>
+            </div>
+          </div>
+          <!-- Row 5: Enterprise rollup — department, then reporting-chain drill-down -->
           <div class="card" style="margin-top:16px">
             <div class="card-title" style="margin-bottom:2px">Organization Rollup</div>
             <div style="font-size:11.5px;color:var(--muted);margin-bottom:12px">Grouped by department. Click a row to see the reporting-chain breakdown beneath it.</div>
@@ -655,6 +675,12 @@
             <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Fixes coaching logs that were acknowledged before the e-signature capture fix — these have status "Acknowledged"/"Completed" but no signature saved. Runs once: applies each coachee's <em>current</em> signature on file (My Profile) retroactively. Sessions that already have a signature are left untouched.</p>
             <button class="btn btn-ghost" id="backfill-signatures-btn" onclick="backfillCoacheeSignatures()">&#8635; Backfill Coachee Signatures</button>
             <div id="backfill-signatures-status" style="margin-top:10px;font-size:11.5px;color:var(--muted)"></div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">Department Snapshot Backfill</div>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Sessions logged going forward save the coachee's department at that moment, so department-level compliance reporting stays accurate even after a transfer. This backfills existing sessions that predate that fix — using each coachee's <em>current</em> department on file (there's no record of what their department actually was historically, so treat older backfilled months as a best estimate, not a certified historical value).</p>
+            <button class="btn btn-ghost" id="backfill-dept-btn" onclick="backfillDepartmentSnapshot()">&#8635; Backfill Department Snapshots</button>
+            <div id="backfill-dept-status" style="margin-top:10px;font-size:11.5px;color:var(--muted)"></div>
           </div>
           <div class="card" style="margin-bottom:12px;border:1px solid #FCA5A5">
             <div class="card-title" style="color:var(--red)">⚠️ Danger Zone</div>
@@ -2462,6 +2488,20 @@ window.saveUser = async function() {
     // position (and cascade to their existing subtree, if any) so hierarchy-scoped
     // dashboards and Firestore rules stay accurate.
     await recomputeReportsUpToForSubtree(targetUid);
+    // If this is a coachee, also re-stamp THEIR OWN existing sessions/action plans with
+    // the new chain immediately — otherwise a newly-assigned manager can't see this
+    // person's coaching history until someone happens to run the full "Recompute
+    // Reporting Hierarchy" utility in Settings. Deliberately does NOT touch
+    // coacheeDepartmentAtTime on those records — department-based compliance reporting
+    // should stay frozen to whatever was true when each session was logged, even though
+    // visibility/access should follow the current reporting line.
+    if (roles.includes('coachee')) {
+      const freshUsersSnap = await getDocs(collection(db,'users'));
+      const usersByUidNow = {};
+      freshUsersSnap.docs.forEach(d => { usersByUidNow[d.id] = { uid:d.id, ...d.data() }; });
+      const newChain = computeReportsUpTo(coachId, usersByUidNow);
+      await restampCoacheeReportsUpTo(targetUid, newChain);
+    }
     closeModal('modal-user');
     await loadUsers();
   } catch(e) { showErr(errEl, e.message); toast(e.message,'error'); btn.disabled=false; btn.textContent=uid?'Save Changes':'Create User'; }
@@ -3590,6 +3630,19 @@ async function loadDashboard() {
   const selMonth = picker.value;
   const [selYear, selMo] = selMonth.split('-').map(Number);
 
+  // ── Scope picker (init once, then re-populate department options as roster changes) ──
+  const scopePicker = document.getElementById('db-scope-picker');
+  const deptNames = [...new Set(allUsers.map(u => u.department).filter(Boolean))].sort();
+  const scopePickerNeedsOptions = scopePicker.options.length !== deptNames.length + 1;
+  if (scopePickerNeedsOptions) {
+    const prevScope = scopePicker.value || 'ALL';
+    scopePicker.innerHTML = '';
+    scopePicker.add(new Option('Enterprise (All Departments)', 'ALL'));
+    deptNames.forEach(d => scopePicker.add(new Option(d, d)));
+    scopePicker.value = [...scopePicker.options].some(o => o.value === prevScope) ? prevScope : 'ALL';
+  }
+  const scopeDept = scopePicker.value || 'ALL';
+
   // ── Fetch data ────────────────────────────────────────────────
   let allSessions = [], allAPs = [];
   try {
@@ -3604,9 +3657,17 @@ async function loadDashboard() {
   const completedSess = allSessions.filter(s => s.status === 'completed' || s.status === 'acknowledged');
   const sessMon = s => (s.sessionDate||'').slice(0,7);
 
-  // All coachees (active check done inside isRequiredInMonth)
-  const allCoachees = allUsers.filter(u => (u.roles||[]).includes('coachee'));
+  // All coachees (active check done inside isRequiredInMonth), narrowed to the selected
+  // scope (Enterprise = everyone; a specific department = only that department's people).
+  // Every section on this dashboard — KPI row, trend, Department Performance, leader
+  // table, Priority Attention, Org Rollup — respects the active scope.
+  const allCoacheesFull = allUsers.filter(u => (u.roles||[]).includes('coachee'));
+  const allCoachees = scopeDept === 'ALL' ? allCoacheesFull : allCoacheesFull.filter(u => u.department === scopeDept);
   const coaches     = allUsers.filter(u => (u.roles||[]).includes('coach') && u.active !== false);
+
+  // ── Last refreshed timestamp ────────────────────────────────────
+  const refreshedEl = document.getElementById('db-last-refreshed');
+  if (refreshedEl) refreshedEl.textContent = 'Last refreshed: ' + new Date().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'});
 
   // Required set for a given month — respects hire date + active status
   const requiredInMonth = mStr => allCoachees.filter(u => isRequiredInMonth(u, mStr));
@@ -3650,7 +3711,12 @@ async function loadDashboard() {
       lYtdC += mReq.filter(c => cSet.has(c.uid)).length;
     }
     const ytdL = lYtdR ? (lYtdC / lYtdR * 100).toFixed(1) : '0.0';
-    return { coach, teamSize: team.length, req, coached, pct, ytdPct: parseFloat(ytdL), gap: coached - req };
+    const teamUidSet   = new Set(team.map(c => c.uid));
+    const teamOverdueAP = allAPs.filter(p => p.status === 'Overdue' && teamUidSet.has(p.coacheeId)).length;
+    const teamSessDates = completedSess.filter(s => teamUidSet.has(s.coacheeId)).map(s => s.sessionDate).filter(Boolean).sort();
+    const lastCoachingDate = teamSessDates.length ? teamSessDates[teamSessDates.length-1] : null;
+    const status = req === 0 ? 'No Team' : pct >= 100 ? 'On Track' : pct >= COMPLIANCE_TARGET ? 'On Track' : pct > 0 ? 'Needs Attention' : 'Critical';
+    return { coach, teamSize: team.length, req, coached, pct, ytdPct: parseFloat(ytdL), gap: coached - req, overdueAP: teamOverdueAP, lastCoachingDate, status };
   }).sort((a,b) => b.pct - a.pct);
 
   const leadersCompliant = leaderStats.filter(l => l.req > 0 && l.pct >= 100).length;
@@ -3663,6 +3729,62 @@ async function loadDashboard() {
   const apOverdue   = allAPs.filter(p => p.status === 'Overdue');
   const apClosureRate = apActive.length ? Math.round(apCompleted.length / apActive.length * 100) : 0;
 
+  // ── usersByUid lookup (reused by the new metrics below) ───────
+  const usersByUid = {};
+  allUsers.forEach(u => { usersByUid[u.uid] = u; });
+
+  // ── Previous-month comparison (for KPI card deltas) ────────────
+  const prevD          = new Date(selYear, selMo - 2, 1);
+  const prevMonStr     = prevD.getFullYear()+'-'+String(prevD.getMonth()+1).padStart(2,'0');
+  const prevRequired   = requiredInMonth(prevMonStr);
+  const prevCoachedSet = coachedInMonth(prevMonStr);
+  const prevTotalRequired = prevRequired.length;
+  const prevTotalCoached  = prevRequired.filter(c => prevCoachedSet.has(c.uid)).length;
+  const prevPct = prevTotalRequired ? Math.round(prevTotalCoached / prevTotalRequired * 100) : 0;
+
+  // ── Coaching Coverage — distinct from Monthly/Cadence Compliance. Coverage asks "has
+  // this eligible employee EVER received a completed session" (all-time); Compliance asks
+  // "were they coached THIS calendar month specifically." An employee can be covered
+  // historically but still miss this month's cadence — the two numbers are meant to read
+  // together, not duplicate each other. NOTE: this is my working interpretation of the
+  // mockup's two similar-looking cards, since the written spec doc doesn't define
+  // "Coaching Coverage" separately — flagging so you can correct it if you had something
+  // else in mind.
+  const everCoachedSet    = new Set(completedSess.map(s => s.coacheeId));
+  const coverageCount     = curRequired.filter(c => everCoachedSet.has(c.uid)).length;
+  const coveragePct       = totalRequired ? Math.round(coverageCount / totalRequired * 100) : 0;
+  const prevCoverageCount = prevRequired.filter(c => everCoachedSet.has(c.uid)).length;
+  const prevCoveragePct   = prevTotalRequired ? Math.round(prevCoverageCount / prevTotalRequired * 100) : 0;
+
+  // ── Employees Still Due ─────────────────────────────────────────
+  const stillDueCount     = totalRequired - totalCoached;
+  const prevStillDueCount = prevTotalRequired - prevTotalCoached;
+
+  // ── Early / Non-required coaching — a session logged during the coachee's OWN hire
+  // month. Counted in total volume and coaching history, but never counts toward
+  // compliance and never counts as excess (see policy rules).
+  const isHireMonth = (u, mStr) => {
+    if (!u.hireDate) return false;
+    const nh = normalizeDate(u.hireDate);
+    return !!nh && nh.slice(0,7) === mStr;
+  };
+  const earlySessThisMonth  = sessThisMonth.filter(s => { const u = usersByUid[s.coacheeId]; return u && isHireMonth(u, curMonStr); });
+  const earlyCoachingCount  = earlySessThisMonth.length; // session count, per spec's metric definition
+  const earlyCoachingEmployees = new Set(earlySessThisMonth.map(s => s.coacheeId)).size;
+
+  // ── Action Plan on-time closure (due-in-period basis) + overdue rate ────────────────
+  const apDueInPeriod = allAPs.filter(p => p.dueDate && p.dueDate.slice(0,7) <= curMonStr && p.status !== 'Cancelled');
+  const apOnTime       = apDueInPeriod.filter(p => p.status === 'Completed' && (!p.completedDate || p.completedDate <= p.dueDate));
+  const apOnTimeRate   = apDueInPeriod.length ? Math.round(apOnTime.length / apDueInPeriod.length * 100) : 0;
+  const overdueActionRate = apActive.length ? Math.round(apOverdue.length / apActive.length * 100) : 0;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const daysOverdue = p => p.dueDate ? Math.round((today - new Date(p.dueDate+'T00:00:00')) / 86400000) : 0;
+  const apDueSoon    = apOpen.filter(p => p.dueDate && new Date(p.dueDate+'T00:00:00') >= today && new Date(p.dueDate+'T00:00:00') <= new Date(today.getTime()+7*86400000));
+  const apOverdue1_7 = apOverdue.filter(p => daysOverdue(p) >= 1  && daysOverdue(p) <= 7);
+  const apOverdue830 = apOverdue.filter(p => daysOverdue(p) >= 8  && daysOverdue(p) <= 30);
+  const apOverdue30p = apOverdue.filter(p => daysOverdue(p) > 30);
+  const apOverdue14p = apOverdue.filter(p => daysOverdue(p) > 14);
+
   // ── Volume ────────────────────────────────────────────────────
   // Required = 1 session per coachee required this month
   const volRequired  = curRequired.length;
@@ -3671,7 +3793,9 @@ async function loadDashboard() {
   // Extra = total completed sessions this month minus one-per-coachee
   const sessThisMonth = completedSess.filter(s => sessMon(s) === curMonStr);
   const volTotal     = sessThisMonth.length;
-  const volExtra     = Math.max(0, volTotal - volCompleted);
+  const curRequiredUidSet   = new Set(curRequired.map(u => u.uid));
+  const requiredSessThisMonth = sessThisMonth.filter(s => curRequiredUidSet.has(s.coacheeId));
+  const volExtra     = Math.max(0, requiredSessThisMonth.length - volCompleted);
 
   // ── Monthly trend ─────────────────────────────────────────────
   const trendRangeVal = document.getElementById('db-trend-range')?.value || '6';
@@ -3718,18 +3842,32 @@ async function loadDashboard() {
   const ICON_SHIELD = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
   const ICON_WARN2  = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
   const ICON_TARGET = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>';
+  const ICON_USERS  = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+
+  const prevMonLabel = prevD.toLocaleDateString('en-PH',{month:'short'});
+  // Small +/- delta note vs. previous month, shown under each KPI card.
+  const deltaPill = (cur, prev, unit) => {
+    const diff = Math.round((cur - prev) * 10) / 10;
+    if (diff === 0) return '<span style="color:var(--muted)">No change vs '+prevMonLabel+'</span>';
+    const up = diff > 0;
+    const color = up ? '#1A6B34' : '#B91C1C';
+    const arrow = up ? '&#9650;' : '&#9660;';
+    return '<span style="color:'+color+';font-weight:600">'+arrow+' '+(up?'+':'')+diff+unit+'</span> vs '+prevMonLabel;
+  };
 
   document.getElementById('db-summary-cards').innerHTML =
-    mkDbCard(ICON_RING,   '#EBF4FF','#1D6FA4', 'Current Month Compliance', curPct+'%',
-             totalCoached+' of '+totalRequired+' employees coached this month')
-  + mkDbCard(ICON_CAL2,  '#E6F4EB','#1A6B34', 'YTD Coaching Compliance',  ytdPct+'%',
-             ytdCompliant+' of '+ytdRequired+' required employee-months compliant')
-  + mkDbCard(ICON_SHIELD,'#EDE9FE','#6D28D9', 'Leaders Fully Compliant',  leadersCompliant,
-             'At 100% this month')
-  + mkDbCard(ICON_WARN2, '#FEE2E2','#B91C1C', 'Leaders Below Target',     leadersBelowTgt,
-             'Below '+COMPLIANCE_TARGET+'% monthly target')
-  + mkDbCard(ICON_TARGET,'#FEF0E0','#A05A0A', 'Action Plan Closure Rate', apClosureRate+'%',
-             'Completed vs total due action plans');
+    mkDbCard(ICON_USERS,  '#EBF4FF','#1D6FA4', 'Coaching Coverage', coveragePct+'%',
+             coverageCount+' of '+totalRequired+' eligible employees ever coached &middot; '+deltaPill(coveragePct, prevCoveragePct, 'pp'))
+  + mkDbCard(ICON_RING,   '#E6F4EB','#1A6B34', 'Monthly Compliance', curPct+'%',
+             totalCoached+' of '+totalRequired+' coached this month &middot; '+deltaPill(curPct, prevPct, 'pp')+' &middot; Target '+COMPLIANCE_TARGET+'%')
+  + mkDbCard(ICON_WARN2,  '#FEE2E2','#B91C1C', 'Employees Still Due',  stillDueCount,
+             'Eligible, not yet coached this month &middot; '+deltaPill(stillDueCount, prevStillDueCount, ''))
+  + mkDbCard(ICON_SHIELD, '#EDE9FE','#6D28D9', 'Leaders Fully Compliant',  leadersCompliant,
+             'At 100% this month &middot; '+leadersBelowTgt+' below '+COMPLIANCE_TARGET+'% target')
+  + mkDbCard(ICON_TARGET, '#FEF0E0','#A05A0A', 'Action Plan Closure (On-time)', apOnTimeRate+'%',
+             apOnTime.length+' of '+apDueInPeriod.length+' due actions closed on time')
+  + mkDbCard(ICON_CAL2,   '#FEE2E2','#B91C1C', 'Overdue Action Rate', overdueActionRate+'%',
+             apOverdue.length+' of '+apActive.length+' active actions overdue');
 
   // ── Monthly trend chart ──────────────────────────────────────
   if (_dbTrendChart) { _dbTrendChart.destroy(); _dbTrendChart = null; }
@@ -3786,7 +3924,20 @@ async function loadDashboard() {
   const avgPct   = totalReqAll ? Math.round(totalCoachedAll / totalReqAll * 100) : 0;
   const avgYtd   = leaderStats.length ? (leaderStats.reduce((s,l)=>s+l.ytdPct,0)/leaderStats.length).toFixed(1) : '0.0';
 
-  const leaderRows = leaderStats.map(l => {
+  const statusColor = st => st==='On Track' ? '#1A6B34' : st==='Needs Attention' ? '#A05A0A' : st==='Critical' ? '#B91C1C' : '#6B7A8D';
+  const statusBg    = st => st==='On Track' ? '#E6F4EB' : st==='Needs Attention' ? '#FEF0E0' : st==='Critical' ? '#FEE2E2' : 'var(--light)';
+
+  let leaderSortMode = document.getElementById('db-leader-sort')?.value || 'pct-asc';
+  const sortedLeaderStats = [...leaderStats].sort((a,b) => {
+    if (leaderSortMode === 'pct-asc')     return a.pct - b.pct;
+    if (leaderSortMode === 'gap-desc')    return a.gap - b.gap;
+    if (leaderSortMode === 'overdue-desc') return b.overdueAP - a.overdueAP;
+    if (leaderSortMode === 'lastcoaching-asc') return (a.lastCoachingDate||'') > (b.lastCoachingDate||'') ? 1 : -1;
+    if (leaderSortMode === 'teamsize-desc') return b.teamSize - a.teamSize;
+    return b.pct - a.pct;
+  });
+
+  const leaderRows = sortedLeaderStats.map(l => {
     const name = esc(l.coach.firstName+' '+l.coach.lastName);
     const gap  = l.coached - l.req;
     const gapColor = gap >= 0 ? '#1A6B34' : '#B91C1C';
@@ -3794,33 +3945,46 @@ async function loadDashboard() {
       + '<td><div style="display:flex;align-items:center;gap:8px"><div class="avatar avatar-sm">'+ini(l.coach.firstName,l.coach.lastName)+'</div><span style="font-weight:500;font-size:12.5px">'+name+'</span></div></td>'
       + '<td style="text-align:center;font-size:12.5px">'+l.teamSize+'</td>'
       + '<td style="text-align:center"><span style="font-size:12.5px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+pctBg(l.pct)+';color:'+pctColor(l.pct)+'">'+l.pct+'%</span></td>'
-      + '<td style="text-align:center"><span style="font-size:12.5px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+pctBg(l.ytdPct)+';color:'+pctColor(l.ytdPct)+'">'+l.ytdPct+'%</span></td>'
       + '<td style="text-align:center;font-size:12.5px">'+l.req+'</td>'
       + '<td style="text-align:center;font-size:12.5px">'+l.coached+'</td>'
       + '<td style="text-align:center;font-size:12.5px;font-weight:600;color:'+gapColor+'">'+(gap >= 0 ? '0' : gap)+'</td>'
+      + '<td style="text-align:center;font-size:12.5px;font-weight:600;color:'+(l.overdueAP>0?'#B91C1C':'var(--text)')+'">'+l.overdueAP+'</td>'
+      + '<td style="text-align:center;font-size:12.5px">'+(l.lastCoachingDate ? new Date(l.lastCoachingDate+'T00:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric'}) : '&mdash;')+'</td>'
+      + '<td style="text-align:center"><span style="font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:10px;background:'+statusBg(l.status)+';color:'+statusColor(l.status)+'">'+l.status+'</span></td>'
       + '</tr>';
   }).join('');
 
   document.getElementById('db-leader-table').innerHTML =
-    '<div class="table-wrap" style="max-height:220px;overflow-y:auto"><table class="rt-table" style="font-size:12px">'
+    '<div style="display:flex;justify-content:flex-end;margin-bottom:8px">'
+    + '<select id="db-leader-sort" class="form-control" style="max-width:210px;font-size:11.5px;padding:4px 8px;height:26px" onchange="loadDashboard()">'
+    + '<option value="pct-asc"'+(leaderSortMode==='pct-asc'?' selected':'')+'>Sort: Lowest Compliance</option>'
+    + '<option value="gap-desc"'+(leaderSortMode==='gap-desc'?' selected':'')+'>Sort: Largest Gap</option>'
+    + '<option value="overdue-desc"'+(leaderSortMode==='overdue-desc'?' selected':'')+'>Sort: Most Overdue Actions</option>'
+    + '<option value="lastcoaching-asc"'+(leaderSortMode==='lastcoaching-asc'?' selected':'')+'>Sort: Oldest Last Coaching</option>'
+    + '<option value="teamsize-desc"'+(leaderSortMode==='teamsize-desc'?' selected':'')+'>Sort: Team Size</option>'
+    + '</select></div>'
+    + '<div class="table-wrap" style="max-height:220px;overflow-y:auto"><table class="rt-table" style="font-size:12px">'
     + '<thead><tr>'
     + '<th style="min-width:140px">Leader</th>'
     + '<th style="text-align:center;min-width:70px">Team Size</th>'
-    + '<th style="text-align:center;min-width:90px">Current Month %</th>'
-    + '<th style="text-align:center;min-width:70px">YTD %</th>'
-    + '<th style="text-align:center;min-width:90px">Required</th>'
-    + '<th style="text-align:center;min-width:90px">Coached</th>'
+    + '<th style="text-align:center;min-width:90px">Compliance</th>'
+    + '<th style="text-align:center;min-width:80px">Required</th>'
+    + '<th style="text-align:center;min-width:80px">Coached</th>'
     + '<th style="text-align:center;min-width:60px">Gap</th>'
+    + '<th style="text-align:center;min-width:90px">Overdue Actions</th>'
+    + '<th style="text-align:center;min-width:100px">Last Coaching</th>'
+    + '<th style="text-align:center;min-width:110px">Status</th>'
     + '</tr></thead>'
     + '<tbody>'+leaderRows+'</tbody>'
     + '<tfoot><tr style="background:#F8FAFC;font-weight:600;border-top:2px solid var(--border)">'
     + '<td style="font-size:12px;color:#1D6FA4">Total / Average</td>'
     + '<td style="text-align:center;font-size:12px">'+totalRequired+'</td>'
     + '<td style="text-align:center"><span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+pctBg(avgPct)+';color:'+pctColor(avgPct)+'">'+avgPct+'%</span></td>'
-    + '<td style="text-align:center"><span style="font-size:12px;font-weight:700;padding:2px 8px;border-radius:10px;background:'+pctBg(parseFloat(avgYtd))+';color:'+pctColor(parseFloat(avgYtd))+'">'+avgYtd+'%</span></td>'
     + '<td style="text-align:center;font-size:12px">'+totalReqAll+'</td>'
     + '<td style="text-align:center;font-size:12px">'+totalCoachedAll+'</td>'
     + '<td style="text-align:center;font-size:12px;font-weight:700;color:'+(totalGapAll>=0?'#1A6B34':'#B91C1C')+'">'+(totalGapAll>=0?'0':totalGapAll)+'</td>'
+    + '<td style="text-align:center;font-size:12px">'+leaderStats.reduce((s,l)=>s+l.overdueAP,0)+'</td>'
+    + '<td></td><td></td>'
     + '</tr></tfoot>'
     + '</table></div>';
 
@@ -3836,26 +4000,37 @@ async function loadDashboard() {
     +   '<div style="height:100%;width:'+Math.round(val/maxBar*100)+'%;background:'+color+';border-radius:5px;transition:width .5s ease"></div>'
     + '</div></div>';
   const extraNote = volExtra > 0
-    ? '<div style="margin-top:6px;font-size:11.5px;color:var(--green);display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>'+volExtra+' extra session'+(volExtra>1?'s':'')+' delivered above requirement</div>'
+    ? '<div style="margin-top:6px;font-size:11.5px;color:var(--green);display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>'+volExtra+' excess session'+(volExtra>1?'s':'')+' — beyond the first required session per employee (never increases compliance)</div>'
+    : '';
+  const earlyNote = earlyCoachingCount > 0
+    ? '<div style="margin-top:4px;font-size:11.5px;color:#1D6FA4;display:flex;align-items:center;gap:5px"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l2.5 2.5"/></svg>'+earlyCoachingCount+' early / non-required session'+(earlyCoachingCount>1?'s':'')+' — coached during hire month, not yet required</div>'
     : '';
   document.getElementById('db-volume').innerHTML =
     barHtml('Required Sessions',   volRequired, '#1D6FA4')
   + barHtml('Completed Sessions',  volCompleted,'#1A6B34')
-  + barHtml('Extra Sessions',      volExtra,    '#6D28D9')
-  + extraNote;
+  + barHtml('Excess Sessions',     volExtra,    '#6D28D9')
+  + barHtml('Total Sessions Delivered', volTotal, '#A05A0A')
+  + extraNote + earlyNote;
 
-  // ── AP Follow-through donut ──────────────────────────────────
+  const legendItem = (color, label, cnt, pct) =>
+    '<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">'
+    + '<div style="width:10px;height:10px;border-radius:50%;background:'+color+';flex-shrink:0"></div>'
+    + '<div style="flex:1;font-size:12px;color:var(--text)">'+label+'</div>'
+    + '<div style="font-size:12px;font-weight:600;color:var(--text);margin-right:4px">'+cnt+'</div>'
+    + '<div style="font-size:11px;color:var(--muted)">'+pct+'%</div>'
+    + '</div>';
+
+  // ── Compliance Summary donut (compliant vs still-due employees) ────────────────
   if (_dbApDonut) { _dbApDonut.destroy(); _dbApDonut = null; }
-  const apTotal = apCompleted.length + apOpen.length + apOverdue.length;
-  const donutCtx = document.getElementById('db-ap-donut');
-  if (donutCtx && apTotal > 0) {
-    _dbApDonut = new Chart(donutCtx, {
+  const complianceDonutCtx = document.getElementById('db-compliance-donut');
+  if (complianceDonutCtx && totalRequired > 0) {
+    _dbApDonut = new Chart(complianceDonutCtx, {
       type: 'doughnut',
       data: {
-        labels: ['Completed','Open','Overdue'],
+        labels: ['Compliant','Still Due'],
         datasets:[{
-          data: [apCompleted.length, apOpen.length, apOverdue.length],
-          backgroundColor: ['#1A6B34','#A05A0A','#B91C1C'],
+          data: [totalCoached, stillDueCount],
+          backgroundColor: ['#1A6B34','#B91C1C'],
           borderWidth: 2,
           borderColor: '#fff'
         }]
@@ -3865,7 +4040,7 @@ async function loadDashboard() {
         cutout: '70%',
         plugins: {
           legend: { display:false },
-          tooltip: { callbacks: { label: ctx => ctx.label+': '+ctx.parsed+' ('+Math.round(ctx.parsed/apTotal*100)+'%)' } }
+          tooltip: { callbacks: { label: ctx => ctx.label+': '+ctx.parsed+' ('+Math.round(ctx.parsed/totalRequired*100)+'%)' } }
         }
       },
       plugins: [{
@@ -3874,73 +4049,148 @@ async function loadDashboard() {
           const {ctx, chartArea:{top,left,right,bottom}} = chart;
           const cx = (left+right)/2, cy = (top+bottom)/2;
           ctx.save();
-          ctx.font = 'bold 18px Arial';
+          ctx.font = 'bold 17px Arial';
           ctx.fillStyle = '#1A2D3F';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(apClosureRate+'%', cx, cy-7);
-          ctx.font = '10px Arial';
+          ctx.fillText(totalRequired+'', cx, cy-7);
+          ctx.font = '9px Arial';
           ctx.fillStyle = '#6B7A8D';
-          ctx.fillText('Closure', cx, cy+9);
+          ctx.fillText('Eligible', cx, cy+9);
           ctx.restore();
         }
       }]
     });
-  } else if (donutCtx) {
-    donutCtx.parentElement.innerHTML = '<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:12.5px">No action plans yet</div>';
+  } else if (complianceDonutCtx) {
+    complianceDonutCtx.parentElement.innerHTML = '<div style="text-align:center;padding:30px 0;color:var(--muted);font-size:12.5px">No eligible employees this month</div>';
   }
+  document.getElementById('db-compliance-legend').innerHTML = totalRequired
+    ? legendItem('#1A6B34','Compliant', totalCoached, Math.round(totalCoached/totalRequired*100))
+    + legendItem('#B91C1C','Still Due', stillDueCount, Math.round(stillDueCount/totalRequired*100))
+    + '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:11.5px;color:var(--muted)">'+totalRequired+' eligible employees this month</div>'
+    : '<div style="font-size:12.5px;color:var(--muted)">No eligible employees this month.</div>';
 
-  const legendItem = (color, label, cnt, pct) =>
-    '<div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">'
-    + '<div style="width:10px;height:10px;border-radius:50%;background:'+color+';flex-shrink:0"></div>'
-    + '<div style="flex:1;font-size:12px;color:var(--text)">'+label+'</div>'
-    + '<div style="font-size:12px;font-weight:600;color:var(--text);margin-right:4px">'+cnt+'</div>'
-    + '<div style="font-size:11px;color:var(--muted)">'+pct+'%</div>'
-    + '</div>';
-  document.getElementById('db-ap-legend').innerHTML = apTotal
-    ? legendItem('#1A6B34','Completed', apCompleted.length, Math.round(apCompleted.length/apTotal*100))
-    + legendItem('#A05A0A','Open',       apOpen.length,      Math.round(apOpen.length/apTotal*100))
-    + legendItem('#B91C1C','Overdue',    apOverdue.length,   Math.round(apOverdue.length/apTotal*100))
-    + '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:11.5px;color:var(--muted)">'+apTotal+' total active plans</div>'
-    : '';
+  // ── Action Plan Health — completed on-time vs late, open buckets, overdue aging ──
+  const apCompletedLate = apDueInPeriod.filter(p => p.status==='Completed').length - apOnTime.length;
+  const apHealthRow = (label, cnt, color) =>
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">'
+    + '<div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text)"><div style="width:9px;height:9px;border-radius:50%;background:'+color+';flex-shrink:0"></div>'+label+'</div>'
+    + '<div style="font-size:13px;font-weight:600;color:var(--text)">'+cnt+'</div></div>';
+  document.getElementById('db-ap-health').innerHTML =
+    apHealthRow('Completed On-Time',        apOnTime.length,               '#1A6B34')
+  + apHealthRow('Completed Late',           Math.max(0,apCompletedLate),   '#A05A0A')
+  + apHealthRow('Open — Not Due',           apOpen.length - apDueSoon.length, '#1D6FA4')
+  + apHealthRow('Due Within 7 Days',        apDueSoon.length,              '#F2A93B')
+  + apHealthRow('Overdue 1&ndash;7 Days',   apOverdue1_7.length,           '#F2A93B')
+  + apHealthRow('Overdue 8&ndash;30 Days',  apOverdue830.length,           '#D9700E')
+  + apHealthRow('Overdue &gt; 30 Days',     apOverdue30p.length,           '#B91C1C')
+  + '<div style="margin-top:10px;padding-top:4px;font-size:11.5px;color:var(--muted)">'+apActive.length+' total active action plans &middot; '+overdueActionRate+'% overdue</div>';
 
-  // ── Department Insight ────────────────────────────────────────
-  const insights = [];
-  if (leadersBelowTgt > 0) {
-    const names = leaderStats.filter(l=>l.teamSize>0&&l.pct<COMPLIANCE_TARGET).map(l=>l.coach.firstName+' '+l.coach.lastName);
-    insights.push({ icon:'🎯', color:'#B91C1C', bg:'#FEE2E2',
-      text: leadersBelowTgt+' leader'+(leadersBelowTgt>1?'s are':' is')+' below the '+COMPLIANCE_TARGET+'% monthly target: '+names.join(', ')+'.' });
-  }
-  const fullNames = leaderStats.filter(l=>l.pct>=100&&l.teamSize>0).map(l=>l.coach.firstName+' '+l.coach.lastName);
-  if (fullNames.length) {
-    insights.push({ icon:'✅', color:'#1A6B34', bg:'#E6F4EB',
-      text: fullNames.join(' and ')+' '+(fullNames.length>1?'are':'is')+' fully compliant this month.' });
-  }
-  if (apOverdue.length > 0) {
-    const ovPct = apTotal ? Math.round(apOverdue.length/apTotal*100) : 0;
-    insights.push({ icon:'⚠️', color:'#A05A0A', bg:'#FEF0E0',
-      text: apOverdue.length+' overdue action plan'+(apOverdue.length>1?'s':'')+' ('+ovPct+'% of active plans) need follow-up.' });
-  }
-  if (curPct >= 90) {
-    insights.push({ icon:'📈', color:'#1D6FA4', bg:'#EBF4FF',
-      text: 'Current month compliance is at '+curPct+'% — on track for the period.' });
-  }
-  if (!insights.length) {
-    insights.push({ icon:'ℹ️', color:'#6B7A8D', bg:'#EEF4F7',
-      text: 'No significant highlights for this period.' });
-  }
-  document.getElementById('db-insights').innerHTML = insights.map(i =>
-    '<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:'+i.bg+';margin-bottom:8px">'
-    + '<div style="font-size:14px;flex-shrink:0;margin-top:1px">'+i.icon+'</div>'
-    + '<div style="font-size:12.5px;color:'+i.color+';line-height:1.5">'+i.text+'</div>'
-    + '</div>'
-  ).join('');
+  // ── Department Performance table ──────────────────────────────
+  renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, usersByUid);
+
+  // ── Priority Attention ──────────────────────────────────────────
+  renderPriorityAttention({ allCoachees, curRequired, curCoachedSet, leaderStats, apOverdue14p, curMonStr });
 
   // ── Organization Rollup — grouped by department, drills into reporting chain ──
   renderOrgRollup(allCoachees, coaches, curMonStr, curCoachedSet);
 }
 // Expose to global scope so inline onchange="loadDashboard()" works inside type="module" script
 window.loadDashboard = loadDashboard;
+
+// Department Performance table — grouped by each employee's CURRENT department. This
+// intentionally mirrors the same live-department grouping renderOrgRollup already uses,
+// rather than the new coacheeDepartmentAtTime snapshot: a true historical department
+// rollup (accurate for people who transferred and were never coached in a given month)
+// needs full effective-dated org history, which is a bigger decision we've deliberately
+// deferred. coacheeDepartmentAtTime is being captured now so that phase is possible later.
+function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, usersByUid) {
+  const container = document.getElementById('db-dept-performance');
+  if (!container) return;
+  const byDept = {};
+  allCoachees.forEach(c => {
+    const d = c.department || 'No Department';
+    byDept[d] = byDept[d] || { dept:d, eligible:0, coached:0, coacheeUids: new Set() };
+    byDept[d].coacheeUids.add(c.uid);
+    if (isRequiredInMonth(c, curMonStr)) {
+      byDept[d].eligible++;
+      if (curCoachedSet.has(c.uid)) byDept[d].coached++;
+    }
+  });
+  const rows = Object.values(byDept).map(d => {
+    const compliance = d.eligible ? Math.round(d.coached / d.eligible * 100) : null;
+    const deptAPs      = allAPs.filter(p => d.coacheeUids.has(p.coacheeId));
+    const deptActive   = deptAPs.filter(p => p.status !== 'Cancelled');
+    const deptCompleted= deptAPs.filter(p => p.status === 'Completed');
+    const deptOverdue  = deptAPs.filter(p => p.status === 'Overdue');
+    const closureRate  = deptActive.length ? Math.round(deptCompleted.length/deptActive.length*100) : 0;
+    const overdueRate  = deptActive.length ? Math.round(deptOverdue.length/deptActive.length*100) : 0;
+    let status, statusColor, statusBg;
+    if (compliance === null || compliance === 0)     { status='No Activity';     statusColor='#6B7A8D'; statusBg='var(--light)'; }
+    else if (compliance === 100)                     { status='Fully Compliant'; statusColor='#1A6B34'; statusBg='#E6F4EB'; }
+    else if (compliance >= 90)                        { status='On Track';       statusColor='#1A6B34'; statusBg='#E6F4EB'; }
+    else if (compliance >= 50)                        { status='Needs Attention';statusColor='#A05A0A'; statusBg='#FEF0E0'; }
+    else                                               { status='Critical';       statusColor='#B91C1C'; statusBg='#FEE2E2'; }
+    return { dept:d.dept, eligible:d.eligible, coached:d.coached, compliance, closureRate, overdueRate, status, statusColor, statusBg };
+  }).sort((a,b) => (a.compliance ?? -1) - (b.compliance ?? -1));
+
+  if (!rows.length) { container.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12.5px">No department data yet.</div>'; return; }
+
+  const trs = rows.map(d =>
+    '<tr>'
+    + '<td style="font-size:12.5px;font-weight:500">'+esc(d.dept)+'</td>'
+    + '<td style="text-align:center;font-size:12.5px">'+d.eligible+'</td>'
+    + '<td style="text-align:center;font-size:12.5px">'+d.coached+'</td>'
+    + '<td style="text-align:center;font-size:12.5px;font-weight:600">'+(d.compliance===null?'&mdash;':d.compliance+'%')+'</td>'
+    + '<td style="text-align:center;font-size:12.5px">'+d.closureRate+'%</td>'
+    + '<td style="text-align:center;font-size:12.5px;color:'+(d.overdueRate>0?'#B91C1C':'var(--text)')+'">'+d.overdueRate+'%</td>'
+    + '<td style="text-align:center"><span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:10px;background:'+d.statusBg+';color:'+d.statusColor+'">'+d.status+'</span></td>'
+    + '</tr>'
+  ).join('');
+
+  container.innerHTML = '<div class="table-wrap" style="max-height:230px;overflow-y:auto"><table class="rt-table" style="font-size:12px">'
+    + '<thead><tr>'
+    + '<th style="min-width:120px">Department</th>'
+    + '<th style="text-align:center;min-width:60px">Eligible</th>'
+    + '<th style="text-align:center;min-width:65px">Coached</th>'
+    + '<th style="text-align:center;min-width:85px">Compliance</th>'
+    + '<th style="text-align:center;min-width:95px">Action Closure</th>'
+    + '<th style="text-align:center;min-width:75px">Overdue</th>'
+    + '<th style="text-align:center;min-width:110px">Status</th>'
+    + '</tr></thead>'
+    + '<tbody>'+trs+'</tbody></table></div>';
+}
+
+// Priority Attention — surfaces the handful of things that most need a human to look at.
+// Not yet wired to drill-down navigation (that's a follow-on phase); for now these are
+// informative, at-a-glance flags matching the underlying data we already have.
+function renderPriorityAttention({ allCoachees, curRequired, curCoachedSet, leaderStats, apOverdue14p, curMonStr }) {
+  const container = document.getElementById('db-priority-attention');
+  if (!container) return;
+  const items = [];
+  const stillDue = curRequired.filter(c => !curCoachedSet.has(c.uid));
+  if (stillDue.length) items.push({ icon:'&#9888;&#65039;', color:'#B91C1C', bg:'#FEE2E2',
+    text: stillDue.length+' eligible employee'+(stillDue.length>1?'s have':' has')+' not been coached this month.' });
+  const zeroLeaders = leaderStats.filter(l => l.req > 0 && l.coached === 0);
+  if (zeroLeaders.length) items.push({ icon:'&#128683;', color:'#B91C1C', bg:'#FEE2E2',
+    text: zeroLeaders.length+' leader'+(zeroLeaders.length>1?'s have':' has')+' zero coaching this month: '+zeroLeaders.map(l=>l.coach.firstName+' '+l.coach.lastName).join(', ')+'.' });
+  if (apOverdue14p.length) items.push({ icon:'&#9200;', color:'#A05A0A', bg:'#FEF0E0',
+    text: apOverdue14p.length+' action plan'+(apOverdue14p.length>1?'s are':' is')+' overdue by more than 14 days.' });
+  const noManager = allCoachees.filter(c => !c.coachId);
+  if (noManager.length) items.push({ icon:'&#10067;', color:'#A05A0A', bg:'#FEF0E0',
+    text: noManager.length+' employee'+(noManager.length>1?'s have':' has')+' no assigned manager/coach.' });
+  const missingHire = allCoachees.filter(c => !c.hireDate);
+  if (missingHire.length) items.push({ icon:'&#128203;', color:'#6B7A8D', bg:'var(--light)',
+    text: missingHire.length+' employee'+(missingHire.length>1?'s are':' is')+' missing a hire date (currently defaults to always-eligible).' });
+  if (!items.length) items.push({ icon:'&#9989;', color:'#1A6B34', bg:'#E6F4EB', text: 'No priority issues detected for this period.' });
+
+  container.innerHTML = items.map(i =>
+    '<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:'+i.bg+';margin-bottom:8px">'
+    + '<div style="font-size:14px;flex-shrink:0;margin-top:1px">'+i.icon+'</div>'
+    + '<div style="font-size:12.5px;color:'+i.color+';line-height:1.5">'+i.text+'</div>'
+    + '</div>'
+  ).join('');
+}
 
 // Department is a flat tag (independent of the reporting hierarchy) — grouping by it
 // first means every department shows up here from day one, even before its management
@@ -4037,6 +4287,28 @@ function computeReportsUpTo(coachId, usersByUid) {
     guard++;
   }
   return chain;
+}
+
+// Re-stamp ONE coachee's own existing sessions/action plans with a new coacheeReportsUpTo
+// chain — used right after their "Reports To" changes so a newly-assigned manager gets
+// immediate visibility into that person's coaching history (documentation continuity),
+// without needing to wait for the broader manual "Recompute Reporting Hierarchy" pass.
+// Bounded to this one coacheeId, so it's cheap enough to run on every reassignment.
+async function restampCoacheeReportsUpTo(coacheeUid, newChain) {
+  const [sessSnap, apSnap] = await Promise.all([
+    getDocs(query(collection(db,'sessions'), where('coacheeId','==',coacheeUid))),
+    getDocs(query(collection(db,'actionPlans'), where('coacheeId','==',coacheeUid))),
+  ]);
+  const updates = [];
+  [sessSnap, apSnap].forEach(snap => {
+    snap.docs.forEach(d => {
+      const existing = d.data().coacheeReportsUpTo || [];
+      if (JSON.stringify(existing) !== JSON.stringify(newChain)) {
+        updates.push({ ref: d.ref, data: { coacheeReportsUpTo: newChain } });
+      }
+    });
+  });
+  if (updates.length) await commitInChunks(updates);
 }
 
 // Call after a user's coachId is created/changed. That user's own reportsUpTo shifts, and
@@ -4175,6 +4447,48 @@ window.backfillCoacheeSignatures = async function() {
     toast('Error: '+e.message,'error');
   }
   btn.disabled = false; btn.textContent = '⟲ Backfill Coachee Signatures';
+};
+
+// One-time backfill: sessions logged BEFORE the department-snapshot fix have no
+// coacheeDepartmentAtTime field. This fills it in using each coachee's CURRENT
+// department on file — an honest best estimate, not a true historical value (we have
+// no record of what department they were in back then). Going forward, every new
+// session self-captures this at creation (see buildSessionData/sendPrepRequest), so
+// this only needs to run once for the historical backlog.
+window.backfillDepartmentSnapshot = async function() {
+  const btn = document.getElementById('backfill-dept-btn');
+  const statusEl = document.getElementById('backfill-dept-status');
+  btn.disabled = true; btn.textContent = 'Backfilling…';
+  statusEl.textContent = 'Loading users & records…';
+  try {
+    const usersSnap = await getDocs(collection(db,'users'));
+    const usersByUid = {};
+    usersSnap.docs.forEach(d => { usersByUid[d.id] = { uid:d.id, ...d.data() }; });
+
+    const [sessSnap, apSnap] = await Promise.all([
+      getDocs(collection(db,'sessions')),
+      getDocs(collection(db,'actionPlans')),
+    ]);
+    const updates = [];
+    [['sessions', sessSnap], ['actionPlans', apSnap]].forEach(([collName, snap]) => {
+      snap.docs.forEach(d => {
+        const data = d.data();
+        if (data.coacheeDepartmentAtTime) return; // already has a snapshot — don't overwrite
+        const coachee = usersByUid[data.coacheeId];
+        const dept = (coachee && coachee.department) || null;
+        if (!dept) return; // coachee has no department on file either
+        updates.push({ ref: doc(db,collName,d.id), data: { coacheeDepartmentAtTime: dept } });
+      });
+    });
+    await commitInChunks(updates);
+
+    statusEl.textContent = 'Done — '+updates.length+' record(s) updated.';
+    toast('Department snapshots backfilled.','success');
+  } catch(e) {
+    statusEl.textContent = 'Error: '+e.message;
+    toast('Error: '+e.message,'error');
+  }
+  btn.disabled = false; btn.textContent = '⟲ Backfill Department Snapshots';
 };
 
 // Fetch sessions/actionPlans "belonging to my team" for rollup views: sessions I
@@ -5113,6 +5427,12 @@ function buildSessionData(status) {
     coacheeId:         currentSessionCoacheeId,
     coachId:           currentUser.uid,
     coacheeReportsUpTo:(coachee && coachee.reportsUpTo) || [],
+    // Snapshot the coachee's ORG department (not the free-text "sf-department" note field
+    // below) at the moment this session is logged, so department-level compliance
+    // reporting for this month stays historically accurate even if the coachee later
+    // transfers to a different department. Enterprise Dashboard department rollups read
+    // this field, not the live user.department, for exactly that reason.
+    coacheeDepartmentAtTime: (coachee && coachee.department) || null,
     sessionDate:       document.getElementById('sf-session-date').value,
     lastSessionDate:   document.getElementById('sf-last-session').value,
     department:        document.getElementById('sf-department').value,
@@ -5163,6 +5483,30 @@ window.saveDraft = async function() {
   btn.disabled = false; btn.textContent = 'Save Draft';
 };
 
+// Lightweight backdating visibility (deliberately not a hard block — Sandra wants
+// awareness first, not friction, until a corrections policy is settled). If a session is
+// being officially submitted with a date from an already-closed prior month, record it to
+// auditLog so it's traceable in Recent System Activity. Never blocks the actual save.
+async function logIfBackdated(sessionDate, sessionCode) {
+  try {
+    if (!sessionDate) return;
+    const today = new Date();
+    const curMonStr  = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+    const sessMonStr = sessionDate.slice(0,7);
+    if (sessMonStr < curMonStr) {
+      await addDoc(collection(db,'auditLog'), {
+        action:           'backdated_entry',
+        sessionCode:      sessionCode || null,
+        sessionDate,
+        loggedInMonth:    curMonStr,
+        performedBy:       currentUser.uid,
+        performedByName:  (currentProfile.firstName||'')+' '+(currentProfile.lastName||''),
+        timestamp:        serverTimestamp()
+      });
+    }
+  } catch(e) { /* visibility-only — never block the actual session save over this */ }
+}
+
 // ── Submit Session ────────────────────────────────────────────
 window.submitSession = async function() {
   if (!currentSessionCoacheeId)                    { toast('Please select a coachee first.','error'); return; }
@@ -5200,6 +5544,7 @@ window.submitSession = async function() {
         // Action plans are now created at acknowledgment, not at submission
       }
       await flushCarryOvers(currentSessionId, document.getElementById('sf-session-date').value);
+      await logIfBackdated(data.sessionDate, currentSessionCode);
       toast(isResubmit ? 'Session resubmitted. Awaiting coachee acknowledgement.' : 'Session submitted. Awaiting coachee acknowledgement.','success');
       document.getElementById('session-save-draft-btn').style.display = 'none';
       btn.style.display = 'none';
@@ -5294,6 +5639,7 @@ window.acknowledgeSession = async function() {
           coacheeId:   sessionData.coacheeId,
           coachId:     sessionData.coachId,
           coacheeReportsUpTo: sessionData.coacheeReportsUpTo || [],
+          coacheeDepartmentAtTime: sessionData.coacheeDepartmentAtTime || null,
           action:      row.action,
           support:     row.support || '',
           dueDate:     row.dueDate || '',
@@ -6307,8 +6653,8 @@ async function loadRecentSystemActivity() {
       .sort((a,b)=>(b.timestamp?.seconds||b.deletedAt?.seconds||0)-(a.timestamp?.seconds||a.deletedAt?.seconds||0))
       .slice(0,20);
     if (!events.length) { el.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">No system activity recorded yet.</div>'; return; }
-    const actionLabel = a => ({delete_session:'Session Deleted',create_user:'User Created',update_user:'User Updated'}[a]||a);
-    const actionColor = a => a==='delete_session'?'var(--red)':a==='create_user'?'var(--green)':'var(--blue)';
+    const actionLabel = a => ({delete_session:'Session Deleted',create_user:'User Created',update_user:'User Updated',backdated_entry:'Backdated Entry'}[a]||a);
+    const actionColor = a => a==='delete_session'?'var(--red)':a==='create_user'?'var(--green)':a==='backdated_entry'?'var(--amber)':'var(--blue)';
     const rows = events.map(e => {
       const ts = (e.timestamp||e.deletedAt)?.toDate
         ? (e.timestamp||e.deletedAt).toDate().toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'}) : '—';
@@ -6516,6 +6862,7 @@ window.finalizeCoachLog = async function() {
         currentSessionId = ref.id;
       }
       await flushCarryOvers(currentSessionId, document.getElementById('sf-session-date').value);
+      await logIfBackdated(data.sessionDate, currentSessionCode);
       toast('Session submitted to coachee.','success');
       document.getElementById('session-save-draft-btn').style.display = 'none';
       btn.style.display = 'none';
@@ -6545,6 +6892,7 @@ window.sendPrepRequest = async function() {
       coachId:    currentUser.uid,
       coacheeId:  currentSessionCoacheeId,
       coacheeReportsUpTo: (coachee && coachee.reportsUpTo) || [],
+      coacheeDepartmentAtTime: (coachee && coachee.department) || null,
       flowType:   'coachee-led',
       status:     'prep-requested',
       sessionDate: targetEl ? targetEl.value : '',
