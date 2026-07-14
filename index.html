@@ -2598,10 +2598,12 @@ window.parseCsv = function(file) {
       const empId = row.employeeid || '';
 
       // Build roles from separate boolean columns (supports both new format and old semicolon format)
+      // Compare case-insensitively — Excel/Sheets often writes TRUE/FALSE in caps,
+      // which a strict === 'true' check would silently miss (roles just never get set).
       let roles = [];
       if (headers.includes('rolecoach') || headers.includes('rolecoachee')) {
-        if (row.rolecoach    === 'true') roles.push('coach');
-        if (row.rolecoachee  === 'true') roles.push('coachee');
+        if ((row.rolecoach||'').toLowerCase()   === 'true') roles.push('coach');
+        if ((row.rolecoachee||'').toLowerCase() === 'true') roles.push('coachee');
       } else if (row.roles) {
         // fallback: old semicolon format
         roles = row.roles.split(';').map(r=>r.trim()).filter(Boolean);
@@ -2620,7 +2622,7 @@ window.parseCsv = function(file) {
       else if (action === 'create') createCount++;
       else updateCount++;
 
-      const activeVal = row.active === '' ? true : row.active !== 'false';
+      const activeVal = row.active === '' ? true : (row.active||'').toLowerCase() !== 'false';
       const normHireDate = normalizeDate(row.hiredate); // always store as YYYY-MM-DD
       // Track which optional columns were explicitly provided (non-blank)
       // For updates, only fields with explicit values will be written — blanks = leave unchanged
