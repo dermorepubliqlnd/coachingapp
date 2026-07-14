@@ -502,6 +502,7 @@
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
             <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <select id="db-scope-picker" class="form-control" style="max-width:190px" onchange="loadDashboard()"></select>
+              <span id="db-scope-label" style="display:none;font-size:13px;font-weight:600;color:#1A2D3F;background:var(--blue-lt);padding:6px 12px;border-radius:var(--radius)"></span>
               <span id="db-last-refreshed" style="font-size:11.5px;color:var(--muted)"></span>
             </div>
             <div style="display:flex;gap:8px;align-items:center">
@@ -812,7 +813,7 @@
               <div class="grid-2" style="max-width:480px">
                 <div class="form-group">
                   <label class="form-label">Department</label>
-                  <input type="text" id="sf-cl-department" class="form-control" value="Learning &amp; Development" oninput="document.getElementById('sf-department').value=this.value">
+                  <input type="text" id="sf-cl-department" class="form-control" oninput="document.getElementById('sf-department').value=this.value">
                 </div>
                 <div class="form-group">
                   <label class="form-label">Target Session Date</label>
@@ -1872,6 +1873,11 @@ const auth2        = getAuth(secondaryApp);
 let currentUser    = null;
 let currentProfile = null;
 let allUsers       = [];
+// Does the signed-in coach have at least one person anywhere in their reporting
+// subtree? Drives automatic (least-privilege, no-toggle-needed) Dashboard access for
+// Managers/Directors, separate from the explicitly-granted Enterprise flag which
+// unlocks org-wide visibility. Set inside refreshUsers().
+let currentUserHasDownline = false;
 let allDepartments = [];
 let deptCollapsedSet = new Set(); // Job Family names currently collapsed in Settings > Departments
 window.toggleDeptCollapse = function(name) {
@@ -2107,6 +2113,7 @@ onAuthStateChanged(auth, async (user) => {
         }
         await loadSettings();
         await loadDepartments();
+        await refreshUsers();
         renderSidebar();
         loadNotificationBadges();
         showApp();
@@ -2300,7 +2307,10 @@ function renderSidebar() {
   const perms = currentProfile.permissions || {};
   // Dashboard is the org-wide compliance view — Admin or explicitly-granted Enterprise
   // access only (least-privilege). Coaches/Managers get their own scope via "My Team".
-  const canDash = hasEnterpriseAccess(currentProfile);
+  // Admin/Enterprise = org-wide Dashboard. A Manager/Director with people anywhere
+  // in their own reporting subtree automatically gets a Dashboard too, scoped to just
+  // their team (see loadDashboard()) — no separate toggle needed for that narrower case.
+  const canDash = hasEnterpriseAccess(currentProfile) || currentUserHasDownline;
   // Overview — Dashboard on its own, separate from the day-to-day Coaching section
   // (matches the intended nav grouping: Overview / Coaching / My Development / Reports).
   if (canDash) {
@@ -2375,6 +2385,7 @@ async function refreshUsers() {
   //  • coachee → self + assigned coach
   const perms = (currentProfile && currentProfile.permissions) || {};
   const roles = (currentProfile && currentProfile.roles) || [];
+  currentUserHasDownline = false;
   if (hasEnterpriseAccess(currentProfile)) {
     const snap = await getDocs(collection(db, 'users'));
     allUsers = snap.docs.map(d => ({ uid:d.id, ...d.data() }));
@@ -2384,6 +2395,7 @@ async function refreshUsers() {
   if (currentProfile && currentProfile.uid) map[currentProfile.uid] = { ...currentProfile };
   if (roles.includes('coach')) {
     const snap = await getDocs(query(collection(db,'users'), where('reportsUpTo','array-contains',currentUser.uid)));
+    currentUserHasDownline = snap.docs.length > 0;
     snap.docs.forEach(d => { map[d.id] = { uid:d.id, ...d.data() }; });
   }
   if (roles.includes('coachee') && currentProfile && currentProfile.coachId) {
@@ -4235,28 +4247,47 @@ async function loadDashboard(forceRefresh) {
   const selMonth = picker.value;
   const [selYear, selMo] = selMonth.split('-').map(Number);
 
-  // ── Scope picker (init once, then re-populate as departments change) ──────────
-  // Built from the Departments list itself (not just whoever currently has a department
-  // set) so a Job Family with no one directly attached to it — everyone's in its
-  // sub-units — is still selectable. Job Family-level entries are listed first, each
-  // followed immediately by its own sub-units indented beneath.
+  // ── Scope picker ────────────────────────────────────────────────────────────
+  // Admin/Enterprise get the full interactive department picker (built from the
+  // Departments list itself — not just whoever currently has a department set — so a Job
+  // Family with no one directly attached to it, everyone's in its sub-units, is still
+  // selectable; Job Family-level entries are listed first, each followed immediately by
+  // its own sub-units indented beneath).
+  // A Manager/Director with automatic (non-Enterprise) Dashboard access instead gets a
+  // fixed, non-interactive scope locked to their own reporting subtree — allUsers is
+  // already restricted to exactly that subtree server-side (see refreshUsers()), so there
+  // is nothing meaningful for a department picker to filter for them, and showing the full
+  // org's department list would be confusing (most options would return empty).
   const scopePicker = document.getElementById('db-scope-picker');
-  const scopeOptionDefs = [];
-  allDepartments.filter(d => d.active !== false && !d.jobFamily).sort((a,b)=>a.name.localeCompare(b.name))
-    .forEach(top => {
-      scopeOptionDefs.push({ value: top.name, label: top.name });
-      allDepartments.filter(d => d.active !== false && d.jobFamily === top.name).sort((a,b)=>a.name.localeCompare(b.name))
-        .forEach(child => scopeOptionDefs.push({ value: child.name, label: '\u2003— ' + child.name }));
-    });
-  const scopePickerNeedsOptions = scopePicker.options.length !== scopeOptionDefs.length + 1;
-  if (scopePickerNeedsOptions) {
-    const prevScope = scopePicker.value || 'ALL';
-    scopePicker.innerHTML = '';
-    scopePicker.add(new Option('Enterprise (All Departments)', 'ALL'));
-    scopeOptionDefs.forEach(o => scopePicker.add(new Option(o.label, o.value)));
-    scopePicker.value = [...scopePicker.options].some(o => o.value === prevScope) ? prevScope : 'ALL';
+  const scopeLabel   = document.getElementById('db-scope-label');
+  const isScopedToOwnTeam = !hasEnterpriseAccess(currentProfile);
+  let scopeDept = 'ALL';
+  if (isScopedToOwnTeam) {
+    scopePicker.style.display = 'none';
+    if (scopeLabel) {
+      scopeLabel.style.display = 'inline-block';
+      scopeLabel.textContent = 'My Team (' + currentProfile.firstName + ' ' + currentProfile.lastName + ')';
+    }
+  } else {
+    scopePicker.style.display = '';
+    if (scopeLabel) scopeLabel.style.display = 'none';
+    const scopeOptionDefs = [];
+    allDepartments.filter(d => d.active !== false && !d.jobFamily).sort((a,b)=>a.name.localeCompare(b.name))
+      .forEach(top => {
+        scopeOptionDefs.push({ value: top.name, label: top.name });
+        allDepartments.filter(d => d.active !== false && d.jobFamily === top.name).sort((a,b)=>a.name.localeCompare(b.name))
+          .forEach(child => scopeOptionDefs.push({ value: child.name, label: '\u2003— ' + child.name }));
+      });
+    const scopePickerNeedsOptions = scopePicker.options.length !== scopeOptionDefs.length + 1;
+    if (scopePickerNeedsOptions) {
+      const prevScope = scopePicker.value || 'ALL';
+      scopePicker.innerHTML = '';
+      scopePicker.add(new Option('Enterprise (All Departments)', 'ALL'));
+      scopeOptionDefs.forEach(o => scopePicker.add(new Option(o.label, o.value)));
+      scopePicker.value = [...scopePicker.options].some(o => o.value === prevScope) ? prevScope : 'ALL';
+    }
+    scopeDept = scopePicker.value || 'ALL';
   }
-  const scopeDept = scopePicker.value || 'ALL';
 
   // ── Fetch data ────────────────────────────────────────────────
   if (forceRefresh || _dbSessionsCache === null) {
@@ -5564,10 +5595,11 @@ async function loadSessionForm() {
 
   // Reset form
   document.getElementById('sf-session-date').value  = new Date().toISOString().slice(0,10);
+  document.getElementById('sf-session-date').min    = sessionDateFloorStr();
   document.getElementById('sf-last-session').value  = '';
   document.getElementById('sf-next-session').value  = '';
   const cmF2f = document.getElementById('cm-f2f'); if (cmF2f) cmF2f.checked = true;
-  document.getElementById('sf-department').value    = 'Learning & Development';
+  document.getElementById('sf-department').value    = '';
   document.getElementById('sf-employee-name').value = '';
   document.getElementById('sf-employee-role').value = '';
   document.getElementById('sf-coach-name').value    = currentProfile.firstName + ' ' + currentProfile.lastName;
@@ -5665,6 +5697,12 @@ function fillCoacheeInfo(uid) {
   if (!c) return;
   document.getElementById('sf-employee-name').value = c.firstName + ' ' + c.lastName;
   document.getElementById('sf-employee-role').value = c.position || '';
+  // Auto-fill Department from the selected coachee's own record (was previously hardcoded
+  // to 'Learning & Development' regardless of who was being coached). Still editable —
+  // this is just a sensible starting value, not a locked field.
+  document.getElementById('sf-department').value = c.department || '';
+  const clDeptEl = document.getElementById('sf-cl-department');
+  if (clDeptEl) clDeptEl.value = c.department || '';
 }
 
 function showCoacheePicker() {
@@ -5721,7 +5759,7 @@ window.onFlowTypeSelected = function(type) {
     document.getElementById('sf-form-body').style.display   = 'none';
     document.getElementById('sf-cl-prep-card').style.display = 'block';
     document.getElementById('sf-coachee-picker').style.display = 'none'; // hide after coachee chosen for coachee-led
-    document.getElementById('sf-cl-department').value = document.getElementById('sf-department').value || 'Learning & Development';
+    document.getElementById('sf-cl-department').value = document.getElementById('sf-department').value || '';
     document.getElementById('session-form-title').textContent = 'New Coachee-Led Session';
     document.getElementById('session-form-sub').textContent   = 'Send a prep form to the coachee first';
     // Show coachee name confirmation
@@ -5805,7 +5843,7 @@ async function loadExistingSession(sessionId) {
 
     document.getElementById('sf-session-date').value  = s.sessionDate || '';
     document.getElementById('sf-last-session').value  = s.lastSessionDate || '';
-    document.getElementById('sf-department').value    = s.department || 'Learning & Development';
+    document.getElementById('sf-department').value    = s.department || '';
     document.getElementById('sf-next-session').value  = s.nextSessionDate || '';
     const cmVal = s.coachingMethod || 'face-to-face';
     const cmEl  = document.querySelector('input[name="coaching-method"][value="'+cmVal+'"]');
@@ -6049,6 +6087,18 @@ function getActionPlan() {
 
 
 // ── Build session data ────────────────────────────────────────
+// Session Date may not be backdated more than 7 days — keeps entries close to when the
+// conversation actually happened instead of being logged weeks/months late. (The existing
+// logIfBackdated() audit log still separately flags anything that lands in a prior month,
+// for entries within this 7-day window that cross a month boundary.)
+function sessionDateFloorStr() {
+  const floor = new Date(); floor.setHours(0,0,0,0); floor.setDate(floor.getDate() - 7);
+  return floor.toISOString().slice(0,10);
+}
+function isSessionDateTooOld(dateStr) {
+  return !!dateStr && dateStr < sessionDateFloorStr();
+}
+
 function buildSessionData(status) {
   // Snapshot the coachee's current reporting chain onto the session so a Manager/Senior
   // Manager's Firestore query (coacheeReportsUpTo array-contains me) can find it without
@@ -6095,6 +6145,10 @@ async function getNextSessionCode() {
 // ── Save Draft ────────────────────────────────────────────────
 window.saveDraft = async function() {
   if (!currentSessionCoacheeId) { toast('Please select a coachee first.','error'); return; }
+  if (isSessionDateTooOld(document.getElementById('sf-session-date').value)) {
+    toast('Session date cannot be more than 1 week in the past. Please adjust the date, or contact your L&D Director for older entries.','error');
+    return;
+  }
   const btn = document.getElementById('session-save-draft-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
@@ -6143,6 +6197,10 @@ window.submitSession = async function() {
   if (!currentSessionCoacheeId)                    { toast('Please select a coachee first.','error'); return; }
   if (!getFocusAreas().length)                     { toast('Please select at least one focus area.','error'); return; }
   if (!document.getElementById('sf-session-date').value) { toast('Session date is required.','error'); return; }
+  if (isSessionDateTooOld(document.getElementById('sf-session-date').value)) {
+    toast('Session date cannot be more than 1 week in the past. Please adjust the date, or contact your L&D Director for older entries.','error');
+    return;
+  }
   if (!quillObs || quillObs.getText().trim()==='') { toast('Key Observations are required.','error'); return; }
   if (!quillGoals||quillGoals.getText().trim()===''){toast('Goal Setting is required.','error'); return; }
 
@@ -6485,12 +6543,21 @@ async function loadActionPlans() {
       if (sel) { sel.value = pendingAPCoacheeFilter; filterActionPlans(); }
       pendingAPCoacheeFilter = null;
     }
-  } catch(e) { container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading action plans.</div></div>'; }
+  } catch(e) {
+    console.error('loadActionPlans error', e);
+    renderAPStats([], 'apl-stats-new', 'apl-donut', 'apl-donut-legend');
+    container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading action plans.</div></div>';
+  }
 }
 
 
 function renderActionPlans(plans) {
   const container = document.getElementById('apl-list');
+  // Render status cards + donut FIRST, unconditionally — otherwise a genuinely-empty
+  // team (or a fetch that came back with zero rows) leaves the whole stats row blank
+  // instead of showing four honest zeroes. Mirrors renderMyActionPlans, which already
+  // did this correctly.
+  renderAPStats(plans, 'apl-stats-new', 'apl-donut', 'apl-donut-legend');
   if (!plans.length) {
     container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9989;</div><div class="empty-title">No action plans</div><div class="empty-sub">Action items will appear here once a session is submitted.</div></div>';
     return;
@@ -6545,7 +6612,6 @@ function renderActionPlans(plans) {
     + '</tr></thead>'
     + '<tbody>'+rows+'</tbody></table></div>';
 
-  renderAPStats(plans, 'apl-stats-new', 'apl-donut', 'apl-donut-legend');
   setupTableEnhancements(document.getElementById('apl-table'), 'apl', filterActionPlans);
 
   // Post-render: apply status colours
@@ -6882,7 +6948,7 @@ async function loadMyActionPlans() {
     allMyActionPlans = snap.docs.map(d=>({id:d.id,...d.data()}))
       .sort((a,b)=>(a.dueDate||'').localeCompare(b.dueDate||''));
     renderMyActionPlans(allMyActionPlans);
-  } catch(e) { container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading action plans.</div></div>'; }
+  } catch(e) { console.error('loadMyActionPlans error', e); container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading action plans.</div></div>'; }
 }
 
 function renderMyActionPlans(plans) {

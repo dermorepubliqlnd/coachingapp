@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function myDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function iExist() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function isAdmin() {
+      return iExist() && myDoc().permissions.admin == true;
+    }
+    // Enterprise Dashboard access — a separate, explicitly-granted flag (independent of
+    // the reporting hierarchy) for named Chiefs/execs who need org-wide read visibility
+    // without full System Admin rights. Admin is a superset of Enterprise.
+    function isEnterprise() {
+      return isAdmin() || (iExist() && myDoc().permissions.enterprise == true);
+    }
+    function isFirstRun() {
+      return isSignedIn() && request.auth.token.email == 'sbarlao@dermorepubliq.com';
+    }
+
+    // USERS — least-privilege directory:
+    //  • own doc     (request.auth.uid == userId)
+    //  • admin/enterprise (all)
+    //  • coach/manager reading anyone in their own org subtree, any depth
+    //                (request.auth.uid in resource.data.reportsUpTo)
+    //  • coachee     reading their own assigned coach      (my coachId == userId)
+    match /users/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId
+        || isEnterprise()
+        || resource.data.coachId == request.auth.uid
+        || (resource.data.reportsUpTo is list && request.auth.uid in resource.data.reportsUpTo)
+        || (iExist() && myDoc().coachId == userId)
+      );
+      allow create: if isAdmin() || isFirstRun();
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // SESSIONS — coach (owner), coachee (subject), admin/enterprise (all), or a
+    // Manager/Senior Manager reading anywhere in their own org subtree (read-only —
+    // editing stays limited to the coach who ran it / the coachee acknowledging it).
+    // App queries are constrained by coachId==uid, coacheeId==uid, or
+    // coacheeReportsUpTo array-contains uid, so these reads are permitted.
+    match /sessions/{sessionId} {
+      allow read: if isSignedIn() && (
+        isEnterprise() ||
+        resource.data.coachId == request.auth.uid ||
+        resource.data.coacheeId == request.auth.uid ||
+        (resource.data.coacheeReportsUpTo is list && request.auth.uid in resource.data.coacheeReportsUpTo)
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.coachId == request.auth.uid ||
+        resource.data.coacheeId == request.auth.uid
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ACTION PLANS — same ownership + hierarchy-rollup model as sessions.
+    match /actionPlans/{apId} {
+      allow read: if isSignedIn() && (
+        isEnterprise() ||
+        resource.data.coachId == request.auth.uid ||
+        resource.data.coacheeId == request.auth.uid ||
+        (resource.data.coacheeReportsUpTo is list && request.auth.uid in resource.data.coacheeReportsUpTo)
+      );
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.coachId == request.auth.uid ||
+        resource.data.coacheeId == request.auth.uid
+      );
+      allow delete: if isAdmin();
+
+      match /comments/{commentId} {
+        allow read:   if isSignedIn();
+        allow create: if isSignedIn();
+        allow update: if isSignedIn() && resource.data.authorId == request.auth.uid;
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /departments/{deptId} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read:  if isSignedIn() || isFirstRun();
+      allow write: if isAdmin() || isFirstRun();
+    }
+
+    match /meta/{metaId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /auditLog/{logId} {
+      allow read:   if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /deletionRequests/{reqId} {
+      allow read:   if isAdmin() || (isSignedIn() && resource.data.requestedBy == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+  }
+}
