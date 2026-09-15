@@ -1465,9 +1465,14 @@
       <div class="form-group" id="mu-active-group" style="display:none">
         <label class="form-label">Account Status</label>
         <div style="display:flex;align-items:center;gap:10px">
-          <label class="toggle"><input type="checkbox" id="mu-active" checked><span class="toggle-slider"></span></label>
+          <label class="toggle"><input type="checkbox" id="mu-active" checked onchange="toggleEndDateField()"><span class="toggle-slider"></span></label>
           <span style="font-size:13px;color:var(--text)">Active</span>
         </div>
+      </div>
+      <div class="form-group" id="mu-enddate-group" style="display:none">
+        <label class="form-label">End Date</label>
+        <input type="date" id="mu-enddate" class="form-control">
+        <div class="form-hint">Last working day. Auto-filled to today when deactivated — adjust if needed. Keeps historical coaching-compliance months accurate after this person leaves.</div>
       </div>
       <div id="mu-error" class="form-error-msg"></div>
     </div>
@@ -2527,7 +2532,7 @@ function renderUsersTable() {
       + '<td style="font-size:12px">' + displayHireDate(u.hireDate) + '</td>'
       + '<td>' + badges + '</td>'
       + '<td>' + esc(coachName) + '</td>'
-      + '<td><span class="badge badge-' + (u.active!==false?'active':'inactive') + '">' + (u.active!==false?'Active':'Inactive') + '</span></td>'
+      + '<td><span class="badge badge-' + (u.active!==false?'active':'inactive') + '">' + (u.active!==false?'Active':'Inactive') + '</span>' + ((u.active===false && u.endDate) ? '<div style=\"font-size:10.5px;color:var(--muted);margin-top:2px\">Ended '+esc(displayHireDate(u.endDate))+'</div>' : '') + '</td>'
       + '<td><div style="display:flex;gap:5px">'
       + '<button class="btn btn-ghost btn-sm" onclick="openUserModal(\'' + u.uid + '\')">Edit</button>'
       + (!isSelf ? '<button class="btn btn-danger btn-sm" onclick="confirmDeactivate(\'' + u.uid + '\',\'' + esc(u.firstName+' '+u.lastName) + '\','+u.active+')">'+((u.active!==false)?'Deactivate':'Reactivate')+'</button>' : '')
@@ -2816,7 +2821,8 @@ window.openBulkStatusModal = function(makeActive) {
   btn.onclick = async () => {
     btn.disabled = true;
     try {
-      const updates = uids.map(uid => ({ ref: doc(db,'users',uid), data: { active: makeActive, updatedAt: serverTimestamp() } }));
+      const bulkEndDate = makeActive ? null : new Date().toISOString().slice(0,10);
+      const updates = uids.map(uid => ({ ref: doc(db,'users',uid), data: { active: makeActive, endDate: bulkEndDate, updatedAt: serverTimestamp() } }));
       await commitInChunks(updates);
       const names = uids.map(uid => { const u = allUsers.find(x=>x.uid===uid); return u ? u.firstName+' '+u.lastName : uid; });
       await addDoc(collection(db,'auditLog'), {
@@ -2922,7 +2928,8 @@ window.openUserModal = function(uid) {
   const coachSel = document.getElementById('mu-coach');
   coachSel.innerHTML = '<option value="">— Select coach / manager —</option>'
     + coaches.map(c => '<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
-  ['mu-firstname','mu-lastname','mu-empid','mu-email','mu-position','mu-hiredate'].forEach(id => document.getElementById(id).value = '');
+  ['mu-firstname','mu-lastname','mu-empid','mu-email','mu-position','mu-hiredate','mu-enddate'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('mu-enddate-group').style.display = 'none';
   const deptSel = document.getElementById('mu-dept');
   deptSel.innerHTML = '<option value="">— No department —</option>'
     + allDepartments.filter(d=>d.active!==false).sort((a,b)=>a.name.localeCompare(b.name)).map(d=>'<option value="'+esc(d.name)+'">'+esc(d.name)+'</option>').join('');
@@ -2955,6 +2962,8 @@ window.openUserModal = function(uid) {
     if (u.coachId) coachSel.value = u.coachId;
     document.getElementById('mu-active-group').style.display = 'block';
     document.getElementById('mu-active').checked = u.active !== false;
+    document.getElementById('mu-enddate').value = normalizeDate(u.endDate) || '';
+    toggleEndDateField();
     document.getElementById('mu-reset-btn').style.display = 'inline-flex';
     document.getElementById('mu-reset-btn').dataset.email = u.email || '';
   } else {
@@ -2978,6 +2987,16 @@ window.updateCoachField = function() {
     ? 'Assigned Coach ' : 'Reports To ';
 };
 
+window.toggleEndDateField = function() {
+  const isActive = document.getElementById('mu-active').checked;
+  const grp = document.getElementById('mu-enddate-group');
+  if (!grp) return;
+  grp.style.display = isActive ? 'none' : 'block';
+  if (!isActive && !document.getElementById('mu-enddate').value) {
+    document.getElementById('mu-enddate').value = new Date().toISOString().slice(0,10);
+  }
+};
+
 window.saveUser = async function() {
   const btn    = document.getElementById('mu-save-btn');
   const errEl  = document.getElementById('mu-error');
@@ -2989,6 +3008,7 @@ window.saveUser = async function() {
   const empId     = document.getElementById('mu-empid').value.trim();
   const position  = document.getElementById('mu-position').value.trim();
   const hireDate    = document.getElementById('mu-hiredate').value || null;
+  const endDate     = document.getElementById('mu-active').checked ? null : (document.getElementById('mu-enddate').value || null);
   const department  = document.getElementById('mu-dept').value.trim() || null;
   const permissions = {
     enterprise:     document.getElementById('mu-perm-enterprise').checked,
@@ -3008,7 +3028,7 @@ window.saveUser = async function() {
     let targetUid = uid;
     if (uid) {
       const active = document.getElementById('mu-active').checked;
-      await updateDoc(doc(db,'users',uid), { firstName,lastName,employeeId:empId,position,hireDate,department,permissions,roles,coachId,active,updatedAt:serverTimestamp() });
+      await updateDoc(doc(db,'users',uid), { firstName,lastName,employeeId:empId,position,hireDate,department,permissions,roles,coachId,active,endDate,updatedAt:serverTimestamp() });
       await addDoc(collection(db,'auditLog'), { action:'update_user', targetUid:uid, targetName:firstName+' '+lastName, performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'Roles: '+roles.join(', ')+'. Admin: '+(permissions.admin||false)+'.', timestamp:serverTimestamp() });
       toast('User updated.','success');
     } else {
@@ -3059,7 +3079,9 @@ window.confirmDeactivate = function(uid, name, active) {
   btn.onclick = async () => {
     btn.disabled = true;
     try {
-      await updateDoc(doc(db,'users',uid), { active:!active, updatedAt:serverTimestamp() });
+      const newActive = !active;
+      const updates = { active:newActive, endDate: newActive ? null : new Date().toISOString().slice(0,10), updatedAt:serverTimestamp() };
+      await updateDoc(doc(db,'users',uid), updates);
       closeModal('modal-confirm');
       toast((active?'Deactivated':'Reactivated') + ' ' + name + '.','success');
       await loadUsers();
@@ -4222,8 +4244,14 @@ function deptScopeSet(deptName) {
 // Rules: must be active, must have coachee role, hire date must be before the month
 // (compliance starts the month AFTER hire month — e.g. hired May → counted from June).
 function isRequiredInMonth(user, mStr) {
-  if (user.active === false) return false;
   if (!(user.roles||[]).includes('coachee')) return false;
+  if (user.active === false) {
+    // Deactivated — still required for months on/before their End Date (keeps
+    // historical compliance accurate). No End Date on file (pre-this-feature
+    // deactivations) excludes them entirely — no record of when they left.
+    const normEnd = normalizeDate(user.endDate);
+    if (!normEnd || mStr > normEnd.slice(0, 7)) return false;
+  }
   if (!user.hireDate) return true; // no hire date set → always counted (backward compat)
   // Normalize first — stored dates may be MM/DD/YYYY (old CSV imports) or YYYY-MM-DD
   const normHire = normalizeDate(user.hireDate);
@@ -4401,15 +4429,16 @@ async function loadDashboard(forceRefresh) {
   // ── Per-leader stats ─────────────────────────────────────────
   const today = new Date(); today.setHours(0,0,0,0);
   const leaderStats = coaches.map(coach => {
-    const team    = allCoachees.filter(c => c.coachId === coach.uid && c.active !== false);
-    const teamReq = team.filter(c => isRequiredInMonth(c, curMonStr));
+    const teamAll = allCoachees.filter(c => c.coachId === coach.uid);
+    const team    = teamAll.filter(c => c.active !== false);
+    const teamReq = teamAll.filter(c => isRequiredInMonth(c, curMonStr));
     const req     = teamReq.length;
     const coached = teamReq.filter(c => curCoachedSet.has(c.uid)).length;
     const pct     = req ? Math.round(coached / req * 100) : 0;
     let lYtdC = 0, lYtdR = 0;
     for (let m = 1; m <= selMo; m++) {
       const mStr  = selYear+'-'+String(m).padStart(2,'0');
-      const mReq  = team.filter(c => isRequiredInMonth(c, mStr));
+      const mReq  = teamAll.filter(c => isRequiredInMonth(c, mStr));
       const cSet  = coachedInMonth(mStr);
       lYtdR += mReq.length;
       lYtdC += mReq.filter(c => cSet.has(c.uid)).length;
@@ -4984,7 +5013,7 @@ function renderOrgRollup(allCoachees, coaches, curMonStr, curCoachedSet) {
   const pctColor = p => p >= 100 ? '#1A6B34' : p >= COMPLIANCE_TARGET ? '#A05A0A' : '#B91C1C';
   const pctBg    = p => p >= 100 ? '#E6F4EB' : p >= COMPLIANCE_TARGET ? '#FEF0E0' : '#FEE2E2';
   const complianceOf = members => {
-    const req = members.filter(c => isRequiredInMonth(c, curMonStr) && c.active !== false);
+    const req = members.filter(c => isRequiredInMonth(c, curMonStr));
     const coached = req.filter(c => curCoachedSet.has(c.uid)).length;
     return { count: members.filter(c=>c.active!==false).length, req: req.length, coached, pct: req.length ? Math.round(coached/req.length*100) : 0 };
   };
