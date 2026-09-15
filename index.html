@@ -4958,10 +4958,10 @@ function renderPriorityAttention({ allCoachees, curRequired, curCoachedSet, lead
     text: zeroLeaders.length+' leader'+(zeroLeaders.length>1?'s have':' has')+' zero coaching this month: '+zeroLeaders.map(l=>l.coach.firstName+' '+l.coach.lastName).join(', ')+'.' });
   if (apOverdue14p.length) items.push({ icon:'&#9200;', color:'#A05A0A', bg:'#FEF0E0',
     text: apOverdue14p.length+' action plan'+(apOverdue14p.length>1?'s are':' is')+' overdue by more than 14 days.' });
-  const noManager = allCoachees.filter(c => !c.coachId);
+  const noManager = allCoachees.filter(c => c.active !== false && !c.coachId);
   if (noManager.length) items.push({ icon:'&#10067;', color:'#A05A0A', bg:'#FEF0E0',
     text: noManager.length+' employee'+(noManager.length>1?'s have':' has')+' no assigned manager/coach.' });
-  const missingHire = allCoachees.filter(c => !c.hireDate);
+  const missingHire = allCoachees.filter(c => c.active !== false && !c.hireDate);
   if (missingHire.length) items.push({ icon:'&#128203;', color:'#6B7A8D', bg:'var(--light)',
     text: missingHire.length+' employee'+(missingHire.length>1?'s are':' is')+' missing a hire date (currently defaults to always-eligible).' });
   if (!items.length) items.push({ icon:'&#9989;', color:'#1A6B34', bg:'#E6F4EB', text: 'No priority issues detected for this period.' });
