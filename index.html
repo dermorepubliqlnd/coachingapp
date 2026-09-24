@@ -2347,21 +2347,21 @@ function renderSidebar() {
   // their team (see loadDashboard()) — no separate toggle needed for that narrower case.
   const canDash = hasEnterpriseAccess(currentProfile) || currentUserHasDownline;
   // Overview — Dashboard on its own, separate from the day-to-day Coaching section
-  // (matches the intended nav grouping: Overview / Coaching / My Development / Reports).
+  // (nav grouping: Overview / My Development / Coaching / Reports — My Development first per Sandra, Sep 2026).
   if (canDash) {
     html += '<div class="nav-section-label">Overview</div>';
     html += ni('dashboard', NAV_ICONS.dashboard, 'Dashboard');
+  }
+  if (roles.includes('coachee')) {
+    html += '<div class="nav-section-label">My Development</div>';
+    html += ni('my-coaching',      NAV_ICONS.coaching,  roles.length > 1 ? 'My Coaching' : 'My Sessions');
+    html += ni('my-action-plans',  NAV_ICONS.checklist, 'My Action Plans');
   }
   if (roles.includes('coach')) {
     html += '<div class="nav-section-label">Coaching</div>';
     html += ni('coach-home',     NAV_ICONS.team,      'My Team');
     html += ni('coach-sessions', NAV_ICONS.clipboard, 'Coaching Sessions');
     html += ni('action-plans',   NAV_ICONS.checklist, 'Action Plans');
-  }
-  if (roles.includes('coachee')) {
-    html += '<div class="nav-section-label">My Development</div>';
-    html += ni('my-coaching',      NAV_ICONS.coaching,  roles.length > 1 ? 'My Coaching' : 'My Sessions');
-    html += ni('my-action-plans',  NAV_ICONS.checklist, 'My Action Plans');
   }
   // Admin section — pushed to bottom. Reports gets its own section label (matching the
   // intended nav grouping) but stays as the single existing Reports view internally —
