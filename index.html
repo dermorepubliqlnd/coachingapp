@@ -4178,6 +4178,13 @@ function coacheeSessionAction(s) {
   if (s.status === 'prep-requested' || s.status === 'coachee-preparing') {
     return '<button class="btn btn-primary btn-sm" onclick="openCoacheePrepForm(\''+s.id+'\')">Prepare</button>';
   }
+  if (s.status === 'prep-submitted' || s.status === 'coach-review') {
+    // Prep already sent, coach hasn't finalized yet — coachee can still update it.
+    return '<div style="display:flex;gap:4px;align-items:center">'
+      + '<button class="btn btn-ghost btn-sm" onclick="openCoacheePrepForm(\''+s.id+'\')">Edit Prep</button>'
+      + '<button class="icon-btn" onclick="openExistingSession(\''+s.id+'\')" title="View session">'+ICON_EYE+'</button>'
+      + '</div>';
+  }
   if (s.status === 'pending-commitment') {
     return '<button class="btn btn-primary btn-sm" onclick="openExistingSession(\''+s.id+'\')">Add Commitment</button>';
   }
@@ -5990,7 +5997,6 @@ async function loadExistingSession(sessionId) {
         if (s.status === 'prep-submitted') {
           updateDoc(doc(db,'sessions',currentSessionId), { status:'coach-review', updatedAt:serverTimestamp() });
         }
-        showCoacheePrepPanel(s.prep || {});
         if (s.prep && s.prep.proposedAP && s.prep.proposedAP.length && (!s.actionPlan || !s.actionPlan.length)) {
           initActionPlan(s.prep.proposedAP);
         }
@@ -6074,6 +6080,12 @@ async function loadExistingSession(sessionId) {
         document.getElementById('sf-commitment-text').value = s.employeeCommitment || s.employeeReflection || '';
         document.getElementById('sf-commitment-text').disabled = true;
       }
+    }
+    // Coachee's pre-session prep stays visible (read-only) in the session log from
+    // submission through completion, for both coach and coachee. Not in the PDF.
+    const PREP_VISIBLE = ['prep-submitted','coach-review','pending-commitment','pending','acknowledged','completed'];
+    if (PREP_VISIBLE.includes(s.status) && hasPrepContent(s.prep)) {
+      showCoacheePrepPanel(s.prep, { viewerIsCoachee: currentUser.uid === s.coacheeId, updatedAt: s.prepUpdatedAt });
     }
   } catch(e) { toast('Error loading session: '+e.message,'error'); }
 }
@@ -7683,6 +7695,8 @@ window.sendPrepRequest = async function() {
 let currentPrepSessionId = null;
 let prepAPRowCount = 0;
 
+const PREP_RESUBMIT_STATUSES = ['prep-submitted','coach-review'];
+const PREP_EDITABLE_STATUSES = ['prep-requested','coachee-preparing', ...PREP_RESUBMIT_STATUSES];
 window.openCoacheePrepForm = function(sessionId) {
   currentPrepSessionId = sessionId;
   navigateTo('coachee-prep');
@@ -7693,10 +7707,13 @@ async function loadCoacheePrepForm() {
   const snap = await getDoc(doc(db,'sessions',currentPrepSessionId));
   if (!snap.exists()) { toast('Session not found.','error'); navigateTo('my-coaching'); return; }
   const s = snap.data();
-  const isSubmitted = s.status === 'prep-submitted';
+  // Coachee can keep editing prep until the coach finalizes the session
+  // (status moves to pending-commitment). After that it's locked.
+  const alreadySent = PREP_RESUBMIT_STATUSES.includes(s.status);
+  const isSubmitted = !PREP_EDITABLE_STATUSES.includes(s.status);
 
   document.getElementById('prep-form-title').textContent = 'Pre-Session Preparation';
-  document.getElementById('prep-form-sub').textContent   = isSubmitted ? 'Submitted — read only' : 'Help your coach prepare for your conversation';
+  document.getElementById('prep-form-sub').textContent   = isSubmitted ? 'Locked — read only' : alreadySent ? 'Submitted — you can still update this before your session' : 'Help your coach prepare for your conversation';
 
   const prep = s.prep || {};
   document.getElementById('prep-discuss').value       = prep.discuss      || '';
@@ -7720,15 +7737,25 @@ async function loadCoacheePrepForm() {
     document.getElementById('prep-submit-btn').style.display     = 'none';
     const bar = document.getElementById('prep-status-bar');
     bar.style.cssText = 'display:block;margin-bottom:12px;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;font-weight:500;background:var(--green-lt);color:var(--green)';
-    bar.textContent = 'Preparation submitted — your coach is reviewing.';
+    bar.textContent = 'Your coach has finalized this session, so your preparation is now locked. You can still view it in the session log.';
   } else {
     ['prep-discuss','prep-wins','prep-challenges','prep-proposed-goal'].forEach(id => {
       document.getElementById(id).disabled = false;
     });
+    const subBtn = document.getElementById('prep-submit-btn');
+    subBtn.disabled = false;
+    subBtn.textContent = alreadySent ? 'Update Preparation' : 'Submit Preparation';
+    subBtn.style.display = 'inline-flex';
     document.getElementById('prep-ap-add-btn').style.display     = 'inline-flex';
-    document.getElementById('prep-save-draft-btn').style.display = 'inline-flex';
-    document.getElementById('prep-submit-btn').style.display     = 'inline-flex';
-    document.getElementById('prep-status-bar').style.display     = 'none';
+    // Save Draft only makes sense before the first submission
+    document.getElementById('prep-save-draft-btn').style.display = alreadySent ? 'none' : 'inline-flex';
+    const bar = document.getElementById('prep-status-bar');
+    if (alreadySent) {
+      bar.style.cssText = 'display:block;margin-bottom:12px;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;font-weight:500;background:var(--blue-lt);color:var(--blue)';
+      bar.textContent = 'Already submitted to your coach. You can still add or change anything until your coach finalizes the session.';
+    } else {
+      bar.style.display = 'none';
+    }
     // Status updated to 'coachee-preparing' on first save/submit, not on open
   }
 }
@@ -7765,7 +7792,12 @@ window.saveCoacheePrepDraft = async function() {
   try {
     // Advance status from prep-requested → coachee-preparing on first save
     const _statusSnap = await getDoc(doc(db,'sessions',currentPrepSessionId));
-    if (_statusSnap.exists() && _statusSnap.data().status === 'prep-requested') {
+    if (!_statusSnap.exists() || !PREP_EDITABLE_STATUSES.includes(_statusSnap.data().status)) {
+      toast('Your coach has already finalized this session — preparation can no longer be changed.','error');
+      btn.disabled = false; btn.textContent = 'Save Draft';
+      await loadCoacheePrepForm(); return;
+    }
+    if (_statusSnap.data().status === 'prep-requested') {
       await updateDoc(doc(db,'sessions',currentPrepSessionId), { status:'coachee-preparing', updatedAt:serverTimestamp() });
     }
     await updateDoc(doc(db,'sessions',currentPrepSessionId), {
@@ -7786,15 +7818,34 @@ window.submitCoacheePrep = async function() {
     toast('Please share what you would like to discuss.','error'); return;
   }
   const btn = document.getElementById('prep-submit-btn');
+  const origLabel = btn.textContent;
   btn.disabled = true; btn.textContent = 'Submitting…';
   try {
-    await updateDoc(doc(db,'sessions',currentPrepSessionId), {
+    // Re-check status server-side — the coach may have finalized since this form opened.
+    const _snap = await getDoc(doc(db,'sessions',currentPrepSessionId));
+    const _st = _snap.exists() ? _snap.data().status : null;
+    if (!PREP_EDITABLE_STATUSES.includes(_st)) {
+      toast('Your coach has already finalized this session — preparation can no longer be changed.','error');
+      await loadCoacheePrepForm(); return;
+    }
+    const prepFields = {
       'prep.discuss':      document.getElementById('prep-discuss').value,
       'prep.wins':         document.getElementById('prep-wins').value,
       'prep.challenges':   document.getElementById('prep-challenges').value,
       'prep.proposedGoal': document.getElementById('prep-proposed-goal').value,
       'prep.proposedAP':   getPrepActionPlan(),
-      status: 'prep-submitted', prepSubmittedAt: serverTimestamp(), updatedAt: serverTimestamp()
+      updatedAt: serverTimestamp()
+    };
+    if (PREP_RESUBMIT_STATUSES.includes(_st)) {
+      // Update after submission — keep the current status (don't bounce coach-review back).
+      await updateDoc(doc(db,'sessions',currentPrepSessionId), { ...prepFields, prepUpdatedAt: serverTimestamp() });
+      toast('Preparation updated. Your coach will see the latest version.','success');
+      await loadCoacheePrepForm();
+      return;
+    }
+    await updateDoc(doc(db,'sessions',currentPrepSessionId), {
+      ...prepFields,
+      status: 'prep-submitted', prepSubmittedAt: serverTimestamp()
     });
     toast('Preparation submitted to your coach.','success');
     ['prep-discuss','prep-wins','prep-challenges','prep-proposed-goal'].forEach(id => {
@@ -7807,9 +7858,9 @@ window.submitCoacheePrep = async function() {
     btn.style.display='none';
     const bar = document.getElementById('prep-status-bar');
     bar.style.cssText = 'display:block;margin-bottom:12px;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;font-weight:500;background:var(--green-lt);color:var(--green)';
-    bar.textContent = 'Preparation submitted — your coach is reviewing.';
+    bar.textContent = 'Preparation submitted. You can still update it from My Coaching (Edit Prep) until your coach finalizes the session.';
     loadNotificationBadges();
-  } catch(e) { toast('Error: '+e.message,'error'); btn.disabled=false; btn.textContent='Submit Preparation'; }
+  } catch(e) { toast('Error: '+e.message,'error'); btn.disabled=false; btn.textContent=origLabel; }
 };
 
 // ── Open AP Banner & Carry-over ───────────────────────────────
@@ -7817,7 +7868,22 @@ let openAPsForCoachee = [];   // loaded when coachee selected on a new session
 let carriedOverAPs    = {};   // { apId: { followUpNotes, action, dueDate, status } }
 
 // ── Coachee Prep Panel (coach review reference) ───────────────
-function showCoacheePrepPanel(prep) {
+function hasPrepContent(prep) {
+  if (!prep) return false;
+  return !!((prep.discuss||'').trim() || (prep.wins||'').trim() || (prep.challenges||'').trim() || (prep.proposedGoal||'').trim()
+    || (prep.proposedAP||[]).some(r => (r.action||'').trim()));
+}
+function showCoacheePrepPanel(prep, opts) {
+  opts = opts || {};
+  const me = !!opts.viewerIsCoachee;
+  const L = me
+    ? { title:'Your Pre-Session Preparation', discuss:'What you want to discuss' }
+    : { title:'Coachee Pre-Session Preparation', discuss:'What they want to discuss' };
+  let updatedNote = '';
+  if (opts.updatedAt && opts.updatedAt.toDate) {
+    const d = opts.updatedAt.toDate();
+    updatedNote = '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Updated '+(me?'':'by coachee ')+'after submission on '+esc(d.toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'}))+'</div>';
+  }
   const existing = document.getElementById('coachee-prep-panel');
   if (existing) existing.remove();
   const panel = document.createElement('div');
@@ -7831,11 +7897,12 @@ function showCoacheePrepPanel(prep) {
   panel.innerHTML =
     '<div style="border:1px solid var(--blue);border-radius:var(--radius);overflow:hidden">'
     +'<div style="background:var(--blue-lt);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="const b=this.nextElementSibling;b.style.display=b.style.display===\'none\'?\'block\':\'none\'">'
-    +'<div style="font-size:12.5px;font-weight:600;color:var(--blue)">&#128203; Coachee Pre-Session Preparation <span style="font-weight:400;font-size:11px;opacity:.7">(reference only — click to toggle)</span></div>'
+    +'<div style="font-size:12.5px;font-weight:600;color:var(--blue)">&#128203; '+L.title+' <span style="font-weight:400;font-size:11px;opacity:.7">(reference only — click to toggle)</span></div>'
     +'<span style="font-size:11px;color:var(--blue)">&#9660;</span>'
     +'</div>'
     +'<div style="padding:14px 16px;background:white">'
-    +(prep.discuss?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">What they want to discuss</div><div style="font-size:13px;line-height:1.5">'+esc(prep.discuss)+'</div></div>':'')
+    +updatedNote
+    +(prep.discuss?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+L.discuss+'</div><div style="font-size:13px;line-height:1.5">'+esc(prep.discuss)+'</div></div>':'')
     +(prep.wins?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wins &amp; Progress</div><div style="font-size:13px;line-height:1.5">'+esc(prep.wins)+'</div></div>':'')
     +(prep.challenges?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Challenges &amp; Concerns</div><div style="font-size:13px;line-height:1.5">'+esc(prep.challenges)+'</div></div>':'')
     +(prep.proposedGoal?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Proposed Goal</div><div style="font-size:13px;line-height:1.5">'+esc(prep.proposedGoal)+'</div></div>':'')
