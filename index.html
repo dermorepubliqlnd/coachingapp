@@ -4949,7 +4949,7 @@ function renderDeptPerformance(allCoachees, curMonStr, curCoachedSet, allAPs, us
   container.innerHTML = '<div class="table-wrap"><table class="rt-table" style="font-size:12px">'
     + '<thead><tr>'
     + thSortDept('Department','dept','min-width:120px')
-    + thSortDept('Eligible','eligible','text-align:center;min-width:60px')
+    + thSortDept('Required','eligible','text-align:center;min-width:60px')
     + thSortDept('Coached','coached','text-align:center;min-width:65px')
     + thSortDept('Compliance','compliance','text-align:center;min-width:85px')
     + thSortDept('Action Closure','closureRate','text-align:center;min-width:95px')
@@ -5028,17 +5028,17 @@ function renderOrgRollup(allCoachees, coaches, curMonStr, curCoachedSet) {
       const coach = coaches.find(x => x.uid === coachId);
       const s = complianceOf(byCoach[coachId]);
       return { name: coach ? coach.firstName+' '+coach.lastName : 'No senior leader assigned', ...s };
-    }).sort((a,b) => b.count - a.count);
+    }).sort((a,b) => b.req - a.req);
 
     return { name: deptName, ...stats, subRows, idx: di };
-  }).sort((a,b) => b.count - a.count);
+  }).sort((a,b) => b.req - a.req);
 
   const rowHtml = (r, isSub) => {
     const barColor = pctColor(r.pct);
     return '<div style="display:grid;grid-template-columns:'+(isSub?'26px 1fr 90px 70px':'20px 1fr 90px 70px')+';align-items:center;gap:10px;padding:'+(isSub?'8px 10px 8px 34px':'10px')+';border-bottom:1px solid var(--border)'+(isSub?';background:#FAFCFD':'')+'">'
       + (isSub ? '<span></span>' : '<span style="font-size:9px;color:var(--muted)">'+(r.subRows&&r.subRows.length?'&#9654;':'')+'</span>')
       + '<div><div style="font-weight:'+(isSub?'500':'700')+';font-size:'+(isSub?'12px':'12.5px')+';color:'+(isSub?'#3A5568':'var(--text)')+'">'+esc(r.name)+'</div>'
-      + '<div style="font-size:10.5px;color:var(--muted)">'+r.count+' coachee'+(r.count===1?'':'s')+(r.req? ' &middot; '+r.coached+'/'+r.req+' coached':'')+'</div></div>'
+      + '<div style="font-size:10.5px;color:var(--muted)">'+(r.req ? r.req+' required &middot; '+r.coached+' coached' : 'None required this month')+'</div></div>'
       + '<div class="bar-bg" style="background:#EEF4F7;border-radius:6px;height:6px;overflow:hidden"><div style="height:100%;border-radius:6px;width:'+r.pct+'%;background:'+barColor+'"></div></div>'
       + '<div style="text-align:right;font-weight:700;font-size:12.5px;color:'+barColor+'">'+r.pct+'%</div>'
       + '</div>';
