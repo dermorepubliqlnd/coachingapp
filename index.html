@@ -385,6 +385,22 @@
 
     /* ── PHASE 2: FORM SECTION HEADERS ──────────────────────── */
     .section-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+    /* Rich text editor (coachee prep) — B / I / numbered / bullets only */
+    .rte{border:1px solid var(--border);border-radius:var(--radius);background:white;transition:border-color .15s}
+    .rte:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(21,96,130,.1)}
+    .rte-toolbar{display:flex;gap:2px;padding:4px 6px;border-bottom:1px solid var(--border);background:#F8FAFC;border-radius:var(--radius) var(--radius) 0 0}
+    .rte-btn{border:none;background:transparent;min-width:28px;height:26px;border-radius:4px;cursor:pointer;color:var(--text);font-size:13px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px}
+    .rte-btn:hover{background:#E6EEF3}
+    .rte-btn.active{background:#DCE8F0;color:var(--blue)}
+    .rte-editor{min-height:72px;padding:8px 11px;font-size:13.5px;line-height:1.5;color:var(--text);outline:none;overflow-wrap:anywhere}
+    .rte-editor:empty:before{content:attr(data-placeholder);color:#9AAFBD;pointer-events:none}
+    .rte.disabled{background:var(--light)}
+    .rte.disabled .rte-toolbar{display:none}
+    .rte.disabled .rte-editor{color:var(--muted)}
+    .rte-editor ul,.rte-editor ol,.rte-view ul,.rte-view ol{padding-left:22px;margin:4px 0}
+    .rte-editor ul,.rte-view ul{list-style:disc}
+    .rte-editor ol,.rte-view ol{list-style:decimal}
+    .rte-editor p,.rte-view p{margin:0 0 4px}
   </style>
   <!-- Phase 2 libraries -->
   <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
@@ -7695,6 +7711,95 @@ window.sendPrepRequest = async function() {
 let currentPrepSessionId = null;
 let prepAPRowCount = 0;
 
+// ── Rich text (coachee prep) ─────────────────────────────────
+// Each prep <textarea> stays in the DOM (hidden) as the value store, so every existing
+// .value read/write keeps working. The contenteditable editor syncs sanitized HTML into it.
+const PREP_RICH_IDS = ['prep-discuss','prep-wins','prep-challenges','prep-proposed-goal'];
+const RTE_ALLOWED = { B:'b', STRONG:'b', I:'i', EM:'i', UL:'ul', OL:'ol', LI:'li', BR:'br', P:'p', DIV:'div' };
+function sanitizeRichHtml(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html || '';
+  const clean = node => {
+    let out = '';
+    node.childNodes.forEach(n => {
+      if (n.nodeType === 3) { out += esc(n.nodeValue); return; }
+      if (n.nodeType !== 1) return;
+      if (['SCRIPT','STYLE','IFRAME','OBJECT','EMBED','TEMPLATE'].includes(n.tagName)) return;
+      const tag = RTE_ALLOWED[n.tagName];
+      const inner = clean(n);
+      if (!tag) { out += inner; return; }           // unknown tag → keep its text only
+      out += tag === 'br' ? '<br>' : '<'+tag+'>'+inner+'</'+tag+'>';
+    });
+    return out;
+  };
+  return clean(tpl.content);
+}
+function looksLikeRichHtml(v) { return /<\/?(b|strong|i|em|ul|ol|li|br|p|div)\b/i.test(v||''); }
+// Display-ready HTML for a stored prep value (rich HTML or legacy plain text)
+function renderPrepRich(v) {
+  if (!v) return '';
+  return looksLikeRichHtml(v) ? sanitizeRichHtml(v) : esc(v).replace(/\n/g,'<br>');
+}
+function rteSync(id) {
+  const ed = document.getElementById(id+'-rte-ed'), ta = document.getElementById(id);
+  if (!ed || !ta) return;
+  ta.value = (ed.innerText||'').trim() ? sanitizeRichHtml(ed.innerHTML) : '';
+}
+function rteUpdateActive(id) {
+  const wrap = document.getElementById(id+'-rte');
+  if (!wrap) return;
+  wrap.querySelectorAll('.rte-btn').forEach(b => {
+    let on = false; try { on = document.queryCommandState(b.dataset.cmd); } catch(e) {}
+    b.classList.toggle('active', !!on);
+  });
+}
+window.rteCmd = function(id, cmd) {
+  const ed = document.getElementById(id+'-rte-ed');
+  if (!ed || ed.contentEditable !== 'true') return;
+  ed.focus();
+  document.execCommand(cmd, false, null);
+  rteSync(id); rteUpdateActive(id);
+};
+function initPrepEditors() {
+  PREP_RICH_IDS.forEach(id => {
+    if (document.getElementById(id+'-rte')) return; // already built
+    const ta = document.getElementById(id);
+    if (!ta) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'rte'; wrap.id = id+'-rte';
+    const btn = (cmd, label, title) => '<button type="button" class="rte-btn" data-cmd="'+cmd+'" title="'+title+'" onmousedown="event.preventDefault()" onclick="rteCmd(\''+id+'\',\''+cmd+'\')">'+label+'</button>';
+    wrap.innerHTML = '<div class="rte-toolbar">'
+      + btn('bold','<b>B</b>','Bold (Ctrl+B)')
+      + btn('italic','<i>I</i>','Italic (Ctrl+I)')
+      + btn('insertOrderedList','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/></svg>','Numbered list')
+      + btn('insertUnorderedList','<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>','Bullet list')
+      + '</div><div class="rte-editor" id="'+id+'-rte-ed" contenteditable="true" data-placeholder="'+esc(ta.getAttribute('placeholder')||'')+'"></div>';
+    ta.style.display = 'none';
+    ta.after(wrap);
+    const ed = document.getElementById(id+'-rte-ed');
+    ed.addEventListener('input', () => { if (!(ed.innerText||'').trim() && !ed.querySelector('li')) ed.innerHTML = ''; rteSync(id); });
+    ed.addEventListener('keyup', () => rteUpdateActive(id));
+    ed.addEventListener('mouseup', () => rteUpdateActive(id));
+    // Paste as plain text — keeps Word/email formatting junk out
+    ed.addEventListener('paste', e => {
+      e.preventDefault();
+      const t = (e.clipboardData || window.clipboardData).getData('text/plain');
+      document.execCommand('insertText', false, t);
+    });
+  });
+}
+// Push textarea values/disabled state into the editors (call after setting .value/.disabled)
+function refreshPrepEditors() {
+  initPrepEditors();
+  PREP_RICH_IDS.forEach(id => {
+    const ta = document.getElementById(id), ed = document.getElementById(id+'-rte-ed'), wrap = document.getElementById(id+'-rte');
+    if (!ta || !ed) return;
+    ed.innerHTML = renderPrepRich(ta.value);
+    ed.contentEditable = ta.disabled ? 'false' : 'true';
+    wrap.classList.toggle('disabled', !!ta.disabled);
+  });
+}
+
 const PREP_RESUBMIT_STATUSES = ['prep-submitted','coach-review'];
 const PREP_EDITABLE_STATUSES = ['prep-requested','coachee-preparing', ...PREP_RESUBMIT_STATUSES];
 window.openCoacheePrepForm = function(sessionId) {
@@ -7758,6 +7863,7 @@ async function loadCoacheePrepForm() {
     }
     // Status updated to 'coachee-preparing' on first save/submit, not on open
   }
+  refreshPrepEditors();
 }
 
 window.addPrepAPRow = function(data) {
@@ -7787,6 +7893,7 @@ function getPrepActionPlan() {
 }
 
 window.saveCoacheePrepDraft = async function() {
+  PREP_RICH_IDS.forEach(rteSync);
   const btn = document.getElementById('prep-save-draft-btn');
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
@@ -7814,6 +7921,7 @@ window.saveCoacheePrepDraft = async function() {
 };
 
 window.submitCoacheePrep = async function() {
+  PREP_RICH_IDS.forEach(rteSync);
   if (!document.getElementById('prep-discuss').value.trim()) {
     toast('Please share what you would like to discuss.','error'); return;
   }
@@ -7859,6 +7967,7 @@ window.submitCoacheePrep = async function() {
     const bar = document.getElementById('prep-status-bar');
     bar.style.cssText = 'display:block;margin-bottom:12px;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;font-weight:500;background:var(--green-lt);color:var(--green)';
     bar.textContent = 'Preparation submitted. You can still update it from My Coaching (Edit Prep) until your coach finalizes the session.';
+    refreshPrepEditors();
     loadNotificationBadges();
   } catch(e) { toast('Error: '+e.message,'error'); btn.disabled=false; btn.textContent=origLabel; }
 };
@@ -7902,10 +8011,10 @@ function showCoacheePrepPanel(prep, opts) {
     +'</div>'
     +'<div style="padding:14px 16px;background:white">'
     +updatedNote
-    +(prep.discuss?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+L.discuss+'</div><div style="font-size:13px;line-height:1.5">'+esc(prep.discuss)+'</div></div>':'')
-    +(prep.wins?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wins &amp; Progress</div><div style="font-size:13px;line-height:1.5">'+esc(prep.wins)+'</div></div>':'')
-    +(prep.challenges?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Challenges &amp; Concerns</div><div style="font-size:13px;line-height:1.5">'+esc(prep.challenges)+'</div></div>':'')
-    +(prep.proposedGoal?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Proposed Goal</div><div style="font-size:13px;line-height:1.5">'+esc(prep.proposedGoal)+'</div></div>':'')
+    +(prep.discuss?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+L.discuss+'</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.discuss)+'</div></div>':'')
+    +(prep.wins?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wins &amp; Progress</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.wins)+'</div></div>':'')
+    +(prep.challenges?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Challenges &amp; Concerns</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.challenges)+'</div></div>':'')
+    +(prep.proposedGoal?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Proposed Goal</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.proposedGoal)+'</div></div>':'')
     +(apRows?'<div><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Proposed Action Steps</div><table style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:5px 8px;border:1px solid var(--border);background:var(--light);font-size:11px;text-align:left">Action</th><th style="padding:5px 8px;border:1px solid var(--border);background:var(--light);font-size:11px;text-align:left">Support Needed</th><th style="padding:5px 8px;border:1px solid var(--border);background:var(--light);font-size:11px;text-align:left">Due Date</th></tr></thead><tbody>'+apRows+'</tbody></table></div>':'')
     +'</div></div>';
   const statusBar = document.getElementById('sf-status-bar');
