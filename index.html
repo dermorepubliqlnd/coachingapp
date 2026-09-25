@@ -684,7 +684,7 @@
                 <option value="coachee-preparing">Coachee Preparing</option>
                 <option value="prep-submitted">Prep Submitted</option>
                 <option value="coach-review">Coach Review</option>
-                <option value="pending-commitment">Pending Commitment</option>
+                <option value="pending-commitment">Pending Acknowledgement (Coachee-Led)</option>
                 <option value="pending">Pending Acknowledgement</option>
                 <option value="for-review">For Review</option>
                 <option value="acknowledged">Acknowledged</option>
@@ -919,10 +919,12 @@
 
           <!-- Section 2: Focus Area -->
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">Focus Area <span style="color:var(--red)">*</span></div>
+            <div class="section-head"><span id="sf-fa-title">Coaching Area</span> <span style="color:var(--red)">*</span></div>
+            <div class="sf-v2-only" style="font-size:12px;color:#6B7280;margin:-4px 0 8px">In what area is the employee being coached? Tick all that apply.</div>
             <div class="role-checks" style="margin-bottom:10px">
               <label class="role-check"><input type="checkbox" id="fa-interpersonal" value="interpersonal"> Interpersonal Skills</label>
               <label class="role-check"><input type="checkbox" id="fa-performance" value="performance"> Performance &amp; Productivity</label>
+              <label class="role-check sf-v2-only" id="fa-attendance-wrap"><input type="checkbox" id="fa-attendance" value="attendance"> Attendance &amp; Punctuality</label>
               <label class="role-check"><input type="checkbox" id="fa-others" value="others" onchange="toggleFocusOther()"> Others</label>
             </div>
             <div id="fa-others-wrap" style="display:none">
@@ -933,12 +935,28 @@
           <!-- Section 3: Key Observations -->
           <div class="card" style="margin-bottom:12px">
             <div class="section-head">Key Observations <span style="color:var(--red)">*</span></div>
-            <div id="sf-observations-editor"></div>
+            <div id="sf-obs-legacy-wrap" style="display:none"><div id="sf-observations-editor"></div></div>
+            <div id="sf-obs-v2-wrap">
+              <div class="table-wrap" style="margin-bottom:8px;overflow:visible">
+                <table class="ap-table" id="obs-table">
+                  <thead>
+                    <tr>
+                      <th style="min-width:240px">Situation, behavior/action &amp; its impact</th>
+                      <th style="min-width:220px">Employee&#8217;s intent behind their action</th>
+                      <th style="width:46px"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="obs-tbody"></tbody>
+                </table>
+              </div>
+              <button class="btn btn-ghost btn-sm" id="obs-add-btn" onclick="addObsRow()">+ Add Row</button>
+            </div>
           </div>
 
           <!-- Section 4: Goal Setting -->
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">Goal Setting <span style="color:var(--red)">*</span></div>
+            <div class="section-head"><span id="sf-goal-title">SMART Goal/s</span> <span style="color:var(--red)">*</span></div>
+            <div class="sf-v2-only" style="font-size:12px;color:#6B7280;margin:-4px 0 8px">What goals has the employee committed to?</div>
             <div id="sf-goals-editor"></div>
           </div>
 
@@ -954,7 +972,8 @@
 
           <!-- Section 5: Action Plan -->
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">Action Plan &amp; Next Steps</div>
+            <div class="section-head" id="sf-ap-title">Action Plan</div>
+            <div class="sf-v2-only" style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Outline the collaborative steps or action plan to achieve the SMART Goal.</div>
             <div class="table-wrap" style="margin-bottom:8px;overflow:visible">
               <table class="ap-table" id="action-plan-table">
                 <thead>
@@ -992,7 +1011,25 @@
           </div>
 
 
-          <!-- Employee Commitment card (coachee-led acknowledgement) -->
+          <!-- Acknowledgement (template v2) — shown once a session is sent to the coachee -->
+          <div class="card" id="sf-ack-card" style="margin-bottom:12px;display:none">
+            <div class="section-head">Acknowledgement</div>
+            <div style="font-size:12.5px;line-height:1.55;color:var(--text);margin-bottom:12px"><b>By signing below,</b> the coach and the employee acknowledge that a coaching session was facilitated. Both parties agree and commit to the feedback, expectations, action items, and support to be provided.</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div style="border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px">
+                <div style="font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Employee</div>
+                <div id="sf-ack-emp-name" style="font-size:13px;font-weight:600"></div>
+                <div id="sf-ack-emp-date" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+              </div>
+              <div style="border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px">
+                <div style="font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Coach</div>
+                <div id="sf-ack-coach-name" style="font-size:13px;font-weight:600"></div>
+                <div id="sf-ack-coach-date" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Employee Commitment card — LEGACY sessions only (removed from template v2) -->
           <div class="card" id="sf-commitment-card" style="margin-bottom:12px;display:none">
             <div class="section-head">Employee Commitment &amp; Key Takeaway</div>
             <textarea id="sf-commitment-text" class="form-control" rows="4"
@@ -1043,7 +1080,7 @@
                 <option value="prep-submitted">Prep Submitted</option>
                 <option value="coach-review">Coach Review</option>
                 <option value="pending">Pending Acknowledgement</option>
-                <option value="pending-commitment">Pending Commitment</option>
+                <option value="pending-commitment">Pending Acknowledgement (Coachee-Led)</option>
                 <option value="for-review">For Review</option>
                 <option value="acknowledged">Acknowledged</option>
                 <option value="completed">Completed</option>
@@ -1052,6 +1089,7 @@
                 <option value="">All Focus Areas</option>
                 <option value="interpersonal">Interpersonal Skills</option>
                 <option value="performance">Performance &amp; Productivity</option>
+                <option value="attendance">Attendance &amp; Punctuality</option>
                 <option value="others">Others</option>
               </select>
               <select id="cs-filter-delivery" class="form-control" style="max-width:170px" onchange="filterCoachSessions()">
@@ -1201,7 +1239,7 @@
                 <option value="">All Statuses</option>
                 <option value="prep-requested">Prep Requested</option>
                 <option value="coachee-preparing">Coachee Preparing</option>
-                <option value="pending-commitment">Pending Commitment</option>
+                <option value="pending-commitment">Pending Acknowledgement (Coachee-Led)</option>
                 <option value="pending">Pending Acknowledgement</option>
                 <option value="for-review">For Review</option>
                 <option value="acknowledged">Acknowledged</option>
@@ -1211,6 +1249,7 @@
                 <option value="">All Focus Areas</option>
                 <option value="interpersonal">Interpersonal Skills</option>
                 <option value="performance">Performance &amp; Productivity</option>
+                <option value="attendance">Attendance &amp; Punctuality</option>
                 <option value="others">Others</option>
               </select>
               <select id="mc-filter-delivery" class="form-control" style="max-width:170px" onchange="filterMyCoaching()">
@@ -4202,7 +4241,7 @@ function coacheeSessionAction(s) {
       + '</div>';
   }
   if (s.status === 'pending-commitment') {
-    return '<button class="btn btn-primary btn-sm" onclick="openExistingSession(\''+s.id+'\')">Add Commitment</button>';
+    return '<button class="btn btn-primary btn-sm" onclick="openExistingSession(\''+s.id+'\')">Acknowledge</button>';
   }
   if (s.status === 'pending') {
     return '<button class="btn btn-primary btn-sm" onclick="openExistingSession(\''+s.id+'\')">Acknowledge</button>';
@@ -5599,13 +5638,13 @@ function statusLabel(s) {
     'draft':'Draft','pending':'Pending Acknowledgement','completed':'Completed',
     'for-review':'For Review','prep-requested':'Prep Requested',
     'coachee-preparing':'Coachee Preparing','prep-submitted':'Prep Submitted',
-    'coach-review':'Coach Review','pending-commitment':'Pending Commitment',
+    'coach-review':'Coach Review','pending-commitment':'Pending Acknowledgement',
     'acknowledged':'Acknowledged'
   };
   return map[s] || s || '—';
 }
 function focusLabel(f) {
-  return f === 'interpersonal' ? 'Interpersonal' : f === 'performance' ? 'Performance & Productivity' : f === 'others' ? 'Others' : f;
+  return f === 'interpersonal' ? 'Interpersonal' : f === 'performance' ? 'Performance & Productivity' : f === 'attendance' ? 'Attendance & Punctuality' : f === 'others' ? 'Others' : f;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -5690,10 +5729,13 @@ async function loadSessionForm() {
   document.getElementById('sf-employee-name').value = '';
   document.getElementById('sf-employee-role').value = '';
   document.getElementById('sf-coach-name').value    = currentProfile.firstName + ' ' + currentProfile.lastName;
-  ['fa-interpersonal','fa-performance','fa-others'].forEach(id => document.getElementById(id).checked = false);
+  ['fa-interpersonal','fa-performance','fa-attendance','fa-others'].forEach(id => document.getElementById(id).checked = false);
   document.getElementById('fa-others-text').value   = '';
   document.getElementById('fa-others-wrap').style.display = 'none';
   quillObs.setText(''); quillGoals.setText('');
+  applyTemplateVersion(true);
+  initObsRows([]);
+  document.getElementById('sf-ack-card').style.display = 'none';
   initActionPlan([{action:'',support:'',dueDate:''},{action:'',support:'',dueDate:''}]);
   document.getElementById('pdf-btn').style.display  = 'none';
   document.getElementById('pdf-status').textContent = '';
@@ -5944,9 +5986,20 @@ async function loadExistingSession(sessionId) {
       document.getElementById('fa-others-wrap').style.display = 'block';
       document.getElementById('fa-others-text').value = s.focusOther || '';
     }
-    quillObs.root.innerHTML   = s.keyObservations || '';
-    if (s.keyObservations) quillObs.root.classList.remove('ql-blank');
-    else quillObs.root.classList.add('ql-blank');
+    const _legacy = isLegacySession(s);
+    applyTemplateVersion(!_legacy);
+    if (_legacy) {
+      quillObs.root.innerHTML   = s.keyObservations || '';
+      if (s.keyObservations) quillObs.root.classList.remove('ql-blank');
+      else quillObs.root.classList.add('ql-blank');
+    } else {
+      quillObs.setText('');
+      let obsRows = Array.isArray(s.observationRows) ? s.observationRows : [];
+      // Not-yet-completed session started on the old form: carry its free-text
+      // observations into row 1 so nothing is lost.
+      if (!obsRows.length && s.keyObservations) obsRows = [{ situation: htmlToPlain(s.keyObservations), intent:'' }];
+      initObsRows(obsRows);
+    }
     quillGoals.root.innerHTML = s.goalSetting || '';
     if (s.goalSetting) quillGoals.root.classList.remove('ql-blank');
     else quillGoals.root.classList.add('ql-blank');
@@ -6031,20 +6084,16 @@ async function loadExistingSession(sessionId) {
       document.getElementById('session-form-title').innerHTML = 'Session — ' + esc(cName) + codeTag;
       const isCoacheeUser = (currentProfile.roles||[]).includes('coachee') && currentUser.uid === s.coacheeId;
       if (isCoacheeUser) {
-        document.getElementById('session-form-sub').textContent = 'Add your commitment to complete this session';
-        setStatusBar('Please review this session and add your commitment below', 'amber');
-        document.getElementById('sf-commitment-card').style.display = 'block';
-        document.getElementById('sf-commitment-text').disabled = false;
-        document.getElementById('sf-commitment-text').value = s.employeeCommitment || '';
-        document.getElementById('session-acknowledge-btn').textContent = 'Submit Commitment & Acknowledge';
+        document.getElementById('session-form-sub').textContent = 'Review and acknowledge this session';
+        setStatusBar('Please review this session. By acknowledging, you agree to the acknowledgement statement below.', 'amber');
+        document.getElementById('session-acknowledge-btn').textContent = 'Acknowledge & Sign';
         document.getElementById('session-acknowledge-btn').style.display = 'inline-flex';
         document.getElementById('session-save-draft-btn').style.display = 'none';
         document.getElementById('session-submit-btn').style.display     = 'none';
         lockSessionForm();
-        document.getElementById('sf-commitment-text').disabled = false;
       } else {
-        document.getElementById('session-form-sub').textContent = 'Awaiting coachee commitment';
-        setStatusBar('Finalized — awaiting coachee commitment and acknowledgement', 'amber');
+        document.getElementById('session-form-sub').textContent = 'Awaiting coachee acknowledgement';
+        setStatusBar('Finalized — awaiting coachee acknowledgement', 'amber');
         document.getElementById('session-save-draft-btn').style.display = 'none';
         document.getElementById('session-submit-btn').style.display     = 'none';
         lockSessionForm();
@@ -6057,10 +6106,8 @@ async function loadExistingSession(sessionId) {
       document.getElementById('session-submit-btn').style.display     = 'none';
       lockSessionForm();
       if ((currentProfile.roles||[]).includes('coachee') && currentUser.uid === s.coacheeId) {
-        document.getElementById('sf-commitment-card').style.display = 'block';
-        document.getElementById('sf-commitment-text').disabled = false;
-        document.getElementById('sf-commitment-text').value = s.employeeCommitment || '';
-        document.getElementById('session-acknowledge-btn').textContent = 'Submit Commitment & Acknowledge';
+        setStatusBar('Please review this session. By acknowledging, you agree to the acknowledgement statement below.', 'amber');
+        document.getElementById('session-acknowledge-btn').textContent = 'Acknowledge & Sign';
         document.getElementById('session-acknowledge-btn').style.display = 'inline-flex';
         document.getElementById('session-reject-btn').style.display = 'inline-flex';
       }
@@ -6091,12 +6138,13 @@ async function loadExistingSession(sessionId) {
       document.getElementById('session-submit-btn').style.display     = 'none';
       document.getElementById('pdf-btn').style.display = 'inline-flex';
       lockSessionForm();
-      if (s.employeeCommitment || s.employeeReflection) {
+      if (_legacy && (s.employeeCommitment || s.employeeReflection)) {
         document.getElementById('sf-commitment-card').style.display = 'block';
         document.getElementById('sf-commitment-text').value = s.employeeCommitment || s.employeeReflection || '';
         document.getElementById('sf-commitment-text').disabled = true;
       }
     }
+    renderAckCard(s, coachUser ? coachUser.firstName+' '+coachUser.lastName : '', cName);
     // Coachee's pre-session prep stays visible (read-only) in the session log from
     // submission through completion, for both coach and coachee. Not in the PDF.
     const PREP_VISIBLE = ['prep-submitted','coach-review','pending-commitment','pending','acknowledged','completed'];
@@ -6132,10 +6180,111 @@ window.toggleFocusOther = function() {
     document.getElementById('fa-others').checked ? 'block' : 'none';
 };
 function getFocusAreas() {
-  return ['interpersonal','performance','others'].filter(id => document.getElementById('fa-'+id).checked);
+  return ['interpersonal','performance','attendance','others'].filter(id => document.getElementById('fa-'+id).checked);
 }
 
 // ── Action Plan ───────────────────────────────────────────────
+// ── Coaching Log template version ─────────────────────────────
+// Template v2 (Coaching Template v2, Sep 2026): structured Key Observations, Coaching Area
+// incl. Attendance & Punctuality, SMART Goal/s, no Employee Commitment, acknowledgement
+// statement + sent/acknowledged timestamps, new PDF. Sessions ALREADY completed before v2
+// keep their original view + PDF exactly as they were (Sandra's rule). Everything not yet
+// completed moves to v2; acknowledging stamps templateVersion:2 so it stays v2 afterward.
+let sfTemplateV2 = true;
+function isLegacySession(s) {
+  return !!s && ['acknowledged','completed'].includes(s.status) && s.templateVersion !== 2;
+}
+function applyTemplateVersion(v2) {
+  sfTemplateV2 = !!v2;
+  document.querySelectorAll('.sf-v2-only').forEach(el => el.style.display = v2 ? '' : 'none');
+  document.getElementById('sf-fa-title').textContent   = v2 ? 'Coaching Area' : 'Focus Area';
+  document.getElementById('sf-goal-title').textContent = v2 ? 'SMART Goal/s' : 'Goal Setting';
+  document.getElementById('sf-ap-title').textContent   = v2 ? 'Action Plan' : 'Action Plan & Next Steps';
+  document.getElementById('sf-obs-v2-wrap').style.display     = v2 ? 'block' : 'none';
+  document.getElementById('sf-obs-legacy-wrap').style.display = v2 ? 'none' : 'block';
+  if (!v2) document.getElementById('sf-ack-card').style.display = 'none';
+}
+function fmtStamp(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : (ts.seconds ? new Date(ts.seconds*1000) : new Date(ts));
+  return isNaN(d) ? '' : d.toLocaleString('en-PH',{year:'numeric',month:'long',day:'numeric',hour:'numeric',minute:'2-digit'});
+}
+// Acknowledgement card: coach name + date sent, employee name + date acknowledged
+function renderAckCard(s, coachName, coacheeName) {
+  const card = document.getElementById('sf-ack-card');
+  const shown = sfTemplateV2 && ['pending','pending-commitment','acknowledged','completed'].includes(s.status);
+  card.style.display = shown ? 'block' : 'none';
+  if (!shown) return;
+  if (s.submittedByName || coachName) document.getElementById('sf-ack-coach-name').textContent = s.submittedByName || coachName;
+  document.getElementById('sf-ack-coach-date').textContent = s.submittedAt ? 'Sent for acknowledgement: '+fmtStamp(s.submittedAt) : '';
+  if (s.acknowledgedByName || coacheeName) document.getElementById('sf-ack-emp-name').textContent = s.acknowledgedByName || coacheeName;
+  document.getElementById('sf-ack-emp-date').textContent   = s.acknowledgedAt ? 'Acknowledged: '+fmtStamp(s.acknowledgedAt) : 'Awaiting acknowledgement';
+}
+// Legacy Quill HTML -> plain text with line breaks (used once to carry old observations
+// into the first row when a not-yet-completed session opens under v2)
+function htmlToPlain(html) {
+  const t = document.createElement('div');
+  t.innerHTML = String(html||'').replace(/<\/(p|div|li)>/gi,'\n').replace(/<br\s*\/?>/gi,'\n');
+  return (t.textContent||'').replace(/\n{3,}/g,'\n\n').trim();
+}
+
+// ── Key Observations rows (template v2) ───────────────────────
+let obsRowCount = 0;
+const OBS_DEFAULT_ROWS = 3;
+function initObsRows(rows) {
+  obsRowCount = 0;
+  document.getElementById('obs-tbody').innerHTML = '';
+  const list = (rows||[]).slice();
+  while (list.length < OBS_DEFAULT_ROWS) list.push({situation:'',intent:''});
+  list.forEach(r => addObsRow(r));
+}
+window.addObsRow = function(data) {
+  data = data || {};
+  const id = ++obsRowCount;
+  const tr = document.createElement('tr');
+  tr.id = 'obs-row-'+id;
+  tr.innerHTML =
+    '<td><textarea class="ap-cell" placeholder="What happened, what they did, and the impact…" id="obs-sit-'+id+'" rows="1">'+esc(data.situation||'')+'</textarea></td>'
+  + '<td><textarea class="ap-cell" placeholder="The employee&#8217;s intent behind the action…" id="obs-int-'+id+'" rows="1">'+esc(data.intent||'')+'</textarea></td>'
+  + '<td style="text-align:center;vertical-align:top;padding-top:8px"><button class="btn btn-ghost btn-sm" style="color:var(--red);padding:3px 7px" onclick="deleteObsRow('+id+')" title="Delete row">&#10005;</button></td>';
+  document.getElementById('obs-tbody').appendChild(tr);
+  ['obs-sit-'+id,'obs-int-'+id].forEach(elId => {
+    const el = document.getElementById(elId);
+    if (el) { el.style.height='auto'; el.style.height=el.scrollHeight+'px'; el.addEventListener('input',()=>{ el.style.height='auto'; el.style.height=el.scrollHeight+'px'; }); }
+  });
+};
+window.deleteObsRow = function(id) {
+  const tbody = document.getElementById('obs-tbody');
+  if (tbody.children.length <= 1) { toast('Keep at least one observation row.','error'); return; }
+  const sit = (document.getElementById('obs-sit-'+id)||{value:''}).value.trim();
+  const int = (document.getElementById('obs-int-'+id)||{value:''}).value.trim();
+  const removeIt = () => { const r = document.getElementById('obs-row-'+id); if (r) r.remove(); };
+  if (!sit && !int) { removeIt(); return; }
+  // Row has content — confirm first. Fresh button clone drops any stale listeners.
+  document.getElementById('mc-title').textContent = 'Delete Row';
+  document.getElementById('mc-msg').textContent   = 'Do you want to delete this row? What you typed in it will be removed.';
+  ['mc-name-list','mc-confirm-wrap'].forEach(x => { const el=document.getElementById(x); if (el) el.style.display='none'; });
+  const oldBtn = document.getElementById('mc-action-btn');
+  const mcBtn  = oldBtn.cloneNode(true);
+  oldBtn.replaceWith(mcBtn);
+  mcBtn.className = 'btn btn-danger'; mcBtn.textContent = 'Delete'; mcBtn.disabled = false;
+  mcBtn.addEventListener('click', () => { closeModal('modal-confirm'); removeIt(); }, { once:true });
+  document.getElementById('modal-confirm').style.display = 'flex';
+};
+function getObsRows() {
+  return Array.from(document.querySelectorAll('#obs-tbody tr')).map(tr => {
+    const id = tr.id.replace('obs-row-','');
+    return {
+      situation: (document.getElementById('obs-sit-'+id)||{value:''}).value.trim(),
+      intent:    (document.getElementById('obs-int-'+id)||{value:''}).value.trim()
+    };
+  }).filter(r => r.situation || r.intent);
+}
+function keyObservationsMissing() {
+  if (sfTemplateV2) return !getObsRows().some(r => r.situation);
+  return !quillObs || quillObs.getText().trim()==='';
+}
+
 function initActionPlan(rows) {
   actionRowCount = 0;
   document.getElementById('action-plan-tbody').innerHTML = '';
@@ -6191,6 +6340,14 @@ function isSessionDateTooOld(dateStr) {
   return !!dateStr && dateStr < sessionDateFloorStr();
 }
 
+// Coach's name + signature captured at the moment the session is sent for acknowledgement
+function sentStamp() {
+  return {
+    submittedBy:     currentUser.uid,
+    submittedByName: ((currentProfile.firstName||'')+' '+(currentProfile.lastName||'')).trim(),
+    coachSignature:  currentProfile.signature || ''
+  };
+}
 function buildSessionData(status) {
   // Snapshot the coachee's current reporting chain onto the session so a Manager/Senior
   // Manager's Firestore query (coacheeReportsUpTo array-contains me) can find it without
@@ -6211,13 +6368,14 @@ function buildSessionData(status) {
     department:        document.getElementById('sf-department').value,
     focusAreas:        getFocusAreas(),
     focusOther:        document.getElementById('fa-others-text').value,
-    keyObservations:   quillObs  ? quillObs.root.innerHTML  : '',
+    templateVersion:   2,
+    observationRows:   getObsRows(),
+    keyObservations:   '',
     goalSetting:       quillGoals? quillGoals.root.innerHTML: '',
     actionPlan:        getActionPlan(),
     nextSessionDate:   document.getElementById('sf-next-session').value,
     coachingMethod:    document.querySelector('input[name="coaching-method"]:checked')?.value || 'face-to-face',
     flowType:          document.querySelector('input[name="sf-flow-type"]:checked')?.value || 'coach-led',
-    employeeCommitment:document.getElementById('sf-commitment-text')?.value || '',
     coacheeSignature:  '',
     status
   };
@@ -6287,14 +6445,14 @@ async function logIfBackdated(sessionDate, sessionCode) {
 // ── Submit Session ────────────────────────────────────────────
 window.submitSession = async function() {
   if (!currentSessionCoacheeId)                    { toast('Please select a coachee first.','error'); return; }
-  if (!getFocusAreas().length)                     { toast('Please select at least one focus area.','error'); return; }
+  if (!getFocusAreas().length)                     { toast('Please select at least one coaching area.','error'); return; }
   if (!document.getElementById('sf-session-date').value) { toast('Session date is required.','error'); return; }
   if (isSessionDateTooOld(document.getElementById('sf-session-date').value)) {
     toast('Session date cannot be more than 1 week in the past. Please adjust the date, or contact your L&D Director for older entries.','error');
     return;
   }
-  if (!quillObs || quillObs.getText().trim()==='') { toast('Key Observations are required.','error'); return; }
-  if (!quillGoals||quillGoals.getText().trim()===''){toast('Goal Setting is required.','error'); return; }
+  if (keyObservationsMissing()) { toast('Please add at least one Key Observation (situation, behavior/action & impact).','error'); return; }
+  if (!quillGoals||quillGoals.getText().trim()===''){toast('SMART Goal/s is required.','error'); return; }
 
   document.getElementById('mc-title').textContent = 'Submit Session';
   document.getElementById('mc-msg').textContent   = 'Once submitted, the session will be locked and sent to the coachee for acknowledgement. Continue?';
@@ -6310,7 +6468,7 @@ window.submitSession = async function() {
       const prevStatusSnap = currentSessionId ? await getDoc(doc(db,'sessions',currentSessionId)) : null;
       const prevStatus = prevStatusSnap && prevStatusSnap.exists() ? prevStatusSnap.data()?.status : null;
       const isResubmit = prevStatus === 'for-review';
-      const data = {...buildSessionData('pending'), submittedAt:serverTimestamp()};
+      const data = {...buildSessionData('pending'), submittedAt:serverTimestamp(), ...sentStamp()};
       if (isResubmit) {
         await updateDoc(doc(db,'sessions',currentSessionId), {...data, rejectionComment:'', rejectedAt:null, updatedAt:serverTimestamp()});
       } else if (currentSessionId) {
@@ -6342,9 +6500,12 @@ function lockSessionForm() {
   ['sf-session-date','sf-last-session','sf-department','sf-next-session'].forEach(id => {
     const el=document.getElementById(id); if(el) el.disabled=true;
   });
-  ['fa-interpersonal','fa-performance','fa-others','fa-others-text'].forEach(id => {
+  ['fa-interpersonal','fa-performance','fa-attendance','fa-others','fa-others-text'].forEach(id => {
     const el=document.getElementById(id); if(el) el.disabled=true;
   });
+  document.querySelectorAll('#obs-tbody textarea').forEach(el => el.disabled=true);
+  document.querySelectorAll('#obs-tbody button').forEach(el => el.style.display='none');
+  const _obsAdd = document.getElementById('obs-add-btn'); if (_obsAdd) _obsAdd.style.display='none';
   if (quillObs)   quillObs.enable(false);
   if (quillGoals) quillGoals.enable(false);
   document.querySelectorAll('#action-plan-tbody input, #action-plan-tbody textarea').forEach(el => el.disabled=true);
@@ -6356,20 +6517,19 @@ function unlockSessionForm() {
   ['sf-session-date','sf-last-session','sf-department','sf-next-session','fa-others-text'].forEach(id => {
     const el=document.getElementById(id); if(el) el.disabled=false;
   });
-  ['fa-interpersonal','fa-performance','fa-others'].forEach(id => {
+  ['fa-interpersonal','fa-performance','fa-attendance','fa-others'].forEach(id => {
     const el=document.getElementById(id); if(el) el.disabled=false;
   });
+  document.querySelectorAll('#obs-tbody textarea').forEach(el => el.disabled=false);
+  document.querySelectorAll('#obs-tbody button').forEach(el => el.style.display='');
+  const _obsAdd = document.getElementById('obs-add-btn'); if (_obsAdd) _obsAdd.style.display='inline-flex';
   if (quillObs)   quillObs.enable(true);
   if (quillGoals) quillGoals.enable(true);
 }
 
 // ── Coachee Acknowledgement ─────────────────────────────────
 window.acknowledgeSession = async function() {
-  // Validate commitment BEFORE setting the guard flag so early returns don't corrupt it
-  const commitment = (document.getElementById('sf-commitment-text').value||'').trim();
-  if (!commitment) {
-    toast('Please add your commitment before acknowledging.','error'); return;
-  }
+  // Template v2: no Employee Commitment step — acknowledging = agreeing to the statement.
   // The employee's signature is captured onto the session record at the moment of
   // acknowledgement (mirrors employeeCommitment/acknowledgedAt) so the PDF has a durable
   // snapshot. Everyone is gated into setting a signature on first login, but guard anyway.
@@ -6404,8 +6564,10 @@ window.acknowledgeSession = async function() {
         status:              'acknowledged',
         acknowledgedAt:      serverTimestamp(),
         updatedAt:           serverTimestamp(),
-        employeeCommitment:  commitment,
         coacheeSignature:    coacheeSig,
+        acknowledgedBy:      currentUser.uid,
+        acknowledgedByName:  ((currentProfile.firstName||'')+' '+(currentProfile.lastName||'')).trim(),
+        templateVersion:     2,
         apsSynced:           true,
       });
       shouldCreateAPs = true;
@@ -6434,6 +6596,10 @@ window.acknowledgeSession = async function() {
     }
 
     toast('Session acknowledged — thank you!','success');
+    try {
+      const _fresh = await getDoc(doc(db,'sessions',currentSessionId));
+      if (_fresh.exists()) renderAckCard(_fresh.data(), '', '');
+    } catch(e) {}
     document.getElementById('session-acknowledge-btn').style.display = 'none';
     document.getElementById('session-reject-btn').style.display = 'none';
     document.getElementById('sf-commitment-text').disabled = true;
@@ -6442,7 +6608,7 @@ window.acknowledgeSession = async function() {
     loadNotificationBadges();
   } catch(e) {
     toast('Error: '+e.message,'error');
-    btn.disabled = false; btn.textContent = 'Submit Commitment & Acknowledge';
+    btn.disabled = false; btn.textContent = 'Acknowledge & Sign';
   } finally {
     _acknowledgingSession = false;
   }
@@ -6461,15 +6627,24 @@ async function _openPdfWindow(sessionId) {
     if (!s) { toast('Session not found.','error'); return; }
     const coachee = allUsers.find(u=>u.uid===s.coacheeId);
     const coach   = allUsers.find(u=>u.uid===(s.coachId||currentUser.uid)) || currentProfile;
-    const pdfEl   = buildPdfElement(s, coachee, coach);
+    const _v2Pdf  = !isLegacySession(s);
+    const pdfEl   = _v2Pdf ? buildPdfElementV2(s, coachee, coach) : buildPdfElement(s, coachee, coach);
     const cName   = coachee ? coachee.lastName+'_'+(coachee.firstName||'') : 'Unknown';
     const dStr    = (s.sessionDate||'').replace(/-/g,'');
     const title   = 'CoachingLog_'+cName+'_'+dStr;
-    const css = '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;margin:0;padding:0}'
+    let css = '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;margin:0;padding:0}'
       + '@media print{@page{size:A4;margin:12.7mm}body{margin:0!important}.pdf-toolbar{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important}}'
       + '@media screen{body{padding:24px;background:#f0f0f0}.pdf-page{background:white;max-width:794px;margin:0 auto;padding:12.7mm;box-shadow:0 2px 12px rgba(0,0,0,.15)}}'
       + '.pdf-toolbar{position:fixed;top:0;left:0;right:0;background:#0E2841;color:white;padding:10px 20px;display:flex;align-items:center;gap:12px;z-index:999;font-family:Arial;font-size:13px}'
       + '.pdf-toolbar button{background:rgba(255,255,255,.15);color:white;border:1px solid rgba(255,255,255,.3);padding:6px 16px;border-radius:5px;cursor:pointer;font-size:13px}';
+    if (_v2Pdf) {
+      // v2: running footer + page number on every printed page (CSS @page margin boxes)
+      css = css.replace('@page{size:A4;margin:12.7mm}',
+        '@page{size:A4;margin:12.7mm 12.7mm 16mm 12.7mm;'
+        + '@bottom-left{content:"\\00A9 2026 Dermorepubliq Corporation. All rights reserved.";font-family:Arial,Helvetica,sans-serif;font-size:7pt;color:#5A7A8E}'
+        + '@bottom-right{content:counter(page, decimal-leading-zero);font-family:Georgia,serif;font-size:11pt;color:#1A1A1A}}'
+        + '.pdf-screen-footer{display:none!important}');
+    }
     const body = '<div class="pdf-toolbar">'
       + '<span style="font-weight:700;letter-spacing:.5px">BOOST Hub — Coaching Log</span>'
       + '<button onclick="window.print()">⬇ Save / Download PDF</button>'
@@ -6485,6 +6660,112 @@ async function _openPdfWindow(sessionId) {
   } catch(e) { toast('PDF error: '+e.message,'error'); console.error(e); }
 }
 window.generatePDF = function() { return _openPdfWindow(currentSessionId); };
+
+// ── PDF: Coaching Template v2 (Sep 2026) ─────────────────────
+// Used for every session that is NOT an already-completed legacy record
+// (see isLegacySession). Legacy completed sessions keep buildPdfElement below, untouched.
+const PDF_LOGO_V2 = 'data:image/png;base64,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';
+function buildPdfElementV2(s, coachee, coach) {
+  const div = document.createElement('div');
+  const cName     = coachee ? coachee.firstName+' '+coachee.lastName : '';
+  const coachName = s.submittedByName || (coach ? coach.firstName+' '+coach.lastName : '');
+  const empName   = s.acknowledgedByName || cName;
+  const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : '';
+  const B  = 'border:0.75pt solid #1A1A1A';
+  const HD = 'background:#E7E6E6;'+B+';padding:1.2mm 2mm;font-size:9pt;color:#1A1A1A';
+  const LB = B+';padding:1.2mm 2mm;font-family:Georgia,serif;font-size:9pt;width:17%;white-space:nowrap';
+  const VL = B+';padding:1.2mm 2mm;font-size:9pt';
+  const dash = '<span style="color:#8A9AA6">—</span>';
+  const fa = s.focusAreas || [];
+  const box = on => '<span style="display:inline-block;width:3.2mm;text-align:center;font-size:10pt;margin-right:1.5mm">'+(on?'&#9745;':'&#9744;')+'</span>';
+  const obsRows = Array.isArray(s.observationRows) ? s.observationRows.filter(r => r.situation || r.intent) : [];
+  let obsBody;
+  if (obsRows.length) {
+    obsBody = obsRows.map(r => '<tr><td style="'+VL+';vertical-align:top;white-space:pre-wrap">'+esc(r.situation||'')+'</td><td style="'+VL+';vertical-align:top;white-space:pre-wrap">'+esc(r.intent||'')+'</td></tr>').join('');
+  } else if (s.keyObservations) {
+    obsBody = '<tr><td colspan="2" style="'+VL+';vertical-align:top">'+s.keyObservations+'</td></tr>';
+  } else {
+    obsBody = '<tr><td style="'+VL+';height:7mm"></td><td style="'+VL+'"></td></tr>';
+  }
+  const apList = (s.actionPlan||[]).filter(r => r.action || r.support || r.dueDate);
+  const apBody = apList.length
+    ? apList.map(r => '<tr><td colspan="2" style="'+VL+';vertical-align:top;white-space:pre-wrap">'+esc(r.action||'')+'</td><td style="'+VL+';vertical-align:top;white-space:pre-wrap">'+esc(r.support||'')+'</td><td style="'+VL+';vertical-align:top;text-align:center;white-space:nowrap">'+esc(fmtDate(r.dueDate))+'</td></tr>').join('')
+    : '<tr><td colspan="4" style="'+VL+';text-align:center;color:#8A9AA6">No action items recorded</td></tr>';
+  const coachSig = s.coachSignature || (coach && coach.signature) || '';
+  const sigCell = (img, name, stampLabel, stamp) =>
+    '<td style="'+B+';width:50%;text-align:center;vertical-align:bottom;padding:3mm 2mm 2mm;height:30mm">'
+    + (img ? '<img src="'+img+'" style="max-height:13mm;max-width:60%;display:block;margin:0 auto 1mm">' : '<div style="height:13mm"></div>')
+    + '<div style="font-family:Georgia,serif;font-size:10pt;border-top:0.5pt solid #1A1A1A;display:inline-block;padding-top:1mm;min-width:55%">'+esc(name||'')+'</div>'
+    + '<div style="font-size:8.5pt;margin-top:1mm">'+stampLabel+': '+(stamp ? esc(stamp) : '<span style="color:#8A9AA6">Pending</span>')+'</div>'
+    + '</td>';
+  div.innerHTML = `
+<div style="font-family:Arial,Helvetica,sans-serif;color:#1A1A1A">
+  <table style="width:100%;border-collapse:collapse;margin-bottom:3mm"><tr>
+    <td style="vertical-align:middle"><img src="${PDF_LOGO_V2}" style="height:11mm;display:block"></td>
+    <td style="vertical-align:top;text-align:right">
+      <div style="background:#000;height:4mm;width:62mm;margin-left:auto"></div>
+      ${s.sessionCode ? '<div style="font-size:8pt;font-weight:bold;margin-top:2mm">'+esc(s.sessionCode)+'</div>' : ''}
+    </td>
+  </tr></table>
+  <div style="text-align:center;font-family:Georgia,serif;font-size:12pt;letter-spacing:.3pt;margin:2mm 0 2mm">COACHING LOG</div>
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
+    <tr><td style="${LB}">Employee Name:</td><td colspan="3" style="${VL}">${esc(cName)||dash}</td></tr>
+    <tr><td style="${LB}">Department:</td><td style="${VL}">${esc(s.department||'')||dash}</td><td style="${LB}">Role:</td><td style="${VL}">${esc(coachee?coachee.position||'':'')||dash}</td></tr>
+    <tr><td style="${LB}">Coach:</td><td style="${VL}">${esc(coachName)||dash}</td><td style="${LB}">Session Date:</td><td style="${VL}">${esc(fmtDate(s.sessionDate))||dash}</td></tr>
+    <tr><td style="${LB}">Last Session:</td><td style="${VL}">${esc(fmtDate(s.lastSessionDate))||dash}</td><td style="${LB}">Delivery:</td><td style="${VL}">${s.coachingMethod==='virtual'?'Virtual':'Face-to-Face'}</td></tr>
+  </table>
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
+    <tr><td colspan="2" style="${HD}">Coaching Area <i style="font-size:7.5pt">(In what area is the employee being coached? Tick all that apply)</i></td></tr>
+    <tr>
+      <td style="${B};border-right:none;padding:1.5mm 2mm;font-size:8.5pt;width:50%">${box(fa.includes('interpersonal'))}Interpersonal Skills<br>${box(fa.includes('performance'))}Performance and Productivity</td>
+      <td style="${B};border-left:none;padding:1.5mm 2mm;font-size:8.5pt">${box(fa.includes('attendance'))}Attendance and Punctuality<br>${box(fa.includes('others'))}Others, please specify: <u>${esc(s.focusOther||'')}</u></td>
+    </tr>
+  </table>
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
+    <tr><td colspan="2" style="${HD};text-align:center">Key Observations</td></tr>
+    <tr>
+      <td style="${B};background:#F2F2F2;padding:1mm 2mm;font-size:7.5pt;font-style:italic;text-align:center;width:50%">State the specific situation, behavior/action, and its impact</td>
+      <td style="${B};background:#F2F2F2;padding:1mm 2mm;font-size:7.5pt;font-style:italic;text-align:center">Discuss the employee&#8217;s intent behind their action</td>
+    </tr>
+    ${obsBody}
+  </table>
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
+    <tr><td style="${HD}">SMART Goal/s <i style="font-size:7.5pt">(What goals has the employee committed to?)</i></td></tr>
+    <tr><td style="${VL};min-height:14mm;height:14mm;vertical-align:top">${s.goalSetting||''}</td></tr>
+  </table>
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
+    <tr>
+      <td style="${HD};width:14%;text-align:center">Action</td>
+      <td style="${HD};width:30%;font-size:7.5pt;font-style:italic">(Outline the collaborative steps or action plan to achieve the SMART Goal)</td>
+      <td style="${HD};width:36%;text-align:center">Support/Resources Needed</td>
+      <td style="${HD};width:20%;text-align:center">Due Date</td>
+    </tr>
+    ${apBody}
+  </table>
+
+  <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
+    <tr><td style="${HD};width:50%;text-align:center">Next Coaching Session</td><td style="${VL};text-align:center">${esc(fmtDate(s.nextSessionDate))||dash}</td></tr>
+  </table>
+
+  <table style="width:100%;border-collapse:collapse;page-break-inside:avoid">
+    <tr><td colspan="2" style="${HD};font-size:7.5pt"><b>Acknowledgement:</b> By signing below, the coach and the employee acknowledge that a coaching session was facilitated. Both parties agree and commit to the feedback, expectations, action items, and support to be provided.</td></tr>
+    <tr>
+      ${sigCell(s.coacheeSignature, empName, 'Signed Date', s.acknowledgedAt ? fmtStamp(s.acknowledgedAt) : '')}
+      ${sigCell(coachSig, coachName, 'Signed Date', s.submittedAt ? fmtStamp(s.submittedAt) : '')}
+    </tr>
+  </table>
+
+  <div class="pdf-screen-footer" style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:8mm;font-size:7pt;color:#5A7A8E">
+    <span>&copy;2026 Dermorepubliq Corporation. All rights reserved.</span><span style="font-family:Georgia,serif;font-size:11pt;color:#1A1A1A">01</span>
+  </div>
+</div>`;
+  return div;
+}
 
 function buildPdfElement(s, coachee, coach) {
   const div = document.createElement('div');
@@ -7613,13 +7894,13 @@ window.deleteSession = function(sessionId) {
 // ── Finalize Coachee-Led session ──────────────────────────────
 window.finalizeCoachLog = async function() {
   if (!currentSessionCoacheeId)                     { toast('Please select a coachee first.','error'); return; }
-  if (!getFocusAreas().length)                      { toast('Please select at least one focus area.','error'); return; }
+  if (!getFocusAreas().length)                      { toast('Please select at least one coaching area.','error'); return; }
   if (!document.getElementById('sf-session-date').value) { toast('Session date is required.','error'); return; }
-  if (!quillObs || quillObs.getText().trim()==='')  { toast('Key Observations are required.','error'); return; }
-  if (!quillGoals||quillGoals.getText().trim()===''){toast('Goal Setting is required.','error'); return; }
+  if (keyObservationsMissing()) { toast('Please add at least one Key Observation (situation, behavior/action & impact).','error'); return; }
+  if (!quillGoals||quillGoals.getText().trim()===''){toast('SMART Goal/s is required.','error'); return; }
 
   document.getElementById('mc-title').textContent = 'Submit to Coachee';
-  document.getElementById('mc-msg').textContent   = 'This will lock the session and send it to the coachee for commitment and acknowledgement.';
+  document.getElementById('mc-msg').textContent   = 'This will lock the session and send it to the coachee for acknowledgement.';
   const mcBtn = document.getElementById('mc-action-btn');
   mcBtn.className = 'btn btn-primary'; mcBtn.textContent = 'Submit';
   mcBtn.disabled  = false;
@@ -7629,7 +7910,7 @@ window.finalizeCoachLog = async function() {
     const btn = document.getElementById('session-finalize-btn');
     btn.disabled = true; btn.textContent = 'Submitting…';
     try {
-      const data = {...buildSessionData('pending-commitment'), submittedAt:serverTimestamp()};
+      const data = {...buildSessionData('pending-commitment'), submittedAt:serverTimestamp(), ...sentStamp()};
       if (currentSessionId) {
         await updateDoc(doc(db,'sessions',currentSessionId), {...data, updatedAt:serverTimestamp()});
       } else {
