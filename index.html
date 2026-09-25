@@ -6,7 +6,7 @@
   <title>BOOST Hub — Dermorepubliq</title>
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%230E2841'/><polygon points='58,8 26,55 46,55 39,92 74,45 54,45' fill='%23E97132'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Sora:wght@400;500;600;700&family=Poppins:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
   <style>
     :root {
       --navy:#0E2841;--blue:#156082;--blue-dk:#104d6a;--blue-lt:#E8F4FA;
@@ -6640,16 +6640,14 @@ async function _openPdfWindow(sessionId) {
     if (_v2Pdf) {
       // v2: running footer + page number on every printed page (CSS @page margin boxes)
       css = css.replace('@page{size:A4;margin:12.7mm}',
-        '@page{size:A4;margin:12.7mm 12.7mm 16mm 12.7mm;'
-        + '@bottom-left{content:"\\00A9 2026 Dermorepubliq Corporation. All rights reserved.";font-family:Arial,Helvetica,sans-serif;font-size:7pt;color:#5A7A8E}'
-        + '@bottom-right{content:counter(page, decimal-leading-zero);font-family:Georgia,serif;font-size:11pt;color:#1A1A1A}}'
-        + '.pdf-screen-footer{display:none!important}'
-        // safety inset so content never touches the paper edge even if the print
-        // dialog's Margins is set to Minimum/None
-        + '.pdf-page{padding:0 5mm}');
+        '@page{size:A4;margin:12.7mm 12.7mm 12.7mm 12.7mm;'
+        + '@bottom-left{content:"\\00A9 2026 Dermorepubliq Corporation. All rights reserved.";font-family:Poppins,Arial,sans-serif;font-size:7pt;color:#5A7A8E}'
+        + '@bottom-right{content:counter(page, decimal-leading-zero);font-family:Poppins,Arial,sans-serif;font-weight:600;font-size:11pt;color:#1A1A1A}}'
+        + '.pdf-screen-footer{display:none!important}');
     }
     const body = '<div class="pdf-page">'+pdfEl.innerHTML+'</div>';
-    const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'+css+'</style></head><body>'+body+'</body></html>';
+    const fontLink = _v2Pdf ? '<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">' : '';
+    const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+'</title>'+fontLink+'<style>'+css+'</style></head><body>'+body+'</body></html>';
     printHtmlInFrame(fullHtml, title);
   } catch(e) { toast('PDF error: '+e.message,'error'); console.error(e); }
 }
@@ -6673,7 +6671,8 @@ function printHtmlInFrame(html, fileTitle) {
     const w = f.contentWindow;
     // wait for embedded images (logo, signatures) before printing
     const imgs = Array.from(w.document.images || []);
-    Promise.all(imgs.map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))).then(() => {
+    const fontsReady = (w.document.fonts && w.document.fonts.ready) ? Promise.race([w.document.fonts.ready, new Promise(r => setTimeout(r, 3000))]) : Promise.resolve();
+    Promise.all([fontsReady, ...imgs.map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))]).then(() => {
       document.title = fileTitle || prevTitle;
       w.addEventListener('afterprint', cleanup);
       w.focus();
@@ -6695,8 +6694,8 @@ function buildPdfElementV2(s, coachee, coach) {
   const empName   = s.acknowledgedByName || cName;
   const fmtDate   = d => d ? new Date(d).toLocaleDateString('en-PH',{year:'numeric',month:'long',day:'numeric'}) : '';
   const B  = 'border:0.75pt solid #1A1A1A';
-  const HD = 'background:#E7E6E6;'+B+';padding:1.2mm 2mm;font-size:9pt;color:#1A1A1A';
-  const LB = B+';padding:1.2mm 2mm;font-family:Georgia,serif;font-size:9pt;width:17%;white-space:nowrap';
+  const HD = 'background:#E7E6E6;'+B+';padding:1.2mm 2mm;font-size:9pt;font-weight:600;color:#1A1A1A';
+  const LB = B+';padding:1.2mm 2mm;font-size:9pt;font-weight:600;width:17%;white-space:nowrap';
   const VL = B+';padding:1.2mm 2mm;font-size:9pt';
   const dash = '<span style="color:#8A9AA6">—</span>';
   const fa = s.focusAreas || [];
@@ -6718,11 +6717,11 @@ function buildPdfElementV2(s, coachee, coach) {
   const sigCell = (img, name, stampLabel, stamp) =>
     '<td style="'+B+';width:50%;text-align:center;vertical-align:bottom;padding:3mm 2mm 2mm;height:30mm">'
     + (img ? '<img src="'+img+'" style="max-height:13mm;max-width:60%;display:block;margin:0 auto 1mm">' : '<div style="height:13mm"></div>')
-    + '<div style="font-family:Georgia,serif;font-size:10pt;border-top:0.5pt solid #1A1A1A;display:inline-block;padding-top:1mm;min-width:55%">'+esc(name||'')+'</div>'
+    + '<div style="font-size:10pt;font-weight:600;border-top:0.5pt solid #1A1A1A;display:inline-block;padding-top:1mm;min-width:55%">'+esc(name||'')+'</div>'
     + '<div style="font-size:8.5pt;margin-top:1mm">'+stampLabel+': '+(stamp ? esc(stamp) : '<span style="color:#8A9AA6">Pending</span>')+'</div>'
     + '</td>';
   div.innerHTML = `
-<div style="font-family:Arial,Helvetica,sans-serif;color:#1A1A1A">
+<div style="font-family:Poppins,Arial,sans-serif;font-weight:400;color:#1A1A1A">
   <table style="width:100%;border-collapse:collapse;margin-bottom:3mm"><tr>
     <td style="vertical-align:middle"><img src="${PDF_LOGO_V2}" style="height:11mm;display:block"></td>
     <td style="vertical-align:top;text-align:right">
@@ -6730,7 +6729,7 @@ function buildPdfElementV2(s, coachee, coach) {
       ${s.sessionCode ? '<div style="font-size:8pt;font-weight:bold;margin-top:2mm">'+esc(s.sessionCode)+'</div>' : ''}
     </td>
   </tr></table>
-  <div style="text-align:center;font-family:Georgia,serif;font-size:12pt;letter-spacing:.3pt;margin:2mm 0 2mm">COACHING LOG</div>
+  <div style="text-align:center;font-size:12pt;font-weight:600;letter-spacing:.3pt;margin:2mm 0 2mm">COACHING LOG</div>
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
     <tr><td style="${LB}">Employee Name:</td><td colspan="3" style="${VL}">${esc(cName)||dash}</td></tr>
@@ -6740,7 +6739,7 @@ function buildPdfElementV2(s, coachee, coach) {
   </table>
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
-    <tr><td colspan="2" style="${HD}">Coaching Area <i style="font-size:7.5pt">(In what area is the employee being coached? Tick all that apply)</i></td></tr>
+    <tr><td colspan="2" style="${HD}">Coaching Area <i style="font-size:7.5pt;font-weight:400">(In what area is the employee being coached? Tick all that apply)</i></td></tr>
     <tr>
       <td style="${B};border-right:none;padding:1.5mm 2mm;font-size:8.5pt;width:50%">${box(fa.includes('interpersonal'))}Interpersonal Skills<br>${box(fa.includes('performance'))}Performance and Productivity</td>
       <td style="${B};border-left:none;padding:1.5mm 2mm;font-size:8.5pt">${box(fa.includes('attendance'))}Attendance and Punctuality<br>${box(fa.includes('others'))}Others, please specify: <u>${esc(s.focusOther||'')}</u></td>
@@ -6757,14 +6756,14 @@ function buildPdfElementV2(s, coachee, coach) {
   </table>
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
-    <tr><td style="${HD}">SMART Goal/s <i style="font-size:7.5pt">(What goals has the employee committed to?)</i></td></tr>
+    <tr><td style="${HD}">SMART Goal/s <i style="font-size:7.5pt;font-weight:400">(What goals has the employee committed to?)</i></td></tr>
     <tr><td style="${VL};min-height:14mm;height:14mm;vertical-align:top">${s.goalSetting||''}</td></tr>
   </table>
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
     <tr>
       <td style="${HD};width:14%;text-align:center">Action</td>
-      <td style="${HD};width:30%;font-size:7.5pt;font-style:italic">(Outline the collaborative steps or action plan to achieve the SMART Goal)</td>
+      <td style="${HD};width:30%;font-size:7.5pt;font-style:italic;font-weight:400">(Outline the collaborative steps or action plan to achieve the SMART Goal)</td>
       <td style="${HD};width:36%;text-align:center">Support/Resources Needed</td>
       <td style="${HD};width:20%;text-align:center">Due Date</td>
     </tr>
@@ -6776,7 +6775,7 @@ function buildPdfElementV2(s, coachee, coach) {
   </table>
 
   <table style="width:100%;border-collapse:collapse;page-break-inside:avoid">
-    <tr><td colspan="2" style="${HD};font-size:7.5pt"><b>Acknowledgement:</b> By signing below, the coach and the employee acknowledge that a coaching session was facilitated. Both parties agree and commit to the feedback, expectations, action items, and support to be provided.</td></tr>
+    <tr><td colspan="2" style="${HD};font-size:7.5pt;font-weight:400"><b style="font-weight:600">Acknowledgement:</b> By signing below, the coach and the employee acknowledge that a coaching session was facilitated. Both parties agree and commit to the feedback, expectations, action items, and support to be provided.</td></tr>
     <tr>
       ${sigCell(s.coacheeSignature, empName, 'Signed Date', s.acknowledgedAt ? fmtStamp(s.acknowledgedAt) : '')}
       ${sigCell(coachSig, coachName, 'Signed Date', s.submittedAt ? fmtStamp(s.submittedAt) : '')}
@@ -6784,7 +6783,7 @@ function buildPdfElementV2(s, coachee, coach) {
   </table>
 
   <div class="pdf-screen-footer" style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:8mm;font-size:7pt;color:#5A7A8E">
-    <span>&copy;2026 Dermorepubliq Corporation. All rights reserved.</span><span style="font-family:Georgia,serif;font-size:11pt;color:#1A1A1A">01</span>
+    <span>&copy;2026 Dermorepubliq Corporation. All rights reserved.</span><span style="font-size:11pt;font-weight:600;color:#1A1A1A">01</span>
   </div>
 </div>`;
   return div;
@@ -7518,8 +7517,9 @@ window.openSessionPdfModal = async function(sessionId) {
     const coachee = allUsers.find(u=>u.uid===s.coacheeId);
     const coach   = allUsers.find(u=>u.uid===s.coachId) || currentProfile;
     if (coachee) title.textContent = 'Coaching Log — '+coachee.firstName+' '+coachee.lastName+(s.sessionDate?' · '+new Date(s.sessionDate+'T00:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}):'');
-    const pdfEl = isLegacySession(s) ? buildPdfElement(s, coachee, coach) : buildPdfElementV2(s, coachee, coach);
-    pdfEl.style.cssText = 'width:100%;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:8mm;border-radius:6px';
+    const _legacyPrev = isLegacySession(s);
+    const pdfEl = _legacyPrev ? buildPdfElement(s, coachee, coach) : buildPdfElementV2(s, coachee, coach);
+    pdfEl.style.cssText = 'width:100%;background:white;font-family:'+(_legacyPrev?'Arial,Helvetica,sans-serif':'Poppins,Arial,sans-serif')+';font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:8mm;border-radius:6px';
     content.innerHTML = '';
     content.appendChild(pdfEl);
   } catch(e) { content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Error: '+esc(e.message)+'</div>'; }
