@@ -7415,6 +7415,7 @@ function renderAPStats(plans, statsId, canvasId, legendId) {
   const el = document.getElementById(statsId);
   if (el) el.innerHTML =
       mkS(I_LIST,  '#E8F4FA','#156082','Total APs',   total)
+    + mkS(I_LIST,  '#F1F5F9','#6B7A8D','Not Started', notStarted)
     + mkS(I_PEND,  '#FEF0E0','#A05A0A','In Progress', inProg)
     + mkS(I_WARN,  '#FEE2E2','#B91C1C','Overdue',     overdue)
     + mkS(I_CHECK, '#E6F4EB','#1A6B34','Completed',   completed);
@@ -7464,6 +7465,27 @@ function renderAPStats(plans, statsId, canvasId, legendId) {
 
 // ── My Action Plans (coachee view) ───────────────────────────
 let allMyActionPlans = [];
+// Coachees can move their own items through these; Cancelled / Carried Over stay coach-controlled.
+const COACHEE_AP_STATUSES = ['Not Started','In Progress','Completed'];
+window.onMyAPStatusChange = async function(id, el) {
+  const newStatus = el.value;
+  const item = allMyActionPlans.find(p => p.id === id);
+  const prev = item ? (item.status || 'Not Started') : '';
+  const completedDate = newStatus === 'Completed' ? new Date().toISOString().split('T')[0] : '';
+  el.disabled = true;
+  try {
+    await updateDoc(doc(db,'actionPlans',id), { status:newStatus, completedDate, updatedAt:serverTimestamp(), updatedBy:currentUser.uid });
+    // Leave a trail in the notes so the coach sees who changed it and when
+    try {
+      await addDoc(collection(db,'actionPlans',id,'comments'), {
+        text: 'Status changed from '+prev+' to '+newStatus+'.', authorId: currentUser.uid,
+        authorName: (currentProfile.firstName||'')+' '+(currentProfile.lastName||''), createdAt: serverTimestamp(), system: true });
+    } catch(e) {}
+    if (item) { item.status = newStatus; item.completedDate = completedDate; }
+    toast('Status updated to '+newStatus+'.','success');
+    filterMyActionPlans();
+  } catch(e) { toast('Could not save: '+e.message,'error'); el.disabled = false; if (item) el.value = prev; }
+};
 
 async function loadMyActionPlans() {
   const container = document.getElementById('mapl-list');
@@ -7502,8 +7524,12 @@ function renderMyActionPlans(plans) {
       + '<td style="font-size:12px;color:var(--muted);max-width:180px">'+esc(p.support||'—')+'</td>'
       + '<td style="font-size:12.5px;white-space:nowrap'+(overdue?';color:var(--red);font-weight:600':'')+'">'+(p.dueDate?due:'—')+'</td>'
       + '<td style="font-size:12.5px;white-space:nowrap">'+cd+'</td>'
-      + '<td><span style="font-size:11.5px;padding:3px 9px;border-radius:10px;font-weight:500;background:'+statusBg[st]+';color:'+statusColor[st]+'">'+st+'</span></td>'
-      + '<td style="white-space:nowrap"><button class="ap-notes-btn" onclick="openAPCommentFeed(\''+p.id+'\',\''+esc(p.action||'').replace(/'/g,"\\'")+'\',\''+esc(p.support||'').replace(/'/g,"\\'")+'\')" title="View notes">&#128196; Notes</button></td>'
+      + '<td>'+(COACHEE_AP_STATUSES.includes(st)
+          ? '<select onchange="onMyAPStatusChange(\''+p.id+'\',this)" style="border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;background:'+statusBg[st]+';color:'+statusColor[st]+'">'
+            + COACHEE_AP_STATUSES.map(o=>'<option'+(o===st?' selected':'')+'>'+o+'</option>').join('') + '</select>'
+          : '<span title="Set by your coach" style="font-size:11.5px;padding:3px 9px;border-radius:10px;font-weight:500;background:'+(statusBg[st]||'var(--light)')+';color:'+(statusColor[st]||'#6B7A8D')+'">'+st+'</span>')
+      + (overdue ? ' <span style="font-size:10.5px;color:var(--red);font-weight:600">Overdue</span>' : '') + '</td>'
+      + '<td style="white-space:nowrap"><button class="ap-notes-btn" onclick="openAPCommentFeed(\''+p.id+'\',\''+esc(p.action||'').replace(/'/g,"\\'")+'\',\''+esc(p.support||'').replace(/'/g,"\\'")+'\')" title="View or add notes">&#128196; Notes</button></td>'
       + '</tr>';
   }).join('');
 
