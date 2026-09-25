@@ -6711,8 +6711,8 @@ function buildPdfElementV2(s, coachee, coach) {
   }
   const apList = (s.actionPlan||[]).filter(r => r.action || r.support || r.dueDate);
   const apBody = apList.length
-    ? apList.map(r => '<tr><td colspan="2" style="'+VL+';vertical-align:top;white-space:pre-wrap">'+esc(r.action||'')+'</td><td style="'+VL+';vertical-align:top;white-space:pre-wrap">'+esc(r.support||'')+'</td><td style="'+VL+';vertical-align:top;text-align:center;white-space:nowrap">'+esc(fmtDate(r.dueDate))+'</td></tr>').join('')
-    : '<tr><td colspan="4" style="'+VL+';text-align:center;color:#8A9AA6">No action items recorded</td></tr>';
+    ? apList.map(r => '<tr><td style="'+VL+';vertical-align:top;white-space:pre-wrap">'+esc(r.action||'')+'</td><td style="'+VL+';vertical-align:top;white-space:pre-wrap">'+esc(r.support||'')+'</td><td style="'+VL+';vertical-align:top;text-align:center;white-space:nowrap">'+esc(fmtDate(r.dueDate))+'</td></tr>').join('')
+    : '<tr><td colspan="3" style="'+VL+';text-align:center;color:#8A9AA6">No action items recorded</td></tr>';
   const coachSig = s.coachSignature || (coach && coach.signature) || '';
   const sigCell = (img, name, stampLabel, stamp) =>
     '<td style="'+B+';width:50%;text-align:center;vertical-align:bottom;padding:3mm 2mm 2mm;height:30mm">'
@@ -6762,8 +6762,7 @@ function buildPdfElementV2(s, coachee, coach) {
 
   <table style="width:100%;border-collapse:collapse;margin-bottom:4mm">
     <tr>
-      <td style="${HD};width:14%;text-align:center">Action</td>
-      <td style="${HD};width:30%;font-size:7.5pt;font-style:italic;font-weight:400">(Outline the collaborative steps or action plan to achieve the SMART Goal)</td>
+      <td style="${HD};width:44%;text-align:center">Action <i style="font-size:7.5pt;font-weight:400">(Outline the collaborative steps or action plan to achieve the SMART Goal)</i></td>
       <td style="${HD};width:36%;text-align:center">Support/Resources Needed</td>
       <td style="${HD};width:20%;text-align:center">Due Date</td>
     </tr>
