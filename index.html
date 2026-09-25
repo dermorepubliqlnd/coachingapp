@@ -401,6 +401,8 @@
     .rte-editor ul,.rte-view ul{list-style:disc}
     .rte-editor ol,.rte-view ol{list-style:decimal}
     .rte-editor p,.rte-view p{margin:0 0 4px}
+    .prep-2col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+    @media (max-width:760px){.prep-2col{grid-template-columns:1fr}}
     .tl-hint{margin-left:8px;text-transform:none;letter-spacing:0}
     .tl-pill{font-size:10px;font-weight:600;color:var(--blue);background:var(--blue-lt);border:1px solid #BBD4E4;border-radius:10px;padding:1px 7px;line-height:1.4}
     .tl-hint .vol-tip{width:260px;font-size:11.5px;text-transform:none;letter-spacing:0;font-weight:400}
@@ -1339,22 +1341,28 @@
           </div>
 
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">A win since our last session <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">May win ka ba since last session? Ano ang situation o task, ano ang ginawa mo, at ano ang naging result?</span></span></div>
+            <div class="section-head">A win since our last session <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Ano ang wins mo since our last session?</span></span></div>
             <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Use STAR: the <b>S</b>ituation or <b>T</b>ask, what <i>you</i> did (<b>A</b>ction), and the <b>R</b>esult.</div>
             <textarea id="prep-win" class="form-control" rows="3" placeholder="Situation / task → what I did → the result…"></textarea>
           </div>
 
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">A situation you&#8217;d like help with <span style="color:var(--red)">*</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Ano ang nangyari, ano ang ginawa mo, at ano ang naging result o impact nito?</span></span></div>
-            <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Use STAR: what happened (<b>S</b>ituation / <b>T</b>ask), what you did (<b>A</b>ction), and the <b>R</b>esult or impact.</div>
-            <textarea id="prep-situation" class="form-control" rows="3" placeholder="What happened → what I did → the result or impact…"></textarea>
-            <div class="section-head" style="margin-top:14px">What were you trying to achieve? <span style="color:var(--red)">*</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Ano ang gusto mong mangyari noon? Ano ang goal mo sa ginawa mo?</span></span></div>
-            <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Your intent &#8212; what you hoped would happen.</div>
-            <textarea id="prep-intent" class="form-control" rows="2" placeholder="I was trying to…"></textarea>
+            <div class="prep-2col">
+              <div>
+                <div class="section-head">A situation you&#8217;d like help with <span style="color:var(--red)">*</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Ano ang gusto mong pag-usapan sa darating na session, o saan mo kailangan ng tulong?</span></span></div>
+                <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Use STAR: what happened (<b>S</b>ituation / <b>T</b>ask), what you did (<b>A</b>ction), and the <b>R</b>esult or impact.</div>
+                <textarea id="prep-situation" class="form-control" rows="3" placeholder="What happened → what I did → the result or impact…"></textarea>
+              </div>
+              <div>
+                <div class="section-head">What were you trying to achieve? <span style="color:var(--red)">*</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Ano ang gusto mong mangyari noon? Ano ang goal mo sa ginawa mo?</span></span></div>
+                <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Your intent &#8212; what you hoped would happen.</div>
+                <textarea id="prep-intent" class="form-control" rows="3" placeholder="I was trying to…"></textarea>
+              </div>
+            </div>
           </div>
 
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">Proposed SMART goal <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Ano ang gusto mong ma-achieve? Dapat specific, measurable, at may deadline.</span></span></div>
+            <div class="section-head">Proposed SMART goal <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Isulat ang iyong SMART goal/s.</span></span></div>
             <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px"><b>S</b>pecific, <b>M</b>easurable, <b>A</b>chievable, <b>R</b>elevant, <b>T</b>ime-bound. e.g. &#8220;Submit storyboards 1 day before deadline for all October modules.&#8221;</div>
             <textarea id="prep-proposed-goal" class="form-control" rows="2" placeholder="What I will achieve, how it will be measured, and by when…"></textarea>
           </div>
