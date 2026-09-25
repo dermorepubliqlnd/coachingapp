@@ -401,6 +401,24 @@
     .rte-editor ul,.rte-view ul{list-style:disc}
     .rte-editor ol,.rte-view ol{list-style:decimal}
     .rte-editor p,.rte-view p{margin:0 0 4px}
+    .mcx-summary{display:grid;grid-template-columns:200px minmax(0,1.1fr) minmax(0,1.5fr);gap:18px;align-items:start}
+    @media (max-width:1100px){.mcx-summary{grid-template-columns:1fr}}
+    .mcx-grp-lbl{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+    .mcx-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px}
+    .mcx-sec-head{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+    .mcx-sec-title{font-size:13px;font-weight:700;color:var(--navy,#0E2841);text-transform:uppercase;letter-spacing:.5px}
+    .mcx-chev{font-size:12px;color:var(--muted);transition:transform .15s;display:inline-block}
+    .mcx-sec.collapsed .mcx-chev{transform:rotate(-90deg)}
+    .mcx-sec.collapsed .mcx-sec-body{display:none}
+    .mcx-sec-body{margin-top:12px}
+    .mcx-badge{font-size:11.5px;color:var(--muted)}
+    .mcx-badge b{color:var(--text)}
+    .mcx-badge .warn{color:#B91C1C;font-weight:600}
+    .mcx-pager{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:10px;font-size:12px;color:var(--muted)}
+    .mcx-pager:empty{display:none}
+    .mcx-kpi-sub{font-size:10.5px;color:var(--muted);margin-top:1px;line-height:1.3}
+    .mcx-att-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border);font-size:12.5px}
+    .mcx-att-row:first-of-type{border-top:none}
     .prep-2col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
     @media (max-width:760px){.prep-2col{grid-template-columns:1fr}}
     .tl-hint{margin-left:8px;text-transform:none;letter-spacing:0}
@@ -1245,15 +1263,36 @@
         </div>
         <!-- COACHEE: MY COACHING -->
         <div class="view" id="view-my-coaching">
-          <div class="card" style="margin-bottom:12px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding:14px 16px">
-            <div style="min-width:180px">
-              <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">My Coach</div>
-              <div id="coachee-coach-info"></div>
+          <!-- Summary: coaching + action plan KPIs -->
+          <div class="card" style="margin-bottom:12px;padding:14px 16px">
+            <div class="mcx-summary">
+              <div class="mcx-coach">
+                <div class="mcx-grp-lbl">My Coach</div>
+                <div id="coachee-coach-info"></div>
+              </div>
+              <div class="mcx-grp">
+                <div class="mcx-grp-lbl">Coaching</div>
+                <div id="mc-stats" class="mcx-stats"></div>
+              </div>
+              <div class="mcx-grp">
+                <div class="mcx-grp-lbl">My Action Plans</div>
+                <div id="mapl-stats-new" class="mcx-stats"></div>
+              </div>
             </div>
-            <div id="mc-stats" style="display:flex;gap:10px;flex-wrap:wrap;flex:1"></div>
           </div>
-          <div class="card" style="margin-bottom:12px;padding:12px 16px">
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+
+          <!-- Needs your attention -->
+          <div id="mc-attention" class="card" style="margin-bottom:12px;display:none;border-left:4px solid var(--orange,#E97132)"></div>
+
+          <!-- Section: My Sessions -->
+          <div class="card mcx-sec" id="mcx-sec-sessions" style="margin-bottom:12px">
+            <div class="mcx-sec-head" onclick="toggleMcxSection('sessions')">
+              <span class="mcx-chev">&#9662;</span>
+              <span class="mcx-sec-title">My Coaching Sessions</span>
+              <span id="mcx-badge-sessions" class="mcx-badge"></span>
+            </div>
+            <div class="mcx-sec-body">
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <select id="mc-filter-status" class="form-control" style="max-width:190px" onchange="filterMyCoaching()">
                 <option value="">All Statuses</option>
                 <option value="prep-requested">Prep Requested</option>
@@ -1279,29 +1318,22 @@
               <button id="mc-clear-filter" class="btn btn-ghost btn-sm" style="display:none" onclick="clearMyCoachingFilter()">&#10005; Clear Filter</button>
               <button class="btn btn-ghost btn-sm" data-col-panel-toggle onclick="event.stopPropagation();toggleColPanel('col-panel-mc',this)" title="Show/hide columns" style="margin-left:auto">⊞ Columns</button>
             </div>
-          </div>
-          <div class="card">
-            <div class="card-title">Sessions</div>
-            <div id="coachee-sessions-list">
-              <div class="empty-state"><div class="empty-icon">&#128172;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Your coaching sessions will appear here once your coach records one.</div></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- COACHEE: MY ACTION PLANS -->
-        <div class="view" id="view-my-action-plans">
-          <div class="card" style="margin-bottom:14px;padding:16px">
-            <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
-              <div id="mapl-stats-new" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;flex:1"></div>
-              <div style="flex-shrink:0;text-align:center;min-width:160px">
-                <div style="font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Status Breakdown</div>
-                <canvas id="mapl-donut" width="150" height="150" style="max-width:150px;display:block;margin:0 auto"></canvas>
-                <div id="mapl-donut-legend" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;justify-content:center"></div>
+              <div id="coachee-sessions-list" style="margin-top:12px">
+                <div class="empty-state"><div class="empty-icon">&#128172;</div><div class="empty-title">No sessions yet</div><div class="empty-sub">Your coaching sessions will appear here once your coach records one.</div></div>
               </div>
+              <div id="mc-pager" class="mcx-pager"></div>
             </div>
           </div>
-          <div class="card" style="margin-bottom:12px;padding:12px 16px">
-            <div style="display:flex;gap:10px;align-items:center">
+
+          <!-- Section: My Action Plans -->
+          <div class="card mcx-sec" id="mcx-sec-aps" style="margin-bottom:12px">
+            <div class="mcx-sec-head" onclick="toggleMcxSection('aps')">
+              <span class="mcx-chev">&#9662;</span>
+              <span class="mcx-sec-title">My Action Plans</span>
+              <span id="mcx-badge-aps" class="mcx-badge"></span>
+            </div>
+            <div class="mcx-sec-body">
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <select id="mapl-filter-status" class="form-control" style="max-width:170px" onchange="filterMyActionPlans()">
                 <option value="">All Statuses</option>
                 <option>Not Started</option>
@@ -1313,14 +1345,21 @@
                 <input type="checkbox" id="mapl-filter-overdue" onchange="filterMyActionPlans()" style="accent-color:var(--red)">
                 Overdue only
               </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
+                <input type="checkbox" id="mapl-show-closed" onchange="filterMyActionPlans()" style="accent-color:var(--blue)">
+                <span id="mapl-show-closed-lbl">Show completed</span>
+              </label>
             </div>
-          </div>
-          <div class="card">
-            <div id="mapl-list">
-              <div class="empty-state"><div class="empty-icon">&#9989;</div><div class="empty-title">No action plans yet</div><div class="empty-sub">Your action items will appear here once your coach submits a session.</div></div>
+              <div id="mapl-list" style="margin-top:12px">
+                <div class="empty-state"><div class="empty-icon">&#9989;</div><div class="empty-title">No action plans yet</div><div class="empty-sub">Your action items will appear here once your coach submits a session.</div></div>
+              </div>
+              <div id="mapl-pager" class="mcx-pager"></div>
             </div>
           </div>
         </div>
+
+        <!-- COACHEE: MY ACTION PLANS — merged into My Coaching (route redirects) -->
+        <div class="view" id="view-my-action-plans"></div>
 
         <!-- COACHEE: PRE-SESSION PREP FORM -->
         <div class="view" id="view-coachee-prep">
@@ -2367,7 +2406,7 @@ const VIEWS = {
   'coach-new-session': { el:'view-coach-new-session', label:'New Session',      sub:'',                                                                   load:null },
   'coach-sessions':    { el:'view-coach-sessions',    label:'Coaching Sessions', sub:'All sessions you have recorded.',                                    load:null },
   'action-plans':      { el:'view-action-plans',      label:'Action Plans',     sub:'Track action items across all your coaching sessions.',               load:null },
-  'my-coaching':       { el:'view-my-coaching',       label:'My Coaching',      sub:'Sessions shared with you for review and acknowledgement.',            load:loadMyCoaching },
+  'my-coaching':       { el:'view-my-coaching',       label:'My Coaching',      sub:'Your coaching sessions, this month\'s coaching status, and your action plans.',            load:loadMyCoaching },
   'my-action-plans':   { el:'view-my-action-plans',   label:'My Action Plans',  sub:'Your committed actions and progress from coaching sessions.',         load:null },
   'reports':           { el:'view-reports',           label:'Reports',          sub:'Export coaching and compliance data to CSV.',                         load:loadReportsView },
   'coachee-prep':      { el:'view-coachee-prep',      label:'Session Preparation', sub:'',                                                                load:null },
@@ -2432,8 +2471,7 @@ function renderSidebar() {
   }
   if (roles.includes('coachee')) {
     html += '<div class="nav-section-label">My Development</div>';
-    html += ni('my-coaching',      NAV_ICONS.coaching,  roles.length > 1 ? 'My Coaching' : 'My Sessions');
-    html += ni('my-action-plans',  NAV_ICONS.checklist, 'My Action Plans');
+    html += ni('my-coaching',      NAV_ICONS.coaching,  'My Coaching');
   }
   if (roles.includes('coach')) {
     html += '<div class="nav-section-label">Coaching</div>';
@@ -4179,23 +4217,49 @@ async function loadMyCoaching() {
       +'<div class="mt-stat-icon" style="background:'+iconBg+';color:'+iconClr+'">'+icon+'</div>'
       +'<div><div class="mt-stat-val">'+val+'</div><div class="mt-stat-lbl">'+lbl+'</div></div>'
       +'</div>';
+    // This month's coaching compliance for me (same rule as the Dashboard)
+    const now = new Date();
+    const curMon = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    const monLbl = now.toLocaleDateString('en-PH',{month:'long',year:'numeric'});
+    const coachedThisMonth = sessions.find(x => ['acknowledged','completed'].includes(x.status) && (x.sessionDate||'').slice(0,7) === curMon);
+    const requiredNow = isRequiredInMonth(currentProfile, curMon);
+    let compVal, compSub, compBg, compClr;
+    if (coachedThisMonth)      { compVal='Coached';          compSub=monLbl+' &middot; '+esc(coachedThisMonth.sessionCode||''); compBg='#E6F4EB'; compClr='#1A6B34'; }
+    else if (requiredNow)      { compVal='Not yet coached';  compSub=monLbl+' &middot; 1 session due this month';               compBg='#FEF0E0'; compClr='#A05A0A'; }
+    else                       { compVal='Not required yet'; compSub=monLbl+' &middot; starts the month after your hire month'; compBg='#F1F5F9'; compClr='#6B7A8D'; }
+    const prepCt = sessions.filter(x => ['prep-requested','coachee-preparing'].includes(x.status)).length;
+    const ackCt  = sessions.filter(x => ['pending','pending-commitment'].includes(x.status)).length;
+    const mkK = (icon, bg, clr, lbl, val, sub, valStyle) =>
+      '<div class="mt-stat">'
+      +'<div class="mt-stat-icon" style="background:'+bg+';color:'+clr+'">'+icon+'</div>'
+      +'<div style="min-width:0"><div class="mt-stat-val" style="'+(valStyle||'')+'">'+val+'</div><div class="mt-stat-lbl">'+lbl+'</div>'+(sub?'<div class="mcx-kpi-sub">'+sub+'</div>':'')+'</div>'
+      +'</div>';
     const statsEl = document.getElementById('mc-stats');
     if (statsEl) statsEl.innerHTML =
-        mkMC(MC_LIST,  '#E8F4FA', '#156082', 'Total Sessions',  sessions.length)
-      + mkMC(MC_WARN,  '#FEE2E2', '#B91C1C', 'Action Required', mcNeedAction)
-      + mkMC(MC_CHECK, '#E6F4EB', '#1A6B34', 'Completed',       mcComp);
+        mkK(MC_CHECK, compBg, compClr, 'This Month', compVal, compSub, 'font-size:15px;color:'+compClr)
+      + mkK(MC_LIST,  '#E8F4FA', '#156082', 'Total Sessions', sessions.length, mcComp+' completed')
+      + mkK(MC_WARN,  '#FEE2E2', '#B91C1C', 'Action Required', prepCt+ackCt, prepCt+' prep requested &middot; '+ackCt+' to acknowledge');
 
     allMyCoachingSessions = sessions;
-    filterMyCoaching();
+    mcPage = 1;
+    filterMyCoaching(true);
+    applyMcxCollapse();
+    await loadMyActionPlans();
+    renderMcAttention();
+    renderMcxBadges();
     return;
   } catch(e) {
     container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading sessions.</div></div>';
   }
 }
 
-function renderMyCoachingTable(sessions) {
+function renderMyCoachingTable(allRows) {
   const container = document.getElementById('coachee-sessions-list');
   if (!container) return;
+  const pages = Math.max(1, Math.ceil(allRows.length / MCX_PAGE));
+  if (mcPage > pages) mcPage = pages;
+  const sessions = allRows.slice((mcPage-1)*MCX_PAGE, mcPage*MCX_PAGE);
+  renderPager('mc-pager', allRows.length, mcPage, 'mcGoPage');
   if (!sessions.length) {
     container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#128172;</div><div class="empty-title">No sessions</div><div class="empty-sub">No sessions match the current filter.</div></div>';
     return;
@@ -4235,7 +4299,8 @@ function renderMyCoachingTable(sessions) {
   buildColPanel('col-panel-mc', 'mc', 'mc-table', MC_COL_DEFS);
 }
 
-window.filterMyCoaching = function() {
+window.filterMyCoaching = function(keepPage) {
+  if (keepPage !== true) mcPage = 1;
   const statusVal   = (document.getElementById('mc-filter-status')||{}).value   || '';
   const focusVal    = (document.getElementById('mc-filter-focus')||{}).value    || '';
   const deliveryVal = (document.getElementById('mc-filter-delivery')||{}).value || '';
@@ -7485,6 +7550,75 @@ function renderAPStats(plans, statsId, canvasId, legendId) {
     : '').join('');
 }
 
+// ── My Coaching page: collapsible sections + pagination ──────
+const MCX_PAGE = 10;
+let mcPage = 1, maplPage = 1;
+function mcxCollapsed() { try { return JSON.parse(localStorage.getItem('boost_mcx_collapsed')||'{}'); } catch(e) { return {}; } }
+function applyMcxCollapse() {
+  const st = mcxCollapsed();
+  ['sessions','aps'].forEach(k => { const el=document.getElementById(k==='sessions'?'mcx-sec-sessions':'mcx-sec-aps'); if (el) el.classList.toggle('collapsed', !!st[k]); });
+}
+window.toggleMcxSection = function(k) {
+  const st = mcxCollapsed(); st[k] = !st[k];
+  try { localStorage.setItem('boost_mcx_collapsed', JSON.stringify(st)); } catch(e) {}
+  applyMcxCollapse();
+};
+window.expandMcxSection = function(k) {
+  const st = mcxCollapsed(); if (!st[k]) return applyMcxCollapse(); st[k] = false;
+  try { localStorage.setItem('boost_mcx_collapsed', JSON.stringify(st)); } catch(e) {}
+  applyMcxCollapse();
+};
+function renderPager(elId, total, page, goFn) {
+  const el = document.getElementById(elId); if (!el) return;
+  const pages = Math.max(1, Math.ceil(total / MCX_PAGE));
+  if (total <= MCX_PAGE) { el.innerHTML = ''; return; }
+  const from = (page-1)*MCX_PAGE + 1, to = Math.min(total, page*MCX_PAGE);
+  el.innerHTML = '<span>Showing '+from+'&#8211;'+to+' of '+total+'</span>'
+    + '<button class="btn btn-ghost btn-sm" '+(page<=1?'disabled':'')+' onclick="'+goFn+'('+(page-1)+')">&#8249; Prev</button>'
+    + '<span>Page '+page+' of '+pages+'</span>'
+    + '<button class="btn btn-ghost btn-sm" '+(page>=pages?'disabled':'')+' onclick="'+goFn+'('+(page+1)+')">Next &#8250;</button>';
+}
+window.mcGoPage   = function(n) { mcPage = n;   filterMyCoaching(true); };
+window.maplGoPage = function(n) { maplPage = n; filterMyActionPlans(true); };
+
+// Needs-your-attention panel: prep to fill, sessions to acknowledge, overdue action items
+function renderMcAttention() {
+  const box = document.getElementById('mc-attention'); if (!box) return;
+  const t = new Date(); t.setHours(0,0,0,0);
+  const prep = (allMyCoachingSessions||[]).filter(x => ['prep-requested','coachee-preparing'].includes(x.status));
+  const ack  = (allMyCoachingSessions||[]).filter(x => ['pending','pending-commitment'].includes(x.status));
+  const od   = (allMyActionPlans||[]).filter(p => apHealth(p).label === 'Overdue');
+  if (!prep.length && !ack.length && !od.length) { box.style.display='none'; box.innerHTML=''; return; }
+  const fd = d => d ? new Date(d+'T00:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}) : '';
+  const row = (tag, tagBg, tagClr, text, btn) => '<div class="mcx-att-row"><span style="font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;background:'+tagBg+';color:'+tagClr+'">'+tag+'</span><span style="flex:1;min-width:0">'+text+'</span>'+btn+'</div>';
+  box.style.display = 'block';
+  box.innerHTML = '<div class="mcx-grp-lbl" style="margin-bottom:4px">Needs your attention</div>'
+    + prep.map(x => row('Coaching &middot; Prep requested','#EDE9FE','#5B21B6', esc(x.sessionCode||'')+' &mdash; fill in your pre-session prep'+(x.sessionDate?' for '+fd(x.sessionDate):''),
+        '<button class="btn btn-primary btn-sm" onclick="openCoacheePrepForm(\''+x.id+'\')">Prepare</button>')).join('')
+    + ack.map(x => row('Coaching &middot; Awaiting your acknowledgement','#FEF0E0','#A05A0A', esc(x.sessionCode||'')+' &mdash; review and sign your coaching log'+(x.sessionDate?' ('+fd(x.sessionDate)+')':''),
+        '<button class="btn btn-primary btn-sm" onclick="openExistingSession(\''+x.id+'\')">Acknowledge</button>')).join('')
+    + (od.length ? row('Action plan &middot; Overdue','#FEE2E2','#B91C1C', od.length+' action item'+(od.length>1?'s are':' is')+' past due &mdash; update the status or add a note',
+        '<button class="btn btn-ghost btn-sm" onclick="showMyOverdueAPs()">View</button>') : '');
+}
+window.showMyOverdueAPs = function() {
+  expandMcxSection('aps');
+  const cb = document.getElementById('mapl-filter-overdue'); if (cb) cb.checked = true;
+  filterMyActionPlans();
+  const el = document.getElementById('mcx-sec-aps'); if (el) el.scrollIntoView({behavior:'smooth',block:'start'});
+};
+function renderMcxBadges() {
+  const ses = allMyCoachingSessions||[], aps = allMyActionPlans||[];
+  const need = ses.filter(x => ['prep-requested','coachee-preparing','pending','pending-commitment'].includes(x.status)).length;
+  const open = aps.filter(p => !['Completed','Cancelled'].includes(p.status||'Not Started')).length;
+  const od   = aps.filter(p => apHealth(p).label === 'Overdue').length;
+  const b1 = document.getElementById('mcx-badge-sessions');
+  if (b1) b1.innerHTML = '<b>'+ses.length+'</b> session'+(ses.length===1?'':'s')+(need?' &middot; <span class="warn">'+need+' need'+(need===1?'s':'')+' action</span>':'');
+  const b2 = document.getElementById('mcx-badge-aps');
+  if (b2) b2.innerHTML = '<b>'+open+'</b> open'+(od?' &middot; <span class="warn">'+od+' overdue</span>':'')+' &middot; '+aps.length+' total';
+  const closed = aps.length - open;
+  const lbl = document.getElementById('mapl-show-closed-lbl'); if (lbl) lbl.textContent = 'Show completed ('+closed+')';
+}
+
 // ── My Action Plans (coachee view) ───────────────────────────
 let allMyActionPlans = [];
 // Coachees can move their own items through these; Cancelled / Carried Over stay coach-controlled.
@@ -7505,7 +7639,8 @@ window.onMyAPStatusChange = async function(id, el) {
     } catch(e) {}
     if (item) { item.status = newStatus; item.completedDate = completedDate; }
     toast('Status updated to '+newStatus+'.','success');
-    filterMyActionPlans();
+    filterMyActionPlans(true);
+    renderMcAttention();
   } catch(e) { toast('Could not save: '+e.message,'error'); el.disabled = false; if (item) el.value = prev; }
 };
 
@@ -7515,17 +7650,24 @@ async function loadMyActionPlans() {
   if (!allUsers.length) await refreshUsers();
   try {
     const snap = await getDocs(query(collection(db,'actionPlans'), where('coacheeId','==',currentUser.uid)));
+    const rank = p => ({'Not Started':0,'In Progress':0,'Carried Over':1,'Completed':2,'Cancelled':3})[p.status||'Not Started'] ?? 1;
     allMyActionPlans = snap.docs.map(d=>({id:d.id,...d.data()}))
-      .sort((a,b)=>(a.dueDate||'').localeCompare(b.dueDate||''));
-    renderMyActionPlans(allMyActionPlans);
+      .sort((a,b)=> rank(a)-rank(b) || (a.dueDate||'').localeCompare(b.dueDate||''));
+    maplPage = 1;
+    filterMyActionPlans(true);
   } catch(e) { console.error('loadMyActionPlans error', e); container.innerHTML = '<div class="empty-state"><div class="empty-sub">Error loading action plans.</div></div>'; }
 }
 
-function renderMyActionPlans(plans) {
-  renderAPStats(plans, 'mapl-stats-new', 'mapl-donut', 'mapl-donut-legend');
+function renderMyActionPlans(allRows) {
+  renderAPStats(allMyActionPlans, 'mapl-stats-new', 'mapl-donut', 'mapl-donut-legend');
   const container = document.getElementById('mapl-list');
+  const pages = Math.max(1, Math.ceil(allRows.length / MCX_PAGE));
+  if (maplPage > pages) maplPage = pages;
+  const plans = allRows.slice((maplPage-1)*MCX_PAGE, maplPage*MCX_PAGE);
+  renderPager('mapl-pager', allRows.length, maplPage, 'maplGoPage');
   if (!plans.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9989;</div><div class="empty-title">No action plans yet</div><div class="empty-sub">Your action items will appear here once your coach submits a session.</div></div>';
+    const none = !allMyActionPlans.length;
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9989;</div><div class="empty-title">'+(none?'No action plans yet':'Nothing to show')+'</div><div class="empty-sub">'+(none?'Your action items will appear here once you acknowledge a coaching session.':'No open action items match this filter. Tick &ldquo;Show completed&rdquo; to see finished ones.')+'</div></div>';
     return;
   }
   const statusColor = {'Not Started':'#6B7A8D','In Progress':'var(--amber)','Completed':'var(--green)','Overdue':'var(--red)','Carried Over':'#6366F1','Cancelled':'#9CA3AF'};
@@ -7573,11 +7715,15 @@ function renderMyActionPlans(plans) {
   setupTableEnhancements(document.getElementById('mapl-table'), 'mapl', filterMyActionPlans);
 }
 
-window.filterMyActionPlans = function() {
+window.filterMyActionPlans = function(keepPage) {
+  if (keepPage !== true) maplPage = 1;
   const statusVal   = (document.getElementById('mapl-filter-status')||{}).value || '';
+  const showClosed  = !!(document.getElementById('mapl-show-closed')||{}).checked;
   const overdueOnly = !!(document.getElementById('mapl-filter-overdue')||{}).checked;
   const today0 = new Date(); today0.setHours(0,0,0,0);
   let filtered = allMyActionPlans;
+  // Completed / Cancelled hidden unless "Show completed" is ticked or that status is picked
+  if (!showClosed && !['Completed','Cancelled'].includes(statusVal)) filtered = filtered.filter(p => !['Completed','Cancelled'].includes(p.status||'Not Started'));
   if (statusVal)   filtered = filtered.filter(p => (p.status||'Not Started') === statusVal);
   if (overdueOnly) filtered = filtered.filter(p => {
     const st=p.status||'Not Started';
@@ -7593,6 +7739,7 @@ window.filterMyActionPlans = function() {
     return '';
   };
   renderMyActionPlans(sortByCol(filtered,'mapl',getVal));
+  renderMcxBadges();
 };
 
 // ── My Profile / E-Signature ─────────────────────────────────
@@ -8883,7 +9030,8 @@ _vw('admin-inbox')['load']       = loadAdminInbox;
 _vw('coach-new-session')['load'] = loadSessionForm;
 _vw('coach-sessions')['load']    = loadCoachSessions;
 _vw('action-plans')['load']      = loadActionPlans;
-_vw('my-action-plans')['load']   = loadMyActionPlans;
+// My Action Plans now lives inside My Coaching — old links/bookmarks land there
+_vw('my-action-plans')['load']   = () => { navigateTo('my-coaching'); setTimeout(() => { expandMcxSection('aps'); const el=document.getElementById('mcx-sec-aps'); if (el) el.scrollIntoView({behavior:'smooth',block:'start'}); }, 400); };
 _vw('coachee-prep')['load']      = loadCoacheePrepForm;
 
 </script>
