@@ -5943,16 +5943,27 @@ window.backToFlowPicker = function() {
   document.getElementById('session-form-sub').textContent   = 'Select a coachee to send the prep form';
 };
 
-async function fetchLastSessionDate(coacheeId) {
+// Most recent coaching session that actually took place for this coachee, before
+// `beforeDate` (if given), excluding `excludeId`. Draft and coachee-led prep stages are
+// skipped — their sessionDate is a target date, not a session that happened.
+const LAST_SESSION_SKIP = ['draft','prep-requested','coachee-preparing','prep-submitted','coach-review'];
+async function computeLastSessionDate(coacheeId, beforeDate, excludeId) {
   try {
-    // Coach reads only their own sessions with this coachee (coachId == me AND coacheeId == them)
-    const snap = await getDocs(query(collection(db,'sessions'),
-      where('coachId','==',currentUser.uid), where('coacheeId','==',coacheeId)));
-    const last = snap.docs.map(d=>({...d.data()}))
-      .filter(s => s.status !== 'draft' && s.sessionDate)
+    let q;
+    if (hasEnterpriseAccess(currentProfile))      q = query(collection(db,'sessions'), where('coacheeId','==',coacheeId));
+    else if (currentUser.uid === coacheeId)       q = query(collection(db,'sessions'), where('coacheeId','==',coacheeId));
+    else q = query(collection(db,'sessions'), where('coachId','==',currentUser.uid), where('coacheeId','==',coacheeId));
+    const snap = await getDocs(q);
+    const last = snap.docs.map(d=>({id:d.id,...d.data()}))
+      .filter(x => x.id !== excludeId && x.sessionDate && !LAST_SESSION_SKIP.includes(x.status)
+                && (!beforeDate || x.sessionDate < beforeDate))
       .sort((a,b) => b.sessionDate.localeCompare(a.sessionDate));
-    if (last.length) document.getElementById('sf-last-session').value = last[0].sessionDate;
-  } catch(e) {}
+    return last.length ? last[0].sessionDate : '';
+  } catch(e) { return ''; }
+}
+async function fetchLastSessionDate(coacheeId, beforeDate, excludeId) {
+  const d = await computeLastSessionDate(coacheeId, beforeDate, excludeId);
+  if (d) document.getElementById('sf-last-session').value = d;
 }
 
 async function loadExistingSession(sessionId) {
@@ -5972,6 +5983,9 @@ async function loadExistingSession(sessionId) {
 
     document.getElementById('sf-session-date').value  = s.sessionDate || '';
     document.getElementById('sf-last-session').value  = s.lastSessionDate || '';
+    // Not stored yet (e.g. coachee-led sessions started from a prep request) — pull it
+    // from the system; it gets saved with the session on the coach's next save/finalize.
+    if (!s.lastSessionDate && !isLegacySession(s)) await fetchLastSessionDate(s.coacheeId, s.sessionDate, sessionId);
     document.getElementById('sf-department').value    = s.department || '';
     document.getElementById('sf-next-session').value  = s.nextSessionDate || '';
     const cmVal = s.coachingMethod || 'face-to-face';
@@ -6628,6 +6642,7 @@ async function _openPdfWindow(sessionId) {
     const coachee = allUsers.find(u=>u.uid===s.coacheeId);
     const coach   = allUsers.find(u=>u.uid===(s.coachId||currentUser.uid)) || currentProfile;
     const _v2Pdf  = !isLegacySession(s);
+    if (_v2Pdf && !s.lastSessionDate) s.lastSessionDate = await computeLastSessionDate(s.coacheeId, s.sessionDate, sid);
     const pdfEl   = _v2Pdf ? buildPdfElementV2(s, coachee, coach) : buildPdfElement(s, coachee, coach);
     const cName   = coachee ? coachee.lastName+'_'+(coachee.firstName||'') : 'Unknown';
     const dStr    = (s.sessionDate||'').replace(/-/g,'');
@@ -7517,6 +7532,7 @@ window.openSessionPdfModal = async function(sessionId) {
     const coach   = allUsers.find(u=>u.uid===s.coachId) || currentProfile;
     if (coachee) title.textContent = 'Coaching Log — '+coachee.firstName+' '+coachee.lastName+(s.sessionDate?' · '+new Date(s.sessionDate+'T00:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}):'');
     const _legacyPrev = isLegacySession(s);
+    if (!_legacyPrev && !s.lastSessionDate) s.lastSessionDate = await computeLastSessionDate(s.coacheeId, s.sessionDate, sessionId);
     const pdfEl = _legacyPrev ? buildPdfElement(s, coachee, coach) : buildPdfElementV2(s, coachee, coach);
     pdfEl.style.cssText = 'width:100%;background:white;font-family:'+(_legacyPrev?'Arial,Helvetica,sans-serif':'Poppins,Arial,sans-serif')+';font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:8mm;border-radius:6px';
     content.innerHTML = '';
