@@ -1151,7 +1151,6 @@
                   <option>Not Started</option>
                   <option>In Progress</option>
                   <option>Completed</option>
-                  <option>Overdue</option>
                   <option>Cancelled</option>
                 </select>
                 <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
@@ -1308,7 +1307,6 @@
                 <option>Not Started</option>
                 <option>In Progress</option>
                 <option>Completed</option>
-                <option>Overdue</option>
                 <option>Cancelled</option>
               </select>
               <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
@@ -7101,7 +7099,7 @@ function renderActionPlans(plans) {
     const st  = p.status || 'Not Started';
     const today2 = new Date(); today2.setHours(0,0,0,0);
     const overdue = p.dueDate && !['Completed','Cancelled'].includes(st) && new Date(p.dueDate+'T00:00:00') < today2;
-    const stDisplay = overdue && st === 'Not Started' ? 'Overdue' : st;
+    const stDisplay = st;
     const cd = p.completedDate ? new Date(p.completedDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
     const sessionCode = sessionCodeMap[p.sessionId] || '';
     const sessionTag = sessionCode
@@ -7114,11 +7112,12 @@ function renderActionPlans(plans) {
       + '<td style="font-size:12.5px;white-space:nowrap">'+d+'</td>'
       + '<td style="font-size:12.5px;max-width:220px">'+esc(p.action||'—')+'</td>'
       + '<td style="font-size:12px;color:var(--muted);max-width:180px">'+esc(p.support||'—')+'</td>'
-      + '<td style="font-size:12.5px;white-space:nowrap'+(overdue&&stDisplay==='Overdue'?';color:var(--red);font-weight:600':'')+'">'+(p.dueDate?due:'—')+'</td>'
+      + '<td style="font-size:12.5px;white-space:nowrap'+(overdue?';color:var(--red);font-weight:600':'')+'">'+(p.dueDate?due:'—')+'</td>'
       + '<td class="ap-completed-date" style="font-size:12.5px;white-space:nowrap">'+cd+'</td>'
       + '<td><select class="apl-status-sel" data-id="'+p.id+'" onchange="onAPStatusChange(\''+p.id+'\',this)" style="border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;background:'+statusBg[stDisplay]+';color:'+statusColor[stDisplay]+';font-weight:500;cursor:pointer">'
-      + ['Not Started','In Progress','Completed','Overdue','Carried Over','Cancelled'].map(s=>'<option'+(s===st?' selected':'')+'>'+s+'</option>').join('')
+      + ['Not Started','In Progress','Completed','Carried Over','Cancelled'].concat(st==='Overdue'?['Overdue']:[]).map(s=>'<option'+(s===st?' selected':'')+'>'+s+'</option>').join('')
       + '</select></td>'
+      + apHealthCell(p)
       + '<td style="white-space:nowrap"><button class="ap-notes-btn" onclick="openAPCommentFeed(\''+p.id+'\',\''+esc(p.action||'').replace(/'/g,"\\'")+'\',\''+esc(p.support||'').replace(/'/g,"\\'")+'\')" title="View notes">&#128196; Notes</button></td>'
       + '</tr>';
   }).join('');
@@ -7134,6 +7133,7 @@ function renderActionPlans(plans) {
     + '<th data-col="due" style="min-width:100px">Due Date</th>'
     + '<th data-col="completed" style="min-width:110px">Completed</th>'
     + '<th data-col="status" style="min-width:140px">Status</th>'
+    + '<th style="min-width:100px">Health</th>'
     + '<th style="min-width:90px">Notes</th>'
     + '</tr></thead>'
     + '<tbody>'+rows+'</tbody></table></div>';
@@ -7148,7 +7148,7 @@ function renderActionPlans(plans) {
     const st = plan.status || 'Not Started';
     const today2 = new Date(); today2.setHours(0,0,0,0);
     const overdue = plan.dueDate && !['Completed','Cancelled'].includes(st) && new Date(plan.dueDate+'T00:00:00') < today2;
-    const stDisplay = overdue && st === 'Not Started' ? 'Overdue' : st;
+    const stDisplay = st;
     sel.style.background = AP_STATUS_BG[stDisplay]    || 'var(--light)';
     sel.style.color      = AP_STATUS_COLOR[stDisplay] || '#6B7A8D';
   });
@@ -7185,6 +7185,27 @@ window.viewCoacheeActionPlans = function(coacheeId) {
   navigateTo('action-plans');
 };
 
+// Health = timing, separate from Status (the work state).
+//   Done / Done late  — status Completed (late = completed after the due date)
+//   Overdue           — not completed and past the due date
+//   On track          — not completed, due date today or later
+//   No due date / —   — nothing to measure, or Cancelled
+function apHealth(p) {
+  const st = p.status || 'Not Started';
+  const t = new Date(); t.setHours(0,0,0,0);
+  const due = p.dueDate ? new Date(p.dueDate+'T00:00:00') : null;
+  if (st === 'Cancelled') return { label:'—', color:'#9CA3AF', bg:'transparent' };
+  if (st === 'Completed') {
+    const late = due && p.completedDate && new Date(p.completedDate+'T00:00:00') > due;
+    return late ? { label:'Done late', color:'#A05A0A', bg:'#FEF0E0' } : { label:'Done', color:'#1A6B34', bg:'#E6F4EB' };
+  }
+  if (!due) return { label:'No due date', color:'#6B7A8D', bg:'var(--light)' };
+  return due < t ? { label:'Overdue', color:'#B91C1C', bg:'#FEE2E2' } : { label:'On track', color:'#156082', bg:'#E8F4FA' };
+}
+function apHealthCell(p) {
+  const h = apHealth(p);
+  return '<td><span style="font-size:11.5px;padding:3px 9px;border-radius:10px;font-weight:600;white-space:nowrap;background:'+h.bg+';color:'+h.color+'">'+h.label+'</span></td>';
+}
 // Shared status colours for action plan dropdowns
 const AP_STATUS_COLOR = {'Not Started':'#6B7A8D','In Progress':'var(--amber)','Completed':'var(--green)','Overdue':'var(--red)','Carried Over':'#6366F1','Cancelled':'#9CA3AF'};
 const AP_STATUS_BG    = {'Not Started':'var(--light)','In Progress':'var(--amber-lt)','Completed':'var(--green-lt)','Overdue':'#FEE2E2','Carried Over':'#EEF2FF','Cancelled':'#F9FAFB'};
@@ -7425,9 +7446,10 @@ function renderAPStats(plans, statsId, canvasId, legendId) {
   if (!canvas) return;
   if (_apCharts[canvasId]) { try { _apCharts[canvasId].destroy(); } catch(e){} _apCharts[canvasId]=null; }
 
-  const chartData   = [notStarted, inProg, completed, overdue, cancelled];
-  const chartLabels = ['Not Started','In Progress','Completed','Overdue','Cancelled'];
-  const chartColors = ['#6B7A8D','#D97706','#1A6B34','#B91C1C','#9CA3AF'];
+  // Status only (Overdue is timing/health and overlaps Not Started/In Progress — shown in its own card)
+  const chartData   = [notStarted, inProg, completed, cancelled];
+  const chartLabels = ['Not Started','In Progress','Completed','Cancelled'];
+  const chartColors = ['#6B7A8D','#D97706','#1A6B34','#9CA3AF'];
   const totalCt = chartData.reduce((a,b)=>a+b,0);
 
   if (!totalCt) {
@@ -7528,7 +7550,7 @@ function renderMyActionPlans(plans) {
           ? '<select onchange="onMyAPStatusChange(\''+p.id+'\',this)" style="border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-size:12px;background:'+statusBg[st]+';color:'+statusColor[st]+'">'
             + COACHEE_AP_STATUSES.map(o=>'<option'+(o===st?' selected':'')+'>'+o+'</option>').join('') + '</select>'
           : '<span title="Set by your coach" style="font-size:11.5px;padding:3px 9px;border-radius:10px;font-weight:500;background:'+(statusBg[st]||'var(--light)')+';color:'+(statusColor[st]||'#6B7A8D')+'">'+st+'</span>')
-      + (overdue ? ' <span style="font-size:10.5px;color:var(--red);font-weight:600">Overdue</span>' : '') + '</td>'
+      + '</td>' + apHealthCell(p)
       + '<td style="white-space:nowrap"><button class="ap-notes-btn" onclick="openAPCommentFeed(\''+p.id+'\',\''+esc(p.action||'').replace(/'/g,"\\'")+'\',\''+esc(p.support||'').replace(/'/g,"\\'")+'\')" title="View or add notes">&#128196; Notes</button></td>'
       + '</tr>';
   }).join('');
@@ -7542,6 +7564,7 @@ function renderMyActionPlans(plans) {
     + '<th data-col="due" style="min-width:100px">Due Date</th>'
     + '<th data-col="completed" style="min-width:110px">Completed</th>'
     + '<th data-col="status" style="min-width:120px">Status</th>'
+    + '<th style="min-width:100px">Health</th>'
     + '<th style="min-width:90px">Notes</th>'
     + '</tr></thead>'
     + '<tbody>'+rows+'</tbody></table></div>';
