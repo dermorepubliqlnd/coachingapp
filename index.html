@@ -401,6 +401,9 @@
     .rte-editor ul,.rte-view ul{list-style:disc}
     .rte-editor ol,.rte-view ol{list-style:decimal}
     .rte-editor p,.rte-view p{margin:0 0 4px}
+    .tl-hint{margin-left:8px;text-transform:none;letter-spacing:0}
+    .tl-pill{font-size:10px;font-weight:600;color:var(--blue);background:var(--blue-lt);border:1px solid #BBD4E4;border-radius:10px;padding:1px 7px;line-height:1.4}
+    .tl-hint .vol-tip{width:260px;font-size:11.5px;text-transform:none;letter-spacing:0;font-weight:400}
     #obs-tbody .rte{border:none;border-radius:0;box-shadow:none;background:transparent}
     #obs-tbody .rte:focus-within{background:var(--blue-lt)}
     #obs-tbody .rte-toolbar{display:none;border-radius:0;padding:2px 4px}
@@ -1324,31 +1327,40 @@
           <div id="prep-status-bar" style="display:none;margin-bottom:12px;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;font-weight:500"></div>
 
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">What would you like to discuss?</div>
-            <textarea id="prep-discuss" class="form-control" rows="3"
-              placeholder="What topics, questions, or issues do you want to bring to this session?"></textarea>
+            <div class="section-head">How are you doing overall? <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Kumusta ka? Workload, energy, o anumang nakaka-apekto sa trabaho mo.</span></span></div>
+            <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Workload, energy, anything affecting your work.</div>
+            <textarea id="prep-checkin" class="form-control" rows="2" placeholder="e.g. Busy month but manageable; energy is good…"></textarea>
           </div>
 
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">Wins &amp; Progress since last session</div>
-            <textarea id="prep-wins" class="form-control" rows="3"
-              placeholder="What went well? Any milestones or achievements you want to acknowledge?"></textarea>
+            <div class="section-head">Progress on your last action plan <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Kumusta na ang mga action items mo mula sa huling session? Lagyan ng status at maikling note.</span></span></div>
+            <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Your open action items are listed below. Add a status and a short note for each.</div>
+            <div id="prep-approg-list"></div>
           </div>
 
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">Challenges &amp; Concerns</div>
-            <textarea id="prep-challenges" class="form-control" rows="3"
-              placeholder="What obstacles or challenges are you facing? What support do you need?"></textarea>
+            <div class="section-head">A win since our last session <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Isang panalo mula noong huling session: ano ang sitwasyon o task, ano ang ginawa mo, at ano ang naging resulta?</span></span></div>
+            <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Use STAR: the <b>S</b>ituation or <b>T</b>ask, what <i>you</i> did (<b>A</b>ction), and the <b>R</b>esult.</div>
+            <textarea id="prep-win" class="form-control" rows="3" placeholder="Situation / task → what I did → the result…"></textarea>
           </div>
 
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">Proposed Goal for this session</div>
-            <textarea id="prep-proposed-goal" class="form-control" rows="2"
-              placeholder="What outcome would you like to achieve from this coaching session?"></textarea>
+            <div class="section-head">A situation you&#8217;d like help with <span style="color:var(--red)">*</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Ano ang nangyari, ano ang ginawa mo, at ano ang naging resulta o epekto?</span></span></div>
+            <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Use STAR: what happened (<b>S</b>ituation / <b>T</b>ask), what you did (<b>A</b>ction), and the <b>R</b>esult or impact.</div>
+            <textarea id="prep-situation" class="form-control" rows="3" placeholder="What happened → what I did → the result or impact…"></textarea>
+            <div class="section-head" style="margin-top:14px">What were you trying to achieve? <span style="color:var(--red)">*</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Ano ang gusto mong mangyari noon? Ano ang layunin mo?</span></span></div>
+            <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Your intent &#8212; what you hoped would happen.</div>
+            <textarea id="prep-intent" class="form-control" rows="2" placeholder="I was trying to…"></textarea>
           </div>
 
           <div class="card" style="margin-bottom:12px">
-            <div class="section-head">Proposed Action Steps</div>
+            <div class="section-head">Proposed SMART goal <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Ano ang gusto mong ma-achieve? Gawin itong specific, measurable, at may deadline.</span></span></div>
+            <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px"><b>S</b>pecific, <b>M</b>easurable, <b>A</b>chievable, <b>R</b>elevant, <b>T</b>ime-bound. e.g. &#8220;Submit storyboards 1 day before deadline for all October modules.&#8221;</div>
+            <textarea id="prep-proposed-goal" class="form-control" rows="2" placeholder="What I will achieve, how it will be measured, and by when…"></textarea>
+          </div>
+
+          <div class="card" style="margin-bottom:12px">
+            <div class="section-head">Proposed action steps &amp; support needed <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">Anong mga hakbang ang gagawin mo, at anong tulong o resources ang kailangan mo?</span></span></div>
             <div class="table-wrap" style="margin-bottom:8px;overflow:visible">
               <table class="ap-table">
                 <thead>
@@ -1363,6 +1375,12 @@
               </table>
             </div>
             <button class="btn btn-ghost btn-sm" id="prep-ap-add-btn" onclick="addPrepAPRow()">+ Add Row</button>
+          </div>
+
+          <div class="card" style="margin-bottom:12px">
+            <div class="section-head">Anything else you&#8217;d like your coach to know? <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9AAFBD;font-size:11px">(optional)</span><span class="vol-info tl-hint" tabindex="0" aria-label="Taglish hint"><span class="tl-pill">Taglish</span><span class="vol-tip">May iba ka pa bang gustong malaman ng coach mo? Career interests, ideas, o feedback.</span></span></div>
+            <div style="font-size:12px;color:#6B7280;margin:-4px 0 8px">Career interests, ideas, feedback for your coach, or anything you&#8217;d rather raise in writing first.</div>
+            <textarea id="prep-anything" class="form-control" rows="2" placeholder="Optional…"></textarea>
           </div>
 
           <div style="display:flex;align-items:center;justify-content:flex-start;gap:8px;padding:16px 0 24px">
@@ -6094,6 +6112,21 @@ async function loadExistingSession(sessionId) {
         if (s.prep && s.prep.proposedAP && s.prep.proposedAP.length && (!s.actionPlan || !s.actionPlan.length)) {
           initActionPlan(s.prep.proposedAP);
         }
+        // Prep v2 → pre-fill the log from the coachee's own words (coach edits as needed)
+        const _p = s.prep || {};
+        if (_p.prepVersion === 2 && sfTemplateV2) {
+          const noObs = !(s.observationRows||[]).some(r => r.situation || r.intent) && !s.keyObservations;
+          if (noObs && (plainOf(_p.situation) || plainOf(_p.intent) || plainOf(_p.win))) {
+            const rows = [];
+            if (plainOf(_p.situation) || plainOf(_p.intent)) rows.push({ situation:_p.situation||'', intent:_p.intent||'' });
+            if (plainOf(_p.win)) rows.push({ situation:_p.win, intent:'' });
+            initObsRows(rows);
+          }
+          if (quillGoals && quillGoals.getText().trim()==='' && plainOf(_p.proposedGoal)) {
+            quillGoals.root.innerHTML = sanitizeRichHtml(renderPrepRich(_p.proposedGoal));
+            quillGoals.root.classList.remove('ql-blank');
+          }
+        }
         document.getElementById('session-finalize-btn').style.display = 'inline-flex';
         // Coach can save progress on the coaching log without sending it yet
         document.getElementById('session-save-draft-btn').style.display = 'inline-flex';
@@ -8058,7 +8091,60 @@ let prepAPRowCount = 0;
 // ── Rich text (coachee prep) ─────────────────────────────────
 // Each prep <textarea> stays in the DOM (hidden) as the value store, so every existing
 // .value read/write keeps working. The contenteditable editor syncs sanitized HTML into it.
-const PREP_RICH_IDS = ['prep-discuss','prep-wins','prep-challenges','prep-proposed-goal'];
+// Prep v2 (Sep 2026): check-in, action-plan progress, STAR win, STAR situation + intent,
+// SMART goal, action steps, anything else. Old preps (no prep.prepVersion) keep their
+// original fields/display; an old in-progress draft is mapped onto v2 when reopened.
+const PREP_RICH_IDS = ['prep-checkin','prep-win','prep-situation','prep-intent','prep-proposed-goal','prep-anything'];
+const PREP_AP_SELF_STATUS = ['Not started','In progress','Done','Need help'];
+let prepAPProgress = []; // [{apId, action, dueDate, selfStatus, note}]
+function plainOf(html) { const t=document.createElement('div'); t.innerHTML=html||''; return (t.textContent||'').trim(); }
+async function loadPrepAPProgress(s, prep, locked) {
+  const box = document.getElementById('prep-approg-list');
+  const saved = {}; (prep.apProgress||[]).forEach(r => { saved[r.apId] = r; });
+  let open = [];
+  if (!locked) {
+    try {
+      const snap = await getDocs(query(collection(db,'actionPlans'), where('coacheeId','==',currentUser.uid)));
+      open = snap.docs.map(d => ({id:d.id, ...d.data()}))
+        .filter(p => p.sessionId !== currentPrepSessionId && !['Completed','Cancelled'].includes(p.status))
+        .sort((a,b) => (a.dueDate||'').localeCompare(b.dueDate||''));
+    } catch(e) { open = []; }
+  }
+  // Locked (read-only) view shows exactly what was submitted
+  prepAPProgress = locked
+    ? (prep.apProgress||[])
+    : open.map(p => ({ apId:p.id, action:p.action||'', dueDate:p.dueDate||'', selfStatus:(saved[p.id]||{}).selfStatus||'', note:(saved[p.id]||{}).note||'' }));
+  window.prepAPProgress = prepAPProgress; // inline onchange handlers write into this array
+  if (!prepAPProgress.length) {
+    box.innerHTML = '<div style="font-size:12.5px;color:var(--muted);padding:6px 0">No open action items from previous sessions.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="table-wrap" style="overflow:visible"><table class="ap-table" style="table-layout:fixed"><colgroup><col style="width:40%"><col style="width:110px"><col style="width:140px"><col></colgroup>'
+    + '<thead><tr><th>Action item</th><th>Due</th><th>Your status</th><th>Note</th></tr></thead><tbody>'
+    + prepAPProgress.map((r,i) =>
+        '<tr><td style="font-size:12.5px;padding:8px 10px">'+esc(r.action)+'</td>'
+      + '<td style="font-size:12.5px;padding:8px 10px;white-space:nowrap">'+esc(r.dueDate ? displayHireDate(r.dueDate) : '—')+'</td>'
+      + '<td><select class="ap-cell" id="prep-approg-st-'+i+'" '+(locked?'disabled':'')+' onchange="prepAPProgress['+i+'].selfStatus=this.value"><option value="">Select…</option>'
+      +   PREP_AP_SELF_STATUS.map(o => '<option'+(o===r.selfStatus?' selected':'')+'>'+o+'</option>').join('') + '</select></td>'
+      + '<td><textarea class="ap-cell" rows="1" id="prep-approg-note-'+i+'" '+(locked?'disabled':'')+' placeholder="Short update…" oninput="prepAPProgress['+i+'].note=this.value">'+esc(r.note||'')+'</textarea></td></tr>'
+      ).join('')
+    + '</tbody></table></div>';
+}
+function prepV2Payload() {
+  PREP_RICH_IDS.forEach(rteSync);
+  const v = id => document.getElementById(id).value;
+  return {
+    'prep.prepVersion':  2,
+    'prep.checkIn':      v('prep-checkin'),
+    'prep.apProgress':   prepAPProgress.map(r => ({ apId:r.apId, action:r.action, dueDate:r.dueDate, selfStatus:r.selfStatus||'', note:(r.note||'').trim() })),
+    'prep.win':          v('prep-win'),
+    'prep.situation':    v('prep-situation'),
+    'prep.intent':       v('prep-intent'),
+    'prep.proposedGoal': v('prep-proposed-goal'),
+    'prep.proposedAP':   getPrepActionPlan(),
+    'prep.anythingElse': v('prep-anything'),
+  };
+}
 const RTE_ALLOWED = { B:'b', STRONG:'b', I:'i', EM:'i', UL:'ul', OL:'ol', LI:'li', BR:'br', P:'p', DIV:'div' };
 function sanitizeRichHtml(html) {
   const tpl = document.createElement('template');
@@ -8171,10 +8257,14 @@ async function loadCoacheePrepForm() {
   document.getElementById('prep-form-sub').textContent   = isSubmitted ? 'Locked — read only' : alreadySent ? 'Submitted — you can still update this before your session' : 'Help your coach prepare for your conversation';
 
   const prep = s.prep || {};
-  document.getElementById('prep-discuss').value       = prep.discuss      || '';
-  document.getElementById('prep-wins').value          = prep.wins         || '';
-  document.getElementById('prep-challenges').value    = prep.challenges   || '';
+  const pv2 = prep.prepVersion === 2;
+  document.getElementById('prep-checkin').value       = prep.checkIn || '';
+  document.getElementById('prep-win').value           = pv2 ? (prep.win||'')       : (prep.wins||'');
+  document.getElementById('prep-situation').value     = pv2 ? (prep.situation||'') : (prep.challenges||'');
+  document.getElementById('prep-intent').value        = prep.intent || '';
   document.getElementById('prep-proposed-goal').value = prep.proposedGoal || '';
+  document.getElementById('prep-anything').value      = pv2 ? (prep.anythingElse||'') : (prep.discuss||'');
+  await loadPrepAPProgress(s, prep, isSubmitted);
 
   prepAPRowCount = 0;
   document.getElementById('prep-ap-tbody').innerHTML = '';
@@ -8182,7 +8272,7 @@ async function loadCoacheePrepForm() {
   apRows.forEach(r => addPrepAPRow(r));
 
   if (isSubmitted) {
-    ['prep-discuss','prep-wins','prep-challenges','prep-proposed-goal'].forEach(id => {
+    PREP_RICH_IDS.forEach(id => {
       document.getElementById(id).disabled = true;
     });
     document.querySelectorAll('#prep-ap-tbody input, #prep-ap-tbody textarea').forEach(el => el.disabled=true);
@@ -8194,7 +8284,7 @@ async function loadCoacheePrepForm() {
     bar.style.cssText = 'display:block;margin-bottom:12px;padding:10px 14px;border-radius:var(--radius);font-size:12.5px;font-weight:500;background:var(--green-lt);color:var(--green)';
     bar.textContent = 'Your coach has finalized this session, so your preparation is now locked. You can still view it in the session log.';
   } else {
-    ['prep-discuss','prep-wins','prep-challenges','prep-proposed-goal'].forEach(id => {
+    PREP_RICH_IDS.forEach(id => {
       document.getElementById(id).disabled = false;
     });
     const subBtn = document.getElementById('prep-submit-btn');
@@ -8257,14 +8347,7 @@ window.saveCoacheePrepDraft = async function() {
     if (_statusSnap.data().status === 'prep-requested') {
       await updateDoc(doc(db,'sessions',currentPrepSessionId), { status:'coachee-preparing', updatedAt:serverTimestamp() });
     }
-    await updateDoc(doc(db,'sessions',currentPrepSessionId), {
-      'prep.discuss':      document.getElementById('prep-discuss').value,
-      'prep.wins':         document.getElementById('prep-wins').value,
-      'prep.challenges':   document.getElementById('prep-challenges').value,
-      'prep.proposedGoal': document.getElementById('prep-proposed-goal').value,
-      'prep.proposedAP':   getPrepActionPlan(),
-      updatedAt: serverTimestamp()
-    });
+    await updateDoc(doc(db,'sessions',currentPrepSessionId), { ...prepV2Payload(), updatedAt: serverTimestamp() });
     toast('Draft saved.','success');
   } catch(e) { toast('Error: '+e.message,'error'); }
   btn.disabled = false; btn.textContent = 'Save Draft';
@@ -8272,8 +8355,11 @@ window.saveCoacheePrepDraft = async function() {
 
 window.submitCoacheePrep = async function() {
   PREP_RICH_IDS.forEach(rteSync);
-  if (!document.getElementById('prep-discuss').value.trim()) {
-    toast('Please share what you would like to discuss.','error'); return;
+  if (!plainOf(document.getElementById('prep-situation-rte-ed') ? document.getElementById('prep-situation-rte-ed').innerHTML : document.getElementById('prep-situation').value)) {
+    toast('Please describe a situation you\'d like help with.','error'); return;
+  }
+  if (!plainOf(document.getElementById('prep-intent-rte-ed') ? document.getElementById('prep-intent-rte-ed').innerHTML : document.getElementById('prep-intent').value)) {
+    toast('Please share what you were trying to achieve.','error'); return;
   }
   const btn = document.getElementById('prep-submit-btn');
   const origLabel = btn.textContent;
@@ -8286,14 +8372,7 @@ window.submitCoacheePrep = async function() {
       toast('Your coach has already finalized this session — preparation can no longer be changed.','error');
       await loadCoacheePrepForm(); return;
     }
-    const prepFields = {
-      'prep.discuss':      document.getElementById('prep-discuss').value,
-      'prep.wins':         document.getElementById('prep-wins').value,
-      'prep.challenges':   document.getElementById('prep-challenges').value,
-      'prep.proposedGoal': document.getElementById('prep-proposed-goal').value,
-      'prep.proposedAP':   getPrepActionPlan(),
-      updatedAt: serverTimestamp()
-    };
+    const prepFields = { ...prepV2Payload(), updatedAt: serverTimestamp() };
     if (PREP_RESUBMIT_STATUSES.includes(_st)) {
       // Update after submission — keep the current status (don't bounce coach-review back).
       await updateDoc(doc(db,'sessions',currentPrepSessionId), { ...prepFields, prepUpdatedAt: serverTimestamp() });
@@ -8306,10 +8385,10 @@ window.submitCoacheePrep = async function() {
       status: 'prep-submitted', prepSubmittedAt: serverTimestamp()
     });
     toast('Preparation submitted to your coach.','success');
-    ['prep-discuss','prep-wins','prep-challenges','prep-proposed-goal'].forEach(id => {
+    PREP_RICH_IDS.forEach(id => {
       document.getElementById(id).disabled = true;
     });
-    document.querySelectorAll('#prep-ap-tbody input, #prep-ap-tbody textarea').forEach(el => el.disabled=true);
+    document.querySelectorAll('#prep-ap-tbody input, #prep-ap-tbody textarea, #prep-approg-list select, #prep-approg-list textarea').forEach(el => el.disabled=true);
     document.querySelectorAll('#prep-ap-tbody button').forEach(el => el.style.display='none');
     document.getElementById('prep-ap-add-btn').style.display='none';
     document.getElementById('prep-save-draft-btn').style.display='none';
@@ -8329,8 +8408,27 @@ let carriedOverAPs    = {};   // { apId: { followUpNotes, action, dueDate, statu
 // ── Coachee Prep Panel (coach review reference) ───────────────
 function hasPrepContent(prep) {
   if (!prep) return false;
-  return !!((prep.discuss||'').trim() || (prep.wins||'').trim() || (prep.challenges||'').trim() || (prep.proposedGoal||'').trim()
+  const f = k => (prep[k]||'').trim();
+  return !!(f('discuss') || f('wins') || f('challenges') || f('proposedGoal')
+    || f('checkIn') || f('win') || f('situation') || f('intent') || f('anythingElse')
+    || (prep.apProgress||[]).some(r => r.selfStatus || (r.note||'').trim())
     || (prep.proposedAP||[]).some(r => (r.action||'').trim()));
+}
+function prepV2PanelBody(prep, me) {
+  const sec = (label, html) => html ? '<div style="margin-bottom:12px">'+'<div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+label+'</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+html+'</div></div>' : '';
+  const ap = (prep.apProgress||[]).filter(r => r.selfStatus || (r.note||'').trim());
+  const apHtml = ap.length ? '<table style="width:100%;border-collapse:collapse"><thead><tr>'
+      + ['Action item','Status','Note'].map(h => '<th style="padding:5px 8px;border:1px solid var(--border);background:var(--light);font-size:11px;text-align:left">'+h+'</th>').join('')
+      + '</tr></thead><tbody>' + ap.map(r => '<tr><td style="padding:6px 8px;border:1px solid var(--border);font-size:12px">'+esc(r.action)+'</td>'
+      + '<td style="padding:6px 8px;border:1px solid var(--border);font-size:12px;white-space:nowrap">'+esc(r.selfStatus||'—')+'</td>'
+      + '<td style="padding:6px 8px;border:1px solid var(--border);font-size:12px">'+esc(r.note||'')+'</td></tr>').join('') + '</tbody></table>' : '';
+  return sec(me ? 'How you&#8217;re doing' : 'How they&#8217;re doing', renderPrepRich(prep.checkIn))
+    + sec('Progress on last action plan', apHtml)
+    + sec('A win (STAR)', renderPrepRich(prep.win))
+    + sec('Situation they&#8217;d like help with (STAR)'.replace('they&#8217;d', me ? 'you&#8217;d' : 'they&#8217;d'), renderPrepRich(prep.situation))
+    + sec('Intent &#8212; what '+(me?'you were':'they were')+' trying to achieve', renderPrepRich(prep.intent))
+    + sec('Proposed SMART goal', renderPrepRich(prep.proposedGoal))
+    + sec('Anything else', renderPrepRich(prep.anythingElse));
 }
 function showCoacheePrepPanel(prep, opts) {
   opts = opts || {};
@@ -8361,10 +8459,11 @@ function showCoacheePrepPanel(prep, opts) {
     +'</div>'
     +'<div style="padding:14px 16px;background:white">'
     +updatedNote
-    +(prep.discuss?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+L.discuss+'</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.discuss)+'</div></div>':'')
-    +(prep.wins?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wins &amp; Progress</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.wins)+'</div></div>':'')
-    +(prep.challenges?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Challenges &amp; Concerns</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.challenges)+'</div></div>':'')
-    +(prep.proposedGoal?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Proposed Goal</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.proposedGoal)+'</div></div>':'')
+    +(prep.prepVersion === 2 ? prepV2PanelBody(prep, me) : '')
+    +(prep.prepVersion !== 2 && prep.discuss?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">'+L.discuss+'</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.discuss)+'</div></div>':'')
+    +(prep.prepVersion !== 2 && prep.wins?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Wins &amp; Progress</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.wins)+'</div></div>':'')
+    +(prep.prepVersion !== 2 && prep.challenges?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Challenges &amp; Concerns</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.challenges)+'</div></div>':'')
+    +(prep.prepVersion !== 2 && prep.proposedGoal?'<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Proposed Goal</div><div class="rte-view" style="font-size:13px;line-height:1.5">'+renderPrepRich(prep.proposedGoal)+'</div></div>':'')
     +(apRows?'<div><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Proposed Action Steps</div><table style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:5px 8px;border:1px solid var(--border);background:var(--light);font-size:11px;text-align:left">Action</th><th style="padding:5px 8px;border:1px solid var(--border);background:var(--light);font-size:11px;text-align:left">Support Needed</th><th style="padding:5px 8px;border:1px solid var(--border);background:var(--light);font-size:11px;text-align:left">Due Date</th></tr></thead><tbody>'+apRows+'</tbody></table></div>':'')
     +'</div></div>';
   const statusBar = document.getElementById('sf-status-bar');
