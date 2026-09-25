@@ -752,6 +752,12 @@
             <button class="btn btn-ghost" id="recompute-hierarchy-btn" onclick="recomputeAllReportsUpTo()">&#8635; Recompute Reporting Hierarchy</button>
             <div id="recompute-hierarchy-status" style="margin-top:10px;font-size:11.5px;color:var(--muted)"></div>
           </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="card-title">Repair Missing Action Plans</div>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Creates the tracked action plan items for acknowledged sessions whose action plan was written in the log but never created (caused by a security-rule issue from Jul&#8211;Sep 2026). Sessions that already have action plan items are skipped, so it is safe to run more than once. Sessions themselves are not changed.</p>
+            <button class="btn btn-ghost" id="repair-aps-btn" onclick="repairMissingActionPlans()">&#128295; Repair Missing Action Plans</button>
+            <div id="repair-aps-status" style="margin-top:10px;font-size:11.5px;color:var(--muted)"></div>
+          </div>
           <div class="card" style="margin-bottom:12px;border:1px solid #FCA5A5">
             <div class="card-title" style="color:var(--red)">⚠️ Danger Zone</div>
             <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Permanently delete all coaching sessions and action plans, and reset the session counter to CS-001. Users and settings are not affected. This cannot be undone.</p>
@@ -5264,6 +5270,44 @@ async function commitInChunks(updates, chunkSize = 450) {
 // single-user "Reports To" edits already self-maintain this (see saveUser), but existing
 // records created before the hierarchy rollout — or a CSV bulk import, which bypasses
 // saveUser — won't have it until this runs once.
+// One-time / safety-net repair: acknowledged sessions with action-plan rows in the log but
+// no tracked actionPlans docs (coachee-side creation was blocked by the create rule).
+window.repairMissingActionPlans = async function() {
+  if (!(currentProfile.permissions||{}).admin) { toast('Admin only.','error'); return; }
+  const btn = document.getElementById('repair-aps-btn'), st = document.getElementById('repair-aps-status');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    const [sSnap, apSnap] = await Promise.all([getDocs(collection(db,'sessions')), getDocs(collection(db,'actionPlans'))]);
+    const haveAP = new Set(apSnap.docs.map(d => d.data().sessionId).filter(Boolean));
+    const todo = sSnap.docs.map(d => ({id:d.id, ...d.data()}))
+      .filter(x => ['acknowledged','completed'].includes(x.status) && !haveAP.has(x.id)
+                && (x.actionPlan||[]).some(r => (r.action||'').trim()));
+    if (!todo.length) { st.textContent = 'Nothing to repair — every acknowledged session has its action plan items.'; btn.disabled=false; btn.textContent='🔧 Repair Missing Action Plans'; return; }
+    const nItems = todo.reduce((n,x) => n + x.actionPlan.filter(r => (r.action||'').trim()).length, 0);
+    if (!confirm('Create '+nItems+' action plan item(s) for '+todo.length+' session(s): '+todo.map(x=>x.sessionCode||x.id).join(', ')+'?')) { btn.disabled=false; btn.textContent='🔧 Repair Missing Action Plans'; return; }
+    btn.textContent = 'Repairing…';
+    let made = 0;
+    for (const x of todo) {
+      for (const row of x.actionPlan.filter(r => (r.action||'').trim())) {
+        await addDoc(collection(db,'actionPlans'), {
+          sessionId: x.id, sessionDate: x.sessionDate || '', coacheeId: x.coacheeId, coachId: x.coachId,
+          coacheeReportsUpTo: x.coacheeReportsUpTo || [], coacheeDepartmentAtTime: x.coacheeDepartmentAtTime || null,
+          action: row.action, support: row.support || '', dueDate: row.dueDate || '',
+          status: 'Not Started', remarks: '', backfilled: true,
+          createdAt: x.acknowledgedAt || serverTimestamp(), updatedAt: serverTimestamp(), updatedBy: currentUser.uid,
+        });
+        made++;
+      }
+    }
+    await addDoc(collection(db,'auditLog'), { action:'repair_missing_action_plans', performedBy: currentUser.uid,
+      performedByName: (currentProfile.firstName||'')+' '+(currentProfile.lastName||''), timestamp: serverTimestamp(),
+      details: made+' items for '+todo.map(x=>x.sessionCode||x.id).join(', ') });
+    st.textContent = 'Created '+made+' action plan item(s) for '+todo.length+' session(s).';
+    toast('Action plans repaired.','success');
+  } catch(e) { st.textContent = 'Error: '+e.message; toast('Error: '+e.message,'error'); }
+  btn.disabled = false; btn.textContent = '🔧 Repair Missing Action Plans';
+};
+
 window.recomputeAllReportsUpTo = async function() {
   const btn = document.getElementById('recompute-hierarchy-btn');
   const statusEl = document.getElementById('recompute-hierarchy-status');
@@ -6654,6 +6698,7 @@ window.acknowledgeSession = async function() {
 
     // ── Create AP Log entries (outside transaction — addDoc not transactable) ─
     if (shouldCreateAPs && sessionData.actionPlan && sessionData.actionPlan.length) {
+     try {
       for (const row of sessionData.actionPlan.filter(r => r.action && r.action.trim())) {
         await addDoc(collection(db,'actionPlans'), {
           sessionId:   currentSessionId,
@@ -6672,6 +6717,12 @@ window.acknowledgeSession = async function() {
           updatedBy:   currentUser.uid,
         });
       }
+     } catch(apErr) {
+      // Session is acknowledged; flag it so the admin repair utility picks it up.
+      console.error('Action plan creation failed', apErr);
+      try { await updateDoc(doc(db,'sessions',currentSessionId), { apsSynced:false, apsSyncError: String(apErr.message||apErr) }); } catch(e) {}
+      toast('Session acknowledged, but the action plan items could not be created. Please tell your L&D admin.','error');
+     }
     }
 
     toast('Session acknowledged — thank you!','success');

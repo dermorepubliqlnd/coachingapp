@@ -1,8 +1,10 @@
 rules_version = '2';
 // ==========================================================================
 // BOOST Hub — Firestore Security Rules
-// Version: 2026-07-14c  (adds create-time canCoach() check on sessions/actionPlans:
-//                        creator must be the coachee's coach or an ancestor in the org tree)
+// Version: 2026-09-25a  (actionPlans create: also allow the COACHEE to create items for
+//                        their own session at acknowledgement, checked against the session
+//                        doc; admin may create any. Fixes missing action plans since Jul 2026.)
+// Previous: 2026-07-14c  (create-time canCoach() check on sessions/actionPlans)
 // Publishing this version enables "My Team" for all coaches & managers.
 // ==========================================================================
 service cloud.firestore {
@@ -115,9 +117,18 @@ service cloud.firestore {
         resource.data.coacheeId == request.auth.uid ||
         request.auth.uid in resource.data.coacheeReportsUpTo
       );
-      allow create: if isSignedIn()
-        && request.resource.data.coachId == request.auth.uid
-        && canCoach(request.resource.data.coacheeId);
+      // Action plan items are created when the COACHEE acknowledges a session, so the
+      // coachee must be allowed to create them — but only for their own session, with
+      // that session's coach (checked server-side against the session doc). Admin can
+      // create any (repair utility). Coach/manager creation rule unchanged.
+      allow create: if isSignedIn() && (
+        isAdmin()
+        || (request.resource.data.coachId == request.auth.uid
+            && canCoach(request.resource.data.coacheeId))
+        || (request.resource.data.coacheeId == request.auth.uid
+            && get(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)).data.coacheeId == request.auth.uid
+            && get(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)).data.coachId == request.resource.data.coachId)
+      );
       allow update: if isSignedIn() && (
         isAdmin() ||
         resource.data.coachId == request.auth.uid ||
