@@ -6643,7 +6643,10 @@ async function _openPdfWindow(sessionId) {
         '@page{size:A4;margin:12.7mm 12.7mm 16mm 12.7mm;'
         + '@bottom-left{content:"\\00A9 2026 Dermorepubliq Corporation. All rights reserved.";font-family:Arial,Helvetica,sans-serif;font-size:7pt;color:#5A7A8E}'
         + '@bottom-right{content:counter(page, decimal-leading-zero);font-family:Georgia,serif;font-size:11pt;color:#1A1A1A}}'
-        + '.pdf-screen-footer{display:none!important}');
+        + '.pdf-screen-footer{display:none!important}'
+        // safety inset so content never touches the paper edge even if the print
+        // dialog's Margins is set to Minimum/None
+        + '.pdf-page{padding:0 5mm}');
     }
     const body = '<div class="pdf-page">'+pdfEl.innerHTML+'</div>';
     const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'+css+'</style></head><body>'+body+'</body></html>';
