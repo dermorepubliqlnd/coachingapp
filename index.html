@@ -1845,7 +1845,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-pdf-preview')">Close</button>
-      <button class="btn btn-primary" id="pdf-download-btn" onclick="downloadFromPreview()">&#11015; Download PDF</button>
+      <button class="btn btn-primary" id="pdf-download-btn" onclick="downloadFromPreview()">&#128424; Print / Save as PDF</button>
     </div>
   </div>
 </div>
@@ -6645,21 +6645,41 @@ async function _openPdfWindow(sessionId) {
         + '@bottom-right{content:counter(page, decimal-leading-zero);font-family:Georgia,serif;font-size:11pt;color:#1A1A1A}}'
         + '.pdf-screen-footer{display:none!important}');
     }
-    const body = '<div class="pdf-toolbar">'
-      + '<span style="font-weight:700;letter-spacing:.5px">BOOST Hub — Coaching Log</span>'
-      + '<button onclick="window.print()">⬇ Save / Download PDF</button>'
-      + '<button onclick="window.close()" style="margin-left:auto">✕ Close</button>'
-      + '</div>'
-      + '<div class="pdf-page" style="margin-top:52px">'+pdfEl.innerHTML+'</div>'
-      + '<sc'+'ript>setTimeout(function(){window.print()},800);</sc'+'ript>';
+    const body = '<div class="pdf-page">'+pdfEl.innerHTML+'</div>';
     const fullHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+'</title><style>'+css+'</style></head><body>'+body+'</body></html>';
-    const blob = new Blob([fullHtml], {type:'text/html'});
-    const blobUrl = URL.createObjectURL(blob);
-    const w = window.open(blobUrl, '_blank');
-    if (!w) { toast('Please allow pop-ups for this site.','error'); URL.revokeObjectURL(blobUrl); return; }
+    printHtmlInFrame(fullHtml, title);
   } catch(e) { toast('PDF error: '+e.message,'error'); console.error(e); }
 }
 window.generatePDF = function() { return _openPdfWindow(currentSessionId); };
+
+// Opens the browser print dialog (print preview + "Save as PDF") for a self-contained
+// HTML document, using an off-screen iframe. The page title is swapped temporarily so
+// "Save as PDF" suggests the CoachingLog_... file name.
+function printHtmlInFrame(html, fileTitle) {
+  const old = document.getElementById('pdf-print-frame');
+  if (old) old.remove();
+  const f = document.createElement('iframe');
+  f.id = 'pdf-print-frame';
+  f.setAttribute('aria-hidden','true');
+  f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  document.body.appendChild(f);
+  const prevTitle = document.title;
+  let done = false;
+  const cleanup = () => { if (done) return; done = true; document.title = prevTitle; setTimeout(() => f.remove(), 1000); };
+  f.onload = () => {
+    const w = f.contentWindow;
+    // wait for embedded images (logo, signatures) before printing
+    const imgs = Array.from(w.document.images || []);
+    Promise.all(imgs.map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))).then(() => {
+      document.title = fileTitle || prevTitle;
+      w.addEventListener('afterprint', cleanup);
+      w.focus();
+      w.print();
+      setTimeout(cleanup, 60000); // fallback if afterprint never fires
+    });
+  };
+  f.srcdoc = html;
+}
 
 // ── PDF: Coaching Template v2 (Sep 2026) ─────────────────────
 // Used for every session that is NOT an already-completed legacy record
@@ -7495,7 +7515,7 @@ window.openSessionPdfModal = async function(sessionId) {
     const coachee = allUsers.find(u=>u.uid===s.coacheeId);
     const coach   = allUsers.find(u=>u.uid===s.coachId) || currentProfile;
     if (coachee) title.textContent = 'Coaching Log — '+coachee.firstName+' '+coachee.lastName+(s.sessionDate?' · '+new Date(s.sessionDate+'T00:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}):'');
-    const pdfEl = buildPdfElement(s, coachee, coach);
+    const pdfEl = isLegacySession(s) ? buildPdfElement(s, coachee, coach) : buildPdfElementV2(s, coachee, coach);
     pdfEl.style.cssText = 'width:100%;background:white;font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#1A2D3F;line-height:1.45;padding:8mm;border-radius:6px';
     content.innerHTML = '';
     content.appendChild(pdfEl);
