@@ -405,7 +405,8 @@
     #obs-tbody .rte:focus-within{background:var(--blue-lt)}
     #obs-tbody .rte-toolbar{display:none;border-radius:0;padding:2px 4px}
     #obs-tbody .rte:focus-within .rte-toolbar{display:flex}
-    #obs-tbody .rte-editor{min-height:34px;padding:5px 6px;font-size:13px}
+    #obs-tbody .rte-editor{min-height:34px;padding:5px 6px;font-size:13px;overflow-wrap:anywhere;word-break:break-word}
+    #obs-tbody td{overflow:hidden}
     #obs-tbody .rte.disabled{background:transparent}
     #obs-tbody .rte.disabled .rte-editor{color:var(--text)}
   </style>
@@ -945,12 +946,13 @@
             <div id="sf-obs-legacy-wrap" style="display:none"><div id="sf-observations-editor"></div></div>
             <div id="sf-obs-v2-wrap">
               <div class="table-wrap" style="margin-bottom:8px;overflow:visible">
-                <table class="ap-table" id="obs-table">
+                <table class="ap-table" id="obs-table" style="table-layout:fixed">
+                  <colgroup><col style="width:calc((100% - 46px) / 2)"><col style="width:calc((100% - 46px) / 2)"><col style="width:46px"></colgroup>
                   <thead>
                     <tr>
-                      <th style="min-width:240px">Situation, behavior/action &amp; its impact</th>
-                      <th style="min-width:220px">Employee&#8217;s intent behind their action</th>
-                      <th style="width:46px"></th>
+                      <th>Situation, behavior/action &amp; its impact</th>
+                      <th>Employee&#8217;s intent behind their action</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody id="obs-tbody"></tbody>
