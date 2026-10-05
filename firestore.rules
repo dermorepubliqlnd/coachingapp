@@ -56,6 +56,7 @@ service cloud.firestore {
         || isEnterprise()
         || resource.data.coachId == request.auth.uid
         || (resource.data.reportsUpTo is list && request.auth.uid in resource.data.reportsUpTo)
+        || (resource.data.historicalReportsUpTo is list && request.auth.uid in resource.data.historicalReportsUpTo)
         || (iExist() && myDoc().coachId == userId)
       );
       // Collection queries (list): conditions must line up with the query's own
@@ -66,6 +67,7 @@ service cloud.firestore {
         isEnterprise()
         || resource.data.coachId == request.auth.uid
         || request.auth.uid in resource.data.reportsUpTo
+        || request.auth.uid in resource.data.historicalReportsUpTo
       );
       allow create: if isAdmin() || isFirstRun();
       allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
@@ -142,6 +144,25 @@ service cloud.firestore {
         allow update: if isSignedIn() && resource.data.authorId == request.auth.uid;
         allow delete: if isAdmin();
       }
+    }
+
+    // Effective-dated employee -> manager ownership. This collection is the source of
+    // truth for historical compliance attribution after transfers. ownerChain contains
+    // the direct manager followed by every ancestor that existed at assignment start.
+    match /reportingAssignments/{assignmentId} {
+      allow get: if isSignedIn() && (
+        isEnterprise()
+        || resource.data.employeeId == request.auth.uid
+        || resource.data.managerId == request.auth.uid
+        || (resource.data.ownerChain is list && request.auth.uid in resource.data.ownerChain)
+      );
+      allow list: if isSignedIn() && (
+        isEnterprise()
+        || resource.data.employeeId == request.auth.uid
+        || resource.data.managerId == request.auth.uid
+        || request.auth.uid in resource.data.ownerChain
+      );
+      allow create, update, delete: if isAdmin();
     }
 
     match /departments/{deptId} {
