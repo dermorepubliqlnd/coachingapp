@@ -1534,6 +1534,7 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="mu-uid">
+      <input type="hidden" id="mu-original-coach">
       <div class="grid-2">
         <div class="form-group">
           <label class="form-label">First Name <span style="color:var(--red)">*</span></label>
@@ -1579,10 +1580,19 @@
       </div>
       <div class="form-group" id="mu-coach-group" style="display:none">
         <label class="form-label" id="mu-coach-label">Reports To <span id="mu-coach-required" style="color:var(--red)">*</span></label>
-        <select id="mu-coach" class="form-control">
+        <select id="mu-coach" class="form-control" onchange="toggleManagerTransferDate()">
           <option value="">— Select coach / manager —</option>
         </select>
         <div class="form-hint">Who this person reports to for coaching purposes. Chains up naturally — a Manager's "Reports To" is their Senior Manager, and so on. Leave blank for the top of a chain.</div>
+      </div>
+      <div class="form-group" id="mu-transfer-date-group" style="display:none">
+        <label class="form-label">Manager Transfer Effective Date <span style="color:var(--red)">*</span></label>
+        <input type="date" id="mu-transfer-date" class="form-control">
+        <div class="form-hint">Historical compliance stays with the previous manager through the day before this date. The new manager owns reporting from this date forward.</div>
+      </div>
+      <div class="form-group" id="mu-reporting-history-group" style="display:none">
+        <label class="form-label">Reporting History</label>
+        <div id="mu-reporting-history" style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;font-size:12px"></div>
       </div>
       <div class="form-group" id="mu-analytics-group">
         <label class="form-label">Analytics Access</label>
@@ -1850,6 +1860,12 @@
         </select>
         <div class="form-hint">Anyone who'd create a reporting-chain cycle for one or more selected users is left out of this list.</div>
       </div>
+      <div class="form-group" style="margin-bottom:4px">
+        <label class="form-label">Effective Date <span style="color:var(--red)">*</span></label>
+        <input type="date" id="bulk-coach-effective-date" class="form-control">
+        <div class="form-hint">The previous manager retains compliance ownership through the prior day. The new manager owns reporting from this date forward.</div>
+      </div>
+      <div id="bulk-coach-impact" style="font-size:12px;color:var(--muted);background:var(--light);padding:9px 10px;border-radius:6px;margin:8px 0 4px">Historical compliance before the effective date will not be moved.</div>
       <div id="bulk-coach-error" class="form-error-msg"></div>
     </div>
     <div class="modal-footer">
@@ -1993,6 +2009,9 @@ const FC = {
 const primaryApp   = initializeApp(FC);
 const auth         = getAuth(primaryApp);
 const db           = getFirestore(primaryApp);
+const IS_BRANCH_PREVIEW = location.hostname !== 'dermorepubliqlnd.github.io';
+// Branch previews deliberately keep production Firestore read-only for the new transfer
+// feature. The new reportingAssignments security rules are not deployed until final approval.
 
 // ── Cross-browser storage resilience ─────────────────────────
 // Edge/Safari "Tracking Prevention" (and hardened privacy modes) can block IndexedDB/
@@ -2389,6 +2408,13 @@ function showLogin() {
 function showApp() {
   hideAll();
   document.getElementById('app').style.display = 'block';
+  if (IS_BRANCH_PREVIEW && !document.getElementById('branch-preview-banner')) {
+    const banner=document.createElement('div');
+    banner.id='branch-preview-banner';
+    banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:10000;background:#FFF7D6;border-bottom:1px solid #E7C75B;color:#5C4900;padding:8px 14px;text-align:center;font-size:12px;font-weight:600';
+    banner.textContent='PREVIEW — Manager Transfer History. Production data writes for the new transfer feature are disabled.';
+    document.body.appendChild(banner);
+  }
   if ((currentProfile.permissions||{}).admin) updateAdminInboxBadge();
   // If the browser blocked durable storage (e.g. Edge/Safari strict tracking prevention),
   // auth is session-only — let the user know they'll need to sign in again next visit.
@@ -2568,9 +2594,15 @@ async function refreshUsersOnce() {
   const map = {};
   if (currentProfile && currentProfile.uid) map[currentProfile.uid] = { ...currentProfile };
   if (roles.includes('coach')) {
-    const snap = await getDocs(query(collection(db,'users'), where('reportsUpTo','array-contains',currentUser.uid)));
-    currentUserHasDownline = snap.docs.length > 0;
-    snap.docs.forEach(d => { map[d.id] = { uid:d.id, ...d.data() }; });
+    const currentSnap = await getDocs(query(collection(db,'users'), where('reportsUpTo','array-contains',currentUser.uid)));
+    let historicalDocs = [];
+    if (!IS_BRANCH_PREVIEW) {
+      const historicalSnap = await getDocs(query(collection(db,'users'), where('historicalReportsUpTo','array-contains',currentUser.uid)));
+      historicalDocs = historicalSnap.docs;
+    }
+    currentUserHasDownline = currentSnap.docs.length > 0 || historicalDocs.length > 0;
+    currentSnap.docs.forEach(d => { map[d.id] = { uid:d.id, ...d.data() }; });
+    historicalDocs.forEach(d => { map[d.id] = { uid:d.id, ...d.data() }; });
   }
   if (roles.includes('coachee') && currentProfile && currentProfile.coachId) {
     try {
@@ -2831,51 +2863,55 @@ window.openBulkCoachModal = function() {
     + coaches.map(c=>'<option value="'+c.uid+'">'+esc(c.firstName)+' '+esc(c.lastName)+'</option>').join('');
   document.getElementById('bulk-coach-names').innerHTML = buildNameListHtml('bulk-coach-names', uids);
   document.getElementById('bulk-coach-count').textContent = 'Applying to ' + uids.length + ' user' + (uids.length===1?'':'s') + '.';
+  document.getElementById('bulk-coach-effective-date').value = new Date().toISOString().slice(0,10);
   document.getElementById('bulk-coach-error').style.display = 'none';
   document.getElementById('modal-bulk-coach').style.display = 'flex';
 };
 
 window.runBulkCoachChange = async function() {
   const errEl = document.getElementById('bulk-coach-error');
+  if (IS_BRANCH_PREVIEW) {
+    showErr(errEl,'Preview only — no production reporting relationships will be changed from this branch.');
+    toast('Preview only: transfer was not written to production.','info',5000);
+    return;
+  }
   errEl.style.display = 'none';
   const coachId = document.getElementById('bulk-coach-select').value;
+  const effectiveDate = document.getElementById('bulk-coach-effective-date').value;
   if (!coachId) { showErr(errEl, 'Please select a coach/manager.'); return; }
+  if (!effectiveDate) { showErr(errEl, 'Please select an effective date.'); return; }
   const btn = document.getElementById('bulk-coach-save-btn');
   btn.disabled = true; btn.textContent = 'Applying…';
   try {
     const uids = Array.from(selectedUserIds);
     const namesBefore = uids.map(uid => { const u = allUsers.find(x=>x.uid===uid); return u ? u.firstName+' '+u.lastName : uid; });
     const newCoach = allUsers.find(c=>c.uid===coachId);
+    const usersByUid = {}; allUsers.forEach(u => { usersByUid[u.uid]=u; });
+    const newChain = computeReportsUpTo(coachId, usersByUid);
 
-    const updates = uids.map(uid => ({ ref: doc(db,'users',uid), data: { coachId, updatedAt: serverTimestamp() } }));
+    const updates = [];
+    for (const uid of uids) {
+      const u = allUsers.find(x=>x.uid===uid);
+      if (!u) continue;
+      const oldCoachId = u.coachId || null;
+      if (oldCoachId === coachId) continue;
+      await recordManagerTransfer(uid, oldCoachId, coachId, effectiveDate, u, usersByUid);
+      const oldChain = computeReportsUpTo(oldCoachId, usersByUid);
+      const historicalReportsUpTo = Array.from(new Set([...(u.historicalReportsUpTo||[]), ...oldChain]));
+      updates.push({ ref: doc(db,'users',uid), data: { coachId, historicalReportsUpTo, updatedAt: serverTimestamp() } });
+    }
     await commitInChunks(updates);
 
-    // Reporting-chain resync — mirrors saveUser()'s single-edit behavior, run once per
-    // affected user (each call refreshes the roster + recomputes that user's own subtree).
-    for (const uid of uids) {
-      await recomputeReportsUpToForSubtree(uid);
-    }
-    // Re-stamp each affected COACHEE's own existing sessions/action plans so their new
-    // manager sees full coaching history immediately, same as a single "Reports To" edit.
-    const freshUsersSnap = await getDocs(collection(db,'users'));
-    const usersByUidNow = {};
-    freshUsersSnap.docs.forEach(d => { usersByUidNow[d.id] = { uid:d.id, ...d.data() }; });
-    for (const uid of uids) {
-      const u = usersByUidNow[uid];
-      if (u && (u.roles||[]).includes('coachee')) {
-        const newChain = computeReportsUpTo(coachId, usersByUidNow);
-        await restampCoacheeReportsUpTo(uid, newChain);
-      }
-    }
+    for (const uid of uids) await recomputeReportsUpToForSubtree(uid);
 
     await addDoc(collection(db,'auditLog'), {
-      action:'bulk_update_reports_to',
+      action:'bulk_transfer_reporting_manager',
       targetName: namesBefore.slice(0,10).join(', ') + (namesBefore.length>10 ? ' +'+(namesBefore.length-10)+' more' : ''),
       performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''),
-      details:'Reassigned "Reports To" = '+(newCoach?newCoach.firstName+' '+newCoach.lastName:coachId)+' for '+uids.length+' user(s).',
+      details:'Transferred Reports To = '+(newCoach?newCoach.firstName+' '+newCoach.lastName:coachId)+' effective '+effectiveDate+' for '+updates.length+' user(s). Historical compliance before the effective date was preserved.',
       timestamp:serverTimestamp()
     });
-    toast(uids.length+' user(s) reassigned.','success');
+    toast(updates.length+' user(s) transferred effective '+effectiveDate+'.','success');
     closeModal('modal-bulk-coach');
     selectedUserIds.clear();
     await loadUsers();
@@ -3069,6 +3105,11 @@ window.openUserModal = function(uid) {
   deptSel.value = '';
   ['role-coach','role-coachee','mu-perm-enterprise','mu-perm-admin'].forEach(id => document.getElementById(id).checked = false);
   document.getElementById('mu-uid').value = '';
+  document.getElementById('mu-original-coach').value = '';
+  document.getElementById('mu-transfer-date').value = '';
+  document.getElementById('mu-transfer-date-group').style.display = 'none';
+  document.getElementById('mu-reporting-history-group').style.display = 'none';
+  document.getElementById('mu-reporting-history').innerHTML = '';
   document.getElementById('mu-error').style.display = 'none';
   document.getElementById('mu-active-group').style.display = 'none';
   document.getElementById('mu-email').disabled = false;
@@ -3093,7 +3134,9 @@ window.openUserModal = function(uid) {
     document.getElementById('mu-perm-admin').checked       = !!(u.permissions||{}).admin;
     (u.roles||[]).forEach(r => { const el = document.getElementById('role-'+r); if (el) el.checked = true; });
     if (u.coachId) coachSel.value = u.coachId;
+    document.getElementById('mu-original-coach').value = u.coachId || '';
     document.getElementById('mu-active-group').style.display = 'block';
+    loadReportingHistory(uid);
     document.getElementById('mu-active').checked = u.active !== false;
     document.getElementById('mu-enddate').value = normalizeDate(u.endDate) || '';
     toggleEndDateField();
@@ -3118,6 +3161,18 @@ window.updateCoachField = function() {
   document.getElementById('mu-coach-required').style.display = isCoachee ? 'inline' : 'none';
   document.getElementById('mu-coach-label').firstChild.textContent = isCoachee && !isCoach
     ? 'Assigned Coach ' : 'Reports To ';
+};
+
+window.toggleManagerTransferDate = function() {
+  const uid = document.getElementById('mu-uid').value;
+  const original = document.getElementById('mu-original-coach').value || '';
+  const selected = document.getElementById('mu-coach').value || '';
+  const grp = document.getElementById('mu-transfer-date-group');
+  const changed = !!uid && original !== selected;
+  grp.style.display = changed ? 'block' : 'none';
+  if (changed && !document.getElementById('mu-transfer-date').value) {
+    document.getElementById('mu-transfer-date').value = new Date().toISOString().slice(0,10);
+  }
 };
 
 window.toggleEndDateField = function() {
@@ -3150,24 +3205,44 @@ window.saveUser = async function() {
   const roles     = ['coach','coachee'].filter(r => document.getElementById('role-'+r).checked);
   const coachId   = (document.getElementById('mu-coach-group').style.display !== 'none')
                     ? (document.getElementById('mu-coach').value || null) : null;
+  const originalCoachId = document.getElementById('mu-original-coach').value || null;
+  const transferEffectiveDate = document.getElementById('mu-transfer-date').value || null;
 
   if (!firstName || !lastName) { showErr(errEl,'First and last name required.'); toast('First and last name required.','error'); return; }
   if (!uid && !email)           { showErr(errEl,'Email required.'); toast('Email required.','error'); return; }
   if (!roles.length)            { showErr(errEl,'At least one role required.'); toast('At least one role required.','error'); return; }
   if (roles.includes('coachee') && !coachId) { showErr(errEl,'Please assign a coach.'); toast('Please assign a coach for this coachee.','error'); return; }
+  if (uid && originalCoachId !== coachId && !transferEffectiveDate) { showErr(errEl,'Please provide the manager transfer effective date.'); toast('Transfer effective date is required.','error'); return; }
 
+  if (IS_BRANCH_PREVIEW && uid && originalCoachId !== coachId) {
+    showErr(errEl,'Preview only — manager transfers are disabled against production Firestore.');
+    toast('Preview only: manager transfer was not written to production.','info',5000);
+    return;
+  }
   btn.disabled = true; btn.textContent = uid ? 'Saving…' : 'Creating…';
   try {
     let targetUid = uid;
     if (uid) {
       const active = document.getElementById('mu-active').checked;
-      await updateDoc(doc(db,'users',uid), { firstName,lastName,employeeId:empId,position,hireDate,department,permissions,roles,coachId,active,endDate,updatedAt:serverTimestamp() });
+      const oldUser = allUsers.find(x=>x.uid===uid) || {};
+      let historicalReportsUpTo = oldUser.historicalReportsUpTo || [];
+      if (originalCoachId !== coachId) {
+        const usersByUid = {}; allUsers.forEach(u => { usersByUid[u.uid]=u; });
+        await recordManagerTransfer(uid, originalCoachId, coachId, transferEffectiveDate, {...oldUser, firstName, lastName, employeeId:empId, position, hireDate, department}, usersByUid);
+        const oldChain = computeReportsUpTo(originalCoachId, usersByUid);
+        historicalReportsUpTo = Array.from(new Set([...historicalReportsUpTo, ...oldChain]));
+      }
+      await updateDoc(doc(db,'users',uid), { firstName,lastName,employeeId:empId,position,hireDate,department,permissions,roles,coachId,historicalReportsUpTo,active,endDate,updatedAt:serverTimestamp() });
       await addDoc(collection(db,'auditLog'), { action:'update_user', targetUid:uid, targetName:firstName+' '+lastName, performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'Roles: '+roles.join(', ')+'. Admin: '+(permissions.admin||false)+'.', timestamp:serverTimestamp() });
       toast('User updated.','success');
     } else {
       const cred = await createUserWithEmailAndPassword(auth2, email, 'Boost2024!');
       targetUid = cred.user.uid;
-      await setDoc(doc(db,'users',targetUid), { firstName,lastName,email,employeeId:empId,position,hireDate,department,permissions,roles,coachId,reportsUpTo:[],active:true,createdAt:serverTimestamp() });
+      await setDoc(doc(db,'users',targetUid), { firstName,lastName,email,employeeId:empId,position,hireDate,department,permissions,roles,coachId,reportsUpTo:[],historicalReportsUpTo:[],active:true,createdAt:serverTimestamp() });
+      if (coachId) {
+        const usersByUid = {}; allUsers.forEach(u => { usersByUid[u.uid]=u; });
+        await createInitialReportingAssignment(targetUid, coachId, hireDate || new Date().toISOString().slice(0,10), {firstName,lastName,employeeId:empId,position,department}, usersByUid);
+      }
       await addDoc(collection(db,'auditLog'), { action:'create_user', targetUid, targetName:firstName+' '+lastName, targetEmail:email, performedBy:currentUser.uid, performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''), details:'Roles: '+roles.join(', ')+'.', timestamp:serverTimestamp() });
       // No email sent yet (per Sandra's request, 2026-07-14) — account is created with a
       // default temporary password. Use the "Send Reset Email" button in Edit User later,
@@ -3179,20 +3254,8 @@ window.saveUser = async function() {
     // position (and cascade to their existing subtree, if any) so hierarchy-scoped
     // dashboards and Firestore rules stay accurate.
     await recomputeReportsUpToForSubtree(targetUid);
-    // If this is a coachee, also re-stamp THEIR OWN existing sessions/action plans with
-    // the new chain immediately — otherwise a newly-assigned manager can't see this
-    // person's coaching history until someone happens to run the full "Recompute
-    // Reporting Hierarchy" utility in Settings. Deliberately does NOT touch
-    // coacheeDepartmentAtTime on those records — department-based compliance reporting
-    // should stay frozen to whatever was true when each session was logged, even though
-    // visibility/access should follow the current reporting line.
-    if (roles.includes('coachee')) {
-      const freshUsersSnap = await getDocs(collection(db,'users'));
-      const usersByUidNow = {};
-      freshUsersSnap.docs.forEach(d => { usersByUidNow[d.id] = { uid:d.id, ...d.data() }; });
-      const newChain = computeReportsUpTo(coachId, usersByUidNow);
-      await restampCoacheeReportsUpTo(targetUid, newChain);
-    }
+    // Historical session/action-plan hierarchy is intentionally NOT re-stamped here.
+    // Transfer ownership is effective-dated; records keep the reporting chain that existed when they were created.
     closeModal('modal-user');
     await loadUsers();
   } catch(e) { showErr(errEl, e.message); toast(e.message,'error'); btn.disabled=false; btn.textContent=uid?'Save Changes':'Create User'; }
@@ -3822,8 +3885,12 @@ window.exportComplianceCsv = async function() {
   const toVal   = (document.getElementById('rpt-compliance-to')?.value)   || '';
   if (!fromVal || !toVal) { toast('Please set a date range first.','error'); return; }
   try {
-    const snap     = await getDocs(query(collection(db,'sessions'), where('status','==','completed')));
+    const [snap, raSnap] = await Promise.all([
+      getDocs(query(collection(db,'sessions'), where('status','==','completed'))),
+      getDocs(collection(db,'reportingAssignments'))
+    ]);
     const sessions = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const reportingAssignments = raSnap.docs.map(d=>({id:d.id,...d.data()}));
     // Build month list between fromVal and toVal (YYYY-MM)
     const months = [];
     let cur = fromVal;
@@ -3836,8 +3903,9 @@ window.exportComplianceCsv = async function() {
     const headers  = ['Employee ID','Name','Position','Coach','Month','Session Held','Session Date'];
     const rows = [];
     coachees.forEach(coachee => {
-      const coach = allUsers.find(u=>u.uid===coachee.coachId);
       months.forEach(mStr => {
+        const managerId = managerForMonth(coachee,mStr,reportingAssignments);
+        const coach = allUsers.find(u=>u.uid===managerId);
         if (!isRequiredInMonth(coachee, mStr)) return;
         const monthSess = sessions.filter(s =>
           s.coacheeId===coachee.uid &&
@@ -4439,6 +4507,7 @@ let _dbApHealthChart = null;
 // click should hit Firestore again. Cached here, invalidated only by loadDashboard(true).
 let _dbSessionsCache = null;
 let _dbAPsCache      = null;
+let _dbAssignmentsCache = null;
 let _dbLastFetchTime = null;
 // Leader Compliance Overview sort — clickable column headers (any column, either
 // direction) replaced the old fixed dropdown of pre-picked sort combos.
@@ -4530,17 +4599,25 @@ async function loadDashboard(forceRefresh) {
   // ── Fetch data ────────────────────────────────────────────────
   if (forceRefresh || _dbSessionsCache === null) {
     try {
-      const [sSnap, apSnap] = await Promise.all([
+      const assignmentQuery = IS_BRANCH_PREVIEW
+        ? Promise.resolve({docs:[]})
+        : (hasEnterpriseAccess(currentProfile)
+          ? getDocs(collection(db,'reportingAssignments'))
+          : getDocs(query(collection(db,'reportingAssignments'), where('ownerChain','array-contains',currentUser.uid))));
+      const [sSnap, apSnap, raSnap] = await Promise.all([
         getDocs(collection(db,'sessions')),
-        getDocs(collection(db,'actionPlans'))
+        getDocs(collection(db,'actionPlans')),
+        assignmentQuery
       ]);
       _dbSessionsCache = sSnap.docs.map(d=>({id:d.id,...d.data()}));
       _dbAPsCache      = apSnap.docs.map(d=>({id:d.id,...d.data()}));
+      _dbAssignmentsCache = raSnap.docs.map(d=>({id:d.id,...d.data()}));
       _dbLastFetchTime = new Date();
     } catch(e) { console.error('Dashboard fetch error',e); _dbSessionsCache = _dbSessionsCache || []; _dbAPsCache = _dbAPsCache || []; }
   }
   const allSessions = _dbSessionsCache || [];
   const allAPs      = _dbAPsCache || [];
+  const reportingAssignments = _dbAssignmentsCache || [];
 
   const completedSess = allSessions.filter(s => s.status === 'completed' || s.status === 'acknowledged');
   const sessMon = s => (s.sessionDate||'').slice(0,7);
@@ -4560,14 +4637,17 @@ async function loadDashboard(forceRefresh) {
   // the Leader table showed no leader at all.) Matches the same coachId membership test
   // used to build each leader's own "team" a few lines below.
   const coachesFull = allUsers.filter(u => (u.roles||[]).includes('coach') && u.active !== false);
-  const coaches     = scopeDept === 'ALL' ? coachesFull : coachesFull.filter(coach => allCoachees.some(c => c.coachId === coach.uid));
+  const coaches     = scopeDept === 'ALL' ? coachesFull : coachesFull.filter(coach => allCoachees.some(c => managerForMonth(c, selMonth, reportingAssignments) === coach.uid));
 
   // ── Last refreshed timestamp ────────────────────────────────────
   const refreshedEl = document.getElementById('db-last-refreshed');
   if (refreshedEl && _dbLastFetchTime) refreshedEl.textContent = 'Last refreshed: ' + _dbLastFetchTime.toLocaleString('en-PH',{dateStyle:'medium',timeStyle:'short'});
 
   // Required set for a given month — respects hire date + active status
-  const requiredInMonth = mStr => allCoachees.filter(u => isRequiredInMonth(u, mStr));
+  const requiredInMonth = mStr => allCoachees.filter(u =>
+    isRequiredInMonth(u, mStr) &&
+    (!isScopedToOwnTeam || ownerChainForMonth(u,mStr,reportingAssignments).includes(currentUser.uid))
+  );
 
   // Coached set for a given month (distinct coacheeIds with a completed session)
   const coachedInMonth = mStr => new Set(
@@ -4596,7 +4676,7 @@ async function loadDashboard(forceRefresh) {
   // ── Per-leader stats ─────────────────────────────────────────
   const today = new Date(); today.setHours(0,0,0,0);
   const leaderStats = coaches.map(coach => {
-    const teamAll = allCoachees.filter(c => c.coachId === coach.uid);
+    const teamAll = allCoachees.filter(c => managerForMonth(c, curMonStr, reportingAssignments) === coach.uid);
     const team    = teamAll.filter(c => c.active !== false);
     const teamReq = teamAll.filter(c => isRequiredInMonth(c, curMonStr));
     const req     = teamReq.length;
@@ -4605,7 +4685,7 @@ async function loadDashboard(forceRefresh) {
     let lYtdC = 0, lYtdR = 0;
     for (let m = 1; m <= selMo; m++) {
       const mStr  = selYear+'-'+String(m).padStart(2,'0');
-      const mReq  = teamAll.filter(c => isRequiredInMonth(c, mStr));
+      const mReq  = allCoachees.filter(c => managerForMonth(c,mStr,reportingAssignments) === coach.uid && isRequiredInMonth(c, mStr));
       const cSet  = coachedInMonth(mStr);
       lYtdR += mReq.length;
       lYtdC += mReq.filter(c => cSet.has(c.uid)).length;
@@ -5264,6 +5344,99 @@ function computeReportsUpTo(coachId, usersByUid) {
   return chain;
 }
 
+function previousDate(dateStr) {
+  const d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()-1);
+  return d.toISOString().slice(0,10);
+}
+function monthEndDate(mStr) {
+  const [y,m] = mStr.split('-').map(Number);
+  return new Date(y,m,0).toISOString().slice(0,10);
+}
+function assignmentForDate(employeeUid, dateStr, assignments) {
+  return (assignments||[]).filter(a => a.employeeId===employeeUid && a.effectiveFrom<=dateStr && (!a.effectiveTo || a.effectiveTo>=dateStr))
+    .sort((a,b)=>(b.effectiveFrom||'').localeCompare(a.effectiveFrom||''))[0] || null;
+}
+function managerForMonth(user, mStr, assignments) {
+  const a = assignmentForDate(user.uid, monthEndDate(mStr), assignments);
+  return a ? a.managerId : (user.coachId || null);
+}
+function ownerChainForMonth(user, mStr, assignments) {
+  const a = assignmentForDate(user.uid, monthEndDate(mStr), assignments);
+  if (a) return a.ownerChain || [];
+  return user.reportsUpTo || [];
+}
+async function createInitialReportingAssignment(employeeUid, managerId, effectiveFrom, employeeSnapshot, usersByUid) {
+  if (!managerId) return;
+  const ownerChain = computeReportsUpTo(managerId, usersByUid);
+  const manager = usersByUid[managerId] || {};
+  await addDoc(collection(db,'reportingAssignments'), {
+    employeeId: employeeUid,
+    employeeName: ((employeeSnapshot.firstName||'')+' '+(employeeSnapshot.lastName||'')).trim(),
+    employeeNumber: employeeSnapshot.employeeId || '',
+    managerId,
+    managerName: ((manager.firstName||'')+' '+(manager.lastName||'')).trim(),
+    ownerChain,
+    effectiveFrom,
+    effectiveTo: null,
+    departmentAtStart: employeeSnapshot.department || null,
+    positionAtStart: employeeSnapshot.position || null,
+    createdAt: serverTimestamp(),
+    createdBy: currentUser.uid
+  });
+}
+async function recordManagerTransfer(employeeUid, oldManagerId, newManagerId, effectiveDate, employeeSnapshot, usersByUid) {
+  if (!effectiveDate) throw new Error('Transfer effective date is required.');
+  const snap = await getDocs(query(collection(db,'reportingAssignments'), where('employeeId','==',employeeUid)));
+  const assignments = snap.docs.map(d=>({id:d.id,ref:d.ref,...d.data()}));
+  const open = assignments.filter(a=>!a.effectiveTo).sort((a,b)=>(b.effectiveFrom||'').localeCompare(a.effectiveFrom||''))[0];
+  if (open && effectiveDate <= open.effectiveFrom) {
+    throw new Error('Effective date must be after the current reporting assignment started ('+open.effectiveFrom+').');
+  }
+  const priorEnd = previousDate(effectiveDate);
+  if (open) {
+    await updateDoc(open.ref,{effectiveTo:priorEnd,closedAt:serverTimestamp(),closedBy:currentUser.uid});
+  } else if (oldManagerId) {
+    const oldOwnerChain = computeReportsUpTo(oldManagerId, usersByUid);
+    const oldManager = usersByUid[oldManagerId] || {};
+    await addDoc(collection(db,'reportingAssignments'), {
+      employeeId: employeeUid,
+      employeeName: ((employeeSnapshot.firstName||'')+' '+(employeeSnapshot.lastName||'')).trim(),
+      employeeNumber: employeeSnapshot.employeeId || '',
+      managerId: oldManagerId,
+      managerName: ((oldManager.firstName||'')+' '+(oldManager.lastName||'')).trim(),
+      ownerChain: oldOwnerChain,
+      effectiveFrom: employeeSnapshot.hireDate || '2000-01-01',
+      effectiveTo: priorEnd,
+      departmentAtStart: employeeSnapshot.department || null,
+      positionAtStart: employeeSnapshot.position || null,
+      seededFromLegacyRelationship: true,
+      createdAt: serverTimestamp(),
+      createdBy: currentUser.uid
+    });
+  }
+  if (newManagerId) {
+    await createInitialReportingAssignment(employeeUid,newManagerId,effectiveDate,employeeSnapshot,usersByUid);
+  }
+}
+window.loadReportingHistory = async function(employeeUid) {
+  const grp=document.getElementById('mu-reporting-history-group'), box=document.getElementById('mu-reporting-history');
+  if (!employeeUid || !grp || !box) return;
+  if (IS_BRANCH_PREVIEW) {
+    grp.style.display='block';
+    box.innerHTML='<div style="padding:9px 10px;color:var(--muted)">Historical assignment records will appear here after backend approval/deployment. Existing production relationships are not being modified in this preview.</div>';
+    return;
+  }
+  try {
+    const snap=await getDocs(query(collection(db,'reportingAssignments'),where('employeeId','==',employeeUid)));
+    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.effectiveFrom||'').localeCompare(a.effectiveFrom||''));
+    if (!rows.length) { grp.style.display='none'; return; }
+    grp.style.display='block';
+    box.innerHTML=rows.map(r=>'<div style="display:grid;grid-template-columns:1fr 95px 95px;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border)"><div style="font-weight:600">'+esc(r.managerName||'—')+'</div><div>'+esc(r.effectiveFrom||'—')+'</div><div>'+esc(r.effectiveTo||'Current')+'</div></div>').join('');
+  } catch(e) { grp.style.display='none'; }
+};
+
+// Legacy helper retained for old data-repair compatibility only. New transfers must not call it.
 // Re-stamp ONE coachee's own existing sessions/action plans with a new coacheeReportsUpTo
 // chain — used right after their "Reports To" changes so a newly-assigned manager gets
 // immediate visibility into that person's coaching history (documentation continuity),
@@ -5381,39 +5554,16 @@ window.recomputeAllReportsUpTo = async function() {
     const usersSnap = await getDocs(collection(db,'users'));
     const usersByUid = {};
     usersSnap.docs.forEach(d => { usersByUid[d.id] = { uid:d.id, ...d.data() }; });
-
-    statusEl.textContent = 'Updating '+Object.keys(usersByUid).length+' users…';
     const userUpdates = [];
     Object.values(usersByUid).forEach(u => {
       const chain = computeReportsUpTo(u.coachId, usersByUid);
       if (JSON.stringify(chain) !== JSON.stringify(u.reportsUpTo || [])) {
         userUpdates.push({ ref: doc(db,'users',u.uid), data: { reportsUpTo: chain } });
-        u.reportsUpTo = chain; // keep local map fresh for the session/AP pass below
       }
     });
     await commitInChunks(userUpdates);
-
-    statusEl.textContent = 'Updating sessions & action plans…';
-    const [sessSnap, apSnap] = await Promise.all([
-      getDocs(collection(db,'sessions')),
-      getDocs(collection(db,'actionPlans')),
-    ]);
-    const recordUpdates = [];
-    [['sessions', sessSnap], ['actionPlans', apSnap]].forEach(([collName, snap]) => {
-      snap.docs.forEach(d => {
-        const data = d.data();
-        const coachee = usersByUid[data.coacheeId];
-        const chain = (coachee && coachee.reportsUpTo) || [];
-        const existing = data.coacheeReportsUpTo || [];
-        if (JSON.stringify(chain) !== JSON.stringify(existing)) {
-          recordUpdates.push({ ref: doc(db,collName,d.id), data: { coacheeReportsUpTo: chain } });
-        }
-      });
-    });
-    await commitInChunks(recordUpdates);
-
-    statusEl.textContent = 'Done — '+userUpdates.length+' user(s), '+recordUpdates.length+' session/action-plan record(s) updated.';
-    toast('Reporting hierarchy recomputed.','success');
+    statusEl.textContent = 'Done — '+userUpdates.length+' current user hierarchy record(s) updated. Historical sessions/action plans were preserved.';
+    toast('Current reporting hierarchy recomputed; historical records preserved.','success');
     await refreshUsers();
   } catch(e) {
     statusEl.textContent = 'Error: '+e.message;
