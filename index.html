@@ -2554,6 +2554,11 @@ const usersPageState = { page: 1, size: 25 };
 let selectedUserIds  = new Set();
 let usersSearchQuery = '';
 
+const SANDRA_ADMIN_EMAIL = 'sbarlao@dermorepubliq.com';
+function isSandraFullAdmin() {
+  return !!(currentUser && (currentUser.email||'').toLowerCase() === SANDRA_ADMIN_EMAIL);
+}
+
 // Firestore reads made in the first moment after sign-in can occasionally race the ID
 // token attaching to the request — this surfaces as a transient "Missing or insufficient
 // permissions" that has nothing to do with the security rules themselves; retrying a beat
@@ -2645,7 +2650,7 @@ function renderUsersTable() {
     document.getElementById('users-page-label').textContent = 'Page 1 of 1';
     return;
   }
-  let rows = filterUsersBySearch(allUsers);
+  let rows = filterUsersBySearch(allUsers.filter(u => !u.archived));
   if (usersSortState.col) {
     rows.sort((a, b) => {
       const va = rtSortKey(a, usersSortState.col);
@@ -2701,6 +2706,7 @@ function renderUsersTable() {
       + '<td><div style="display:flex;gap:5px">'
       + '<button class="btn btn-ghost btn-sm" onclick="openUserModal(\'' + u.uid + '\')">Edit</button>'
       + (!isSelf ? '<button class="btn btn-danger btn-sm" onclick="confirmDeactivate(\'' + u.uid + '\',\'' + esc(u.firstName+' '+u.lastName) + '\','+u.active+')">'+((u.active!==false)?'Deactivate':'Reactivate')+'</button>' : '')
+      + (isSandraFullAdmin() && !isSelf ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:#F4B4B4" onclick="confirmSandraDeleteUser(\'' + u.uid + '\')">Delete User</button>' : '')
       + '</div></td>'
       + '</tr>';
   }).join('');
@@ -2771,6 +2777,141 @@ function updateBulkBar() {
   bar.style.display = n ? 'flex' : 'none';
   if (n) document.getElementById('users-bulk-count').textContent = n + ' selected';
 }
+
+// ── Sandra-only user deletion / archival ──────────────────────
+// This deliberately distinguishes "no history" from "has history":
+//  • no history -> hard-delete the Firestore user profile
+//  • has history -> archive the profile in-place so historical dashboards, sessions,
+//    compliance and reporting assignments can still resolve the employee identity.
+// Authentication is separate from Firestore; deleting/archiving here removes app access
+// because inactive profiles are rejected at sign-in, but it does not delete the Firebase
+// Authentication account itself.
+async function inspectUserDependencies(uid) {
+  const [
+    sessAsCoachee, sessAsCoach,
+    apAsCoachee, apAsCoach,
+    raAsEmployee, raAsManager,
+    directReports
+  ] = await Promise.all([
+    getDocs(query(collection(db,'sessions'), where('coacheeId','==',uid))),
+    getDocs(query(collection(db,'sessions'), where('coachId','==',uid))),
+    getDocs(query(collection(db,'actionPlans'), where('coacheeId','==',uid))),
+    getDocs(query(collection(db,'actionPlans'), where('coachId','==',uid))),
+    getDocs(query(collection(db,'reportingAssignments'), where('employeeId','==',uid))),
+    getDocs(query(collection(db,'reportingAssignments'), where('managerId','==',uid))),
+    getDocs(query(collection(db,'users'), where('coachId','==',uid)))
+  ]);
+  return {
+    sessionsAsCoachee: sessAsCoachee.size,
+    sessionsAsCoach: sessAsCoach.size,
+    actionPlansAsCoachee: apAsCoachee.size,
+    actionPlansAsCoach: apAsCoach.size,
+    assignmentsAsEmployee: raAsEmployee.size,
+    assignmentsAsManager: raAsManager.size,
+    directReports: directReports.docs.filter(d=>d.id!==uid && d.data().archived!==true).length
+  };
+}
+function dependencyTotal(d) {
+  return d.sessionsAsCoachee + d.sessionsAsCoach + d.actionPlansAsCoachee + d.actionPlansAsCoach
+       + d.assignmentsAsEmployee + d.assignmentsAsManager;
+}
+window.confirmSandraDeleteUser = async function(uid) {
+  if (!isSandraFullAdmin()) { toast('This action is restricted to Sandra Abegail Barlao.','error'); return; }
+  if (uid === currentUser.uid) { toast('You cannot delete your own Sandra admin account.','error'); return; }
+  const u = allUsers.find(x=>x.uid===uid);
+  if (!u) { toast('User not found.','error'); return; }
+
+  const btn=document.getElementById('mc-action-btn');
+  document.getElementById('mc-title').textContent='Check User Before Deletion';
+  document.getElementById('mc-msg').innerHTML='<span style="color:var(--muted)">Checking linked coaching and reporting records for <strong>'+esc(u.firstName+' '+u.lastName)+'</strong>…</span>';
+  document.getElementById('mc-name-list').style.display='none';
+  document.getElementById('mc-confirm-wrap').style.display='none';
+  btn.disabled=true; btn.textContent='Checking…'; btn.className='btn btn-danger';
+  document.getElementById('modal-confirm').style.display='flex';
+
+  try {
+    const dep=await inspectUserDependencies(uid);
+    if (dep.directReports > 0) {
+      document.getElementById('mc-title').textContent='Cannot Delete — Direct Reports Assigned';
+      document.getElementById('mc-msg').innerHTML=
+        '<strong>'+esc(u.firstName+' '+u.lastName)+'</strong> still has <strong>'+dep.directReports+'</strong> active direct report'+(dep.directReports===1?'':'s')+'.<br><br>'
+        +'Reassign those employees first. This prevents broken reporting chains.';
+      btn.disabled=true; btn.textContent='Delete Blocked';
+      return;
+    }
+
+    const hist=dependencyTotal(dep);
+    const hasHistory=hist>0;
+    document.getElementById('mc-title').textContent = hasHistory ? 'Archive User With History' : 'Permanently Delete User';
+    document.getElementById('mc-msg').innerHTML = hasHistory
+      ? '<div style="background:#FFF7E6;border:1px solid #F4D28A;border-radius:7px;padding:10px 12px;margin-bottom:10px">'
+        +'<strong style="color:#8A5700">Historical records found.</strong> This person will be removed from the active user roster and blocked from app access, but their profile will be retained internally so historical reports remain accurate.'
+        +'</div>'
+        +'<strong>'+esc(u.firstName+' '+u.lastName)+'</strong><br>'
+        +'<span style="font-size:12px;color:var(--muted)">Sessions as employee: '+dep.sessionsAsCoachee
+        +' · Sessions as coach: '+dep.sessionsAsCoach
+        +' · Action plans: '+(dep.actionPlansAsCoachee+dep.actionPlansAsCoach)
+        +' · Reporting assignments: '+(dep.assignmentsAsEmployee+dep.assignmentsAsManager)+'</span><br><br>'
+        +'Type <strong>DELETE</strong> to confirm archival/removal from the active roster.'
+      : '<strong>'+esc(u.firstName+' '+u.lastName)+'</strong> has no linked coaching or reporting history. Their Firestore user profile can be permanently deleted.<br><br>'
+        +'Type <strong>DELETE</strong> to confirm permanent deletion.';
+
+    const wrap=document.getElementById('mc-confirm-wrap');
+    const inp=document.getElementById('mc-confirm-text');
+    const err=document.getElementById('mc-confirm-err');
+    wrap.style.display='block'; inp.value=''; err.style.display='none';
+    btn.disabled=false;
+    btn.textContent = hasHistory ? 'Archive & Remove Access' : 'Delete Permanently';
+    btn.className='btn btn-danger';
+    btn.onclick=async()=>{
+      if (inp.value.trim()!=='DELETE') { err.style.display='block'; return; }
+      if (IS_BRANCH_PREVIEW) {
+        toast('Preview only — no production user was deleted or archived.','info',5000);
+        closeModal('modal-confirm');
+        return;
+      }
+      btn.disabled=true; btn.textContent=hasHistory?'Archiving…':'Deleting…';
+      try {
+        if (hasHistory) {
+          const today=new Date().toISOString().slice(0,10);
+          const histChain=Array.from(new Set([...(u.historicalReportsUpTo||[]), ...(u.reportsUpTo||[])]));
+          await updateDoc(doc(db,'users',uid),{
+            archived:true,
+            active:false,
+            endDate:u.endDate || today,
+            coachId:null,
+            reportsUpTo:[],
+            historicalReportsUpTo:histChain,
+            archivedAt:serverTimestamp(),
+            archivedBy:currentUser.uid,
+            updatedAt:serverTimestamp()
+          });
+        } else {
+          await deleteDoc(doc(db,'users',uid));
+        }
+        await addDoc(collection(db,'auditLog'),{
+          action:hasHistory?'archive_user_with_history':'hard_delete_user_no_history',
+          targetName:(u.firstName||'')+' '+(u.lastName||''),
+          performedBy:currentUser.uid,
+          performedByName:(currentProfile.firstName||'')+' '+(currentProfile.lastName||''),
+          details:hasHistory
+            ? 'Sandra archived user and removed active access while preserving historical records. Linked history count: '+hist+'.'
+            : 'Sandra permanently deleted user profile with no linked coaching/reporting history.',
+          timestamp:serverTimestamp()
+        });
+        closeModal('modal-confirm');
+        toast(hasHistory?'User archived and removed from active roster.':'User permanently deleted.','success');
+        await loadUsers();
+      } catch(e) {
+        btn.disabled=false; btn.textContent=hasHistory?'Archive & Remove Access':'Delete Permanently';
+        toast('Error: '+e.message,'error');
+      }
+    };
+  } catch(e) {
+    document.getElementById('mc-msg').textContent='Could not inspect this user: '+e.message;
+    btn.disabled=true; btn.textContent='Unable to Continue';
+  }
+};
 
 // ── Bulk: Change Department ────────────────────────────────────
 function namesForUids(uids) {
@@ -3011,7 +3152,7 @@ window.openBulkStatusModal = function(makeActive) {
 
 // ── Export current Users view to CSV (round-trips with the import template) ─────
 window.exportUsersCsv = function() {
-  const rows = filterUsersBySearch(allUsers)
+  const rows = filterUsersBySearch(allUsers.filter(u=>!u.archived))
     .sort((a,b)=>(a.firstName+a.lastName).localeCompare(b.firstName+b.lastName));
   const headers = ['employeeId','firstName','lastName','email','position','department','hireDate','roleCoach','roleCoachee','coachEmail','active'];
   const data = rows.map(u => {
