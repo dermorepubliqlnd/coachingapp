@@ -23,6 +23,13 @@ service cloud.firestore {
     function isAdmin() {
       return iExist() && myDoc().permissions.admin == true;
     }
+    // Destructive user-profile deletion is intentionally reserved for Sandra only.
+    // UI hiding is not enough; this server-side rule prevents other admins from deleting
+    // user documents directly through the client or REST API.
+    function isSandraFullAdmin() {
+      return isAdmin()
+        && request.auth.token.email == 'sbarlao@dermorepubliq.com';
+    }
     // Enterprise Dashboard access — a separate, explicitly-granted flag (independent of
     // the reporting hierarchy) for named Chiefs/execs who need org-wide read visibility
     // without full System Admin rights. Admin is a superset of Enterprise.
@@ -71,7 +78,7 @@ service cloud.firestore {
       );
       allow create: if isAdmin() || isFirstRun();
       allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isAdmin();
+      allow delete: if isSandraFullAdmin();
     }
 
     // SESSIONS — coach (owner), coachee (subject), admin/enterprise (all), or a
