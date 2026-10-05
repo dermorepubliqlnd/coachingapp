@@ -2009,6 +2009,9 @@ const FC = {
 const primaryApp   = initializeApp(FC);
 const auth         = getAuth(primaryApp);
 const db           = getFirestore(primaryApp);
+const IS_BRANCH_PREVIEW = location.hostname !== 'dermorepubliqlnd.github.io';
+// Branch previews deliberately keep production Firestore read-only for the new transfer
+// feature. The new reportingAssignments security rules are not deployed until final approval.
 
 // ── Cross-browser storage resilience ─────────────────────────
 // Edge/Safari "Tracking Prevention" (and hardened privacy modes) can block IndexedDB/
@@ -2405,6 +2408,13 @@ function showLogin() {
 function showApp() {
   hideAll();
   document.getElementById('app').style.display = 'block';
+  if (IS_BRANCH_PREVIEW && !document.getElementById('branch-preview-banner')) {
+    const banner=document.createElement('div');
+    banner.id='branch-preview-banner';
+    banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:10000;background:#FFF7D6;border-bottom:1px solid #E7C75B;color:#5C4900;padding:8px 14px;text-align:center;font-size:12px;font-weight:600';
+    banner.textContent='PREVIEW — Manager Transfer History. Production data writes for the new transfer feature are disabled.';
+    document.body.appendChild(banner);
+  }
   if ((currentProfile.permissions||{}).admin) updateAdminInboxBadge();
   // If the browser blocked durable storage (e.g. Edge/Safari strict tracking prevention),
   // auth is session-only — let the user know they'll need to sign in again next visit.
@@ -2584,13 +2594,15 @@ async function refreshUsersOnce() {
   const map = {};
   if (currentProfile && currentProfile.uid) map[currentProfile.uid] = { ...currentProfile };
   if (roles.includes('coach')) {
-    const [currentSnap, historicalSnap] = await Promise.all([
-      getDocs(query(collection(db,'users'), where('reportsUpTo','array-contains',currentUser.uid))),
-      getDocs(query(collection(db,'users'), where('historicalReportsUpTo','array-contains',currentUser.uid)))
-    ]);
-    currentUserHasDownline = currentSnap.docs.length > 0 || historicalSnap.docs.length > 0;
+    const currentSnap = await getDocs(query(collection(db,'users'), where('reportsUpTo','array-contains',currentUser.uid)));
+    let historicalDocs = [];
+    if (!IS_BRANCH_PREVIEW) {
+      const historicalSnap = await getDocs(query(collection(db,'users'), where('historicalReportsUpTo','array-contains',currentUser.uid)));
+      historicalDocs = historicalSnap.docs;
+    }
+    currentUserHasDownline = currentSnap.docs.length > 0 || historicalDocs.length > 0;
     currentSnap.docs.forEach(d => { map[d.id] = { uid:d.id, ...d.data() }; });
-    historicalSnap.docs.forEach(d => { map[d.id] = { uid:d.id, ...d.data() }; });
+    historicalDocs.forEach(d => { map[d.id] = { uid:d.id, ...d.data() }; });
   }
   if (roles.includes('coachee') && currentProfile && currentProfile.coachId) {
     try {
@@ -2858,6 +2870,11 @@ window.openBulkCoachModal = function() {
 
 window.runBulkCoachChange = async function() {
   const errEl = document.getElementById('bulk-coach-error');
+  if (IS_BRANCH_PREVIEW) {
+    showErr(errEl,'Preview only — no production reporting relationships will be changed from this branch.');
+    toast('Preview only: transfer was not written to production.','info',5000);
+    return;
+  }
   errEl.style.display = 'none';
   const coachId = document.getElementById('bulk-coach-select').value;
   const effectiveDate = document.getElementById('bulk-coach-effective-date').value;
@@ -3197,6 +3214,11 @@ window.saveUser = async function() {
   if (roles.includes('coachee') && !coachId) { showErr(errEl,'Please assign a coach.'); toast('Please assign a coach for this coachee.','error'); return; }
   if (uid && originalCoachId !== coachId && !transferEffectiveDate) { showErr(errEl,'Please provide the manager transfer effective date.'); toast('Transfer effective date is required.','error'); return; }
 
+  if (IS_BRANCH_PREVIEW && uid && originalCoachId !== coachId) {
+    showErr(errEl,'Preview only — manager transfers are disabled against production Firestore.');
+    toast('Preview only: manager transfer was not written to production.','info',5000);
+    return;
+  }
   btn.disabled = true; btn.textContent = uid ? 'Saving…' : 'Creating…';
   try {
     let targetUid = uid;
@@ -4577,9 +4599,11 @@ async function loadDashboard(forceRefresh) {
   // ── Fetch data ────────────────────────────────────────────────
   if (forceRefresh || _dbSessionsCache === null) {
     try {
-      const assignmentQuery = hasEnterpriseAccess(currentProfile)
-        ? getDocs(collection(db,'reportingAssignments'))
-        : getDocs(query(collection(db,'reportingAssignments'), where('ownerChain','array-contains',currentUser.uid)));
+      const assignmentQuery = IS_BRANCH_PREVIEW
+        ? Promise.resolve({docs:[]})
+        : (hasEnterpriseAccess(currentProfile)
+          ? getDocs(collection(db,'reportingAssignments'))
+          : getDocs(query(collection(db,'reportingAssignments'), where('ownerChain','array-contains',currentUser.uid))));
       const [sSnap, apSnap, raSnap] = await Promise.all([
         getDocs(collection(db,'sessions')),
         getDocs(collection(db,'actionPlans')),
@@ -5398,6 +5422,11 @@ async function recordManagerTransfer(employeeUid, oldManagerId, newManagerId, ef
 window.loadReportingHistory = async function(employeeUid) {
   const grp=document.getElementById('mu-reporting-history-group'), box=document.getElementById('mu-reporting-history');
   if (!employeeUid || !grp || !box) return;
+  if (IS_BRANCH_PREVIEW) {
+    grp.style.display='block';
+    box.innerHTML='<div style="padding:9px 10px;color:var(--muted)">Historical assignment records will appear here after backend approval/deployment. Existing production relationships are not being modified in this preview.</div>';
+    return;
+  }
   try {
     const snap=await getDocs(query(collection(db,'reportingAssignments'),where('employeeId','==',employeeUid)));
     const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.effectiveFrom||'').localeCompare(a.effectiveFrom||''));
