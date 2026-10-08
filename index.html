@@ -6177,7 +6177,12 @@ async function loadSessionForm() {
   document.getElementById('session-save-draft-btn').style.display = 'inline-flex';
   document.getElementById('session-submit-btn').style.display     = 'inline-flex';
   document.getElementById('session-acknowledge-btn').style.display    = 'none';
+  // Reset disabled state: a previous successful acknowledge leaves the button disabled,
+  // which would make it dead on the next session opened without a page reload.
+  document.getElementById('session-acknowledge-btn').disabled = false;
+  document.getElementById('session-acknowledge-btn').textContent = 'Acknowledge & Sign';
   document.getElementById('session-reject-btn').style.display         = 'none';
+  document.getElementById('session-reject-btn').disabled = false;
   document.getElementById('session-send-prep-btn').style.display  = 'none';
   document.getElementById('session-finalize-btn').style.display   = 'none';
   document.getElementById('sf-commitment-card').style.display = 'none';
@@ -7086,6 +7091,7 @@ window.acknowledgeSession = async function() {
       if (_fresh.exists()) renderAckCard(_fresh.data(), '', '');
     } catch(e) {}
     document.getElementById('session-acknowledge-btn').style.display = 'none';
+    btn.disabled = false; btn.textContent = 'Acknowledge & Sign';
     document.getElementById('session-reject-btn').style.display = 'none';
     document.getElementById('sf-commitment-text').disabled = true;
     document.getElementById('pdf-btn').style.display = 'inline-flex';
