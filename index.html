@@ -1736,6 +1736,29 @@
   </div>
 </div>
 
+<!-- MODAL: AP COMPLETION DATE -->
+<div id="modal-ap-done" class="modal-overlay" style="display:none">
+  <div class="modal-box sm">
+    <div class="modal-header">
+      <div class="modal-title" id="apdone-title">Completion Date</div>
+      <button class="modal-close" onclick="cancelAPDone()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="apdone-action" style="background:var(--light);border-radius:var(--radius);padding:10px 12px;font-size:12.5px;color:var(--text);margin-bottom:12px;line-height:1.5"></div>
+      <div id="apdone-info" style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5"></div>
+      <label class="form-label" id="apdone-date-lbl">Date completed *</label>
+      <input type="date" id="apdone-date" class="form-control" style="max-width:200px;margin-bottom:12px">
+      <label class="form-label" id="apdone-note-lbl">Note (optional)</label>
+      <textarea id="apdone-note" class="form-control" rows="3"></textarea>
+      <div id="apdone-err" style="display:none;color:var(--red);font-size:12px;margin-top:6px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cancelAPDone()">Cancel</button>
+      <button class="btn btn-primary" id="apdone-save-btn" onclick="confirmAPDone()">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: CHANGE AP DUE DATE -->
 <div id="modal-ap-due" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-ap-due')">
   <div class="modal-box sm">
@@ -7497,7 +7520,7 @@ function renderActionPlans(plans) {
     const today2 = new Date(); today2.setHours(0,0,0,0);
     const overdue = isAPOverdue(p, today2);
     const stDisplay = st;
-    const cd = p.completedDate ? new Date(p.completedDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+    const cd = p.completedDate ? apFmtDate(p.completedDate) : (st === 'For Verification' && p.submittedDate ? apFmtDate(p.submittedDate)+' (for verification)' : '—');
     const sessionCode = sessionCodeMap[p.sessionId] || '';
     const sessionTag = sessionCode
       ? '<span onclick="openExistingSession(\''+p.sessionId+'\')" style="cursor:pointer;font-size:11.5px;font-weight:600;color:var(--blue);background:var(--blue-lt);padding:2px 8px;border-radius:10px;white-space:nowrap" title="Open session">'+esc(sessionCode)+'</span>'
@@ -7697,34 +7720,97 @@ window.saveAPDueChange = async function() {
   } catch(e) { btn.disabled = false; fail('Could not save: '+e.message); }
 };
 
-window.onAPStatusChange = async function(id, el) {
+// Completion-date prompt — shown when an item is tagged For Verification (employee or leader)
+// or closed as Completed (leader). The person states the actual date the work was done.
+let _apDoneCtx = null;
+function apToday() { return new Date().toISOString().split('T')[0]; }
+function openAPDoneModal(ctx) {
+  _apDoneCtx = ctx;
+  const p = ctx.item || {};
+  const isComplete = ctx.newStatus === 'Completed';
+  document.getElementById('apdone-title').textContent = isComplete ? 'Verify & Close as Completed' : 'Mark as Done — For Verification';
+  document.getElementById('apdone-action').textContent = p.action || '—';
+  let info = 'Due date: '+apFmtDate(p.dueDate);
+  if (isComplete && p.submittedDate) info += ' · Employee reported done on '+apFmtDate(p.submittedDate);
+  if (!isComplete) info += ' · Your leader will verify and close this item.';
+  document.getElementById('apdone-info').textContent = info;
+  document.getElementById('apdone-date-lbl').textContent = isComplete ? 'Actual completion date *' : 'Date you completed it *';
+  document.getElementById('apdone-note-lbl').textContent = isComplete ? 'Verification note (optional)' : 'What was done / evidence (optional)';
+  document.getElementById('apdone-note').placeholder = isComplete
+    ? 'e.g. Checked the updated SOP in the shared drive — complete.'
+    : 'e.g. Submitted the revised storyboard to QA; link in the team folder.';
+  const d = document.getElementById('apdone-date');
+  d.max = apToday();
+  d.value = (isComplete && p.submittedDate) ? p.submittedDate : apToday();
+  document.getElementById('apdone-note').value = '';
+  document.getElementById('apdone-err').style.display = 'none';
+  document.getElementById('apdone-save-btn').disabled = false;
+  document.getElementById('modal-ap-done').style.display = 'flex';
+}
+window.cancelAPDone = function() {
+  const c = _apDoneCtx; _apDoneCtx = null;
+  closeModal('modal-ap-done');
+  if (c && c.el) {
+    c.el.value = c.prev;
+    c.el.style.background = AP_STATUS_BG[c.prev] || 'var(--light)';
+    c.el.style.color      = AP_STATUS_COLOR[c.prev] || '#6B7A8D';
+  }
+};
+window.confirmAPDone = async function() {
+  const c = _apDoneCtx; if (!c) return;
+  const date = document.getElementById('apdone-date').value;
+  const note = document.getElementById('apdone-note').value.trim();
+  const err = document.getElementById('apdone-err');
+  if (!date) { err.textContent = 'Please enter the date.'; err.style.display = 'block'; return; }
+  if (date > apToday()) { err.textContent = 'The date cannot be in the future.'; err.style.display = 'block'; return; }
+  document.getElementById('apdone-save-btn').disabled = true;
+  _apDoneCtx = null;
+  closeModal('modal-ap-done');
+  c.el.value = c.newStatus;
+  if (c.src === 'mapl') await onMyAPStatusChange(c.id, c.el, { date, note });
+  else await onAPStatusChange(c.id, c.el, { date, note });
+};
+
+window.onAPStatusChange = async function(id, el, opts) {
   const newStatus = el.value;
   const item = allActionPlans.find(p=>p.id===id);
   const prev = item ? (item.status || 'Not Started') : '';
   if (item && item.coacheeId === currentUser.uid) { toast('Your own action items are closed by your leader.','error'); el.value = prev; return; }
   el.style.background = AP_STATUS_BG[newStatus]  || 'var(--light)';
   el.style.color      = AP_STATUS_COLOR[newStatus] || '#6B7A8D';
-  const today = new Date().toISOString().split('T')[0];
-  // Completion date credits the employee: if they flagged it done earlier, that date counts.
-  const completedDate = newStatus === 'Completed' ? ((item && item.submittedDate) || today) : '';
+  if (['For Verification','Completed'].includes(newStatus) && !opts) {
+    openAPDoneModal({ src:'apl', id, el, prev, newStatus, item });
+    return;
+  }
+  const today = apToday();
+  // Completion date = the date the leader confirms in the prompt (defaults to the employee's reported date).
+  const completedDate = newStatus === 'Completed' ? opts.date : '';
   const upd = { status: newStatus, completedDate, updatedAt: serverTimestamp(), updatedBy: currentUser.uid };
-  if (newStatus === 'Completed') { upd.verifiedBy = currentUser.uid; upd.verifiedByName = apMyName(); upd.verifiedDate = today; }
-  if (newStatus === 'For Verification' && !(item && item.submittedDate)) upd.submittedDate = today;
+  if (newStatus === 'Completed') {
+    upd.verifiedBy = currentUser.uid; upd.verifiedByName = apMyName(); upd.verifiedDate = today;
+    if (!(item && item.submittedDate)) upd.submittedDate = opts.date;
+  }
+  if (newStatus === 'For Verification') upd.submittedDate = opts.date;
   if (!['For Verification','Completed'].includes(newStatus)) upd.submittedDate = '';
   el.disabled = true;
   try {
     await updateDoc(doc(db,'actionPlans',id), upd);
     let note = 'Status changed from '+prev+' to '+newStatus+'.';
-    if (newStatus === 'Completed') note = '✅ Verified and closed as Completed (completion date '+apFmtDate(completedDate)+').';
+    if (newStatus === 'Completed') note = '✅ Verified and closed as Completed.\nCompletion date: '+apFmtDate(completedDate)
+      + (item && item.submittedDate && item.submittedDate !== completedDate ? '\nEmployee had reported: '+apFmtDate(item.submittedDate) : '')
+      + (item && item.dueDate ? '\nDue date: '+apFmtDate(item.dueDate)+(completedDate > item.dueDate ? ' (completed late)' : ' (on time)') : '')
+      + (opts && opts.note ? '\nNote: '+opts.note : '');
+    if (newStatus === 'For Verification') note = '🙋 Marked as done by leader — date completed: '+apFmtDate(opts.date)+(opts.note ? '\nNote: '+opts.note : '');
     if (prev === 'For Verification' && !['Completed'].includes(newStatus)) note = '↩ Returned from For Verification to '+newStatus+' — see notes for what is still needed.';
     await apLogSystemNote(id, note);
     if (item) Object.assign(item, upd, { updatedAt: null });
     const row = el.closest('tr');
     if (row) {
       const cdCell = row.querySelector('.ap-completed-date');
-      if (cdCell) cdCell.textContent = completedDate ? apFmtDate(completedDate) : '—';
+      if (cdCell) cdCell.textContent = completedDate ? apFmtDate(completedDate) : (upd.submittedDate ? apFmtDate(upd.submittedDate)+' (for verification)' : '—');
     }
     el.disabled = false;
+    try { filterActionPlans(); } catch(e) {}
     toast('Status updated to '+newStatus+'.','success');
   } catch(e) { toast('Could not save: '+e.message,'error'); el.disabled = false; el.value = prev; }
 };
@@ -8054,18 +8140,24 @@ let allMyActionPlans = [];
 // Coachees can move their own items up to "For Verification" (= done, awaiting leader sign-off).
 // Completed / Cancelled / Carried Over are set only by the leader chain.
 const COACHEE_AP_STATUSES = ['Not Started','In Progress','For Verification'];
-window.onMyAPStatusChange = async function(id, el) {
+window.onMyAPStatusChange = async function(id, el, opts) {
   const newStatus = el.value;
   const item = allMyActionPlans.find(p => p.id === id);
   const prev = item ? (item.status || 'Not Started') : '';
   if (!COACHEE_AP_STATUSES.includes(newStatus)) { el.value = prev; return; }
-  const submittedDate = newStatus === 'For Verification' ? new Date().toISOString().split('T')[0] : '';
+  if (newStatus === 'For Verification' && !opts) {
+    openAPDoneModal({ src:'mapl', id, el, prev, newStatus, item });
+    return;
+  }
+  const submittedDate = newStatus === 'For Verification' ? opts.date : '';
   el.disabled = true;
   try {
     await updateDoc(doc(db,'actionPlans',id), { status:newStatus, submittedDate, updatedAt:serverTimestamp(), updatedBy:currentUser.uid });
     // Leave a trail in the notes so the leader sees who changed it and when
     await apLogSystemNote(id, newStatus === 'For Verification'
-      ? '🙋 Marked as done by employee — waiting for leader verification.'
+      ? '🙋 Marked as done by employee — waiting for leader verification.\nDate completed: '+apFmtDate(submittedDate)
+        + (item && item.dueDate ? '\nDue date: '+apFmtDate(item.dueDate)+(submittedDate > item.dueDate ? ' (late)' : ' (on time)') : '')
+        + (opts && opts.note ? '\nNote: '+opts.note : '')
       : 'Status changed from '+prev+' to '+newStatus+'.');
     if (item) { item.status = newStatus; item.submittedDate = submittedDate; }
     toast('Status updated to '+newStatus+'.','success');
@@ -8110,7 +8202,7 @@ function renderMyActionPlans(allRows) {
     const st  = p.status || 'Not Started';
     const today3 = new Date(); today3.setHours(0,0,0,0);
     const overdue = isAPOverdue(p, today3);
-    const cd = p.completedDate ? new Date(p.completedDate+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+    const cd = p.completedDate ? apFmtDate(p.completedDate) : (st === 'For Verification' && p.submittedDate ? apFmtDate(p.submittedDate)+' (for verification)' : '—');
     return '<tr>'
       + '<td style="font-size:12.5px;white-space:nowrap">'+d+'</td>'
       + '<td style="font-size:12.5px">'+esc(coachName)+'</td>'
