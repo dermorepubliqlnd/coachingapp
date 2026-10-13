@@ -1,7 +1,10 @@
 rules_version = '2';
 // ==========================================================================
 // BOOST Hub — Firestore Security Rules
-// Version: 2026-09-25a  (actionPlans create: also allow the COACHEE to create items for
+// Version: 2026-10-13a  (actionPlans update: leaders anywhere above the employee may update/close;
+//                        employee may only change due date (logged) and move status up to
+//                        "For Verification" — Completed/Cancelled/Carried Over are leader-only.)
+// Previous: 2026-09-25a  (actionPlans create: also allow the COACHEE to create items for
 //                        their own session at acknowledgement, checked against the session
 //                        doc; admin may create any. Fixes missing action plans since Jul 2026.)
 // Previous: 2026-07-14c  (create-time canCoach() check on sessions/actionPlans)
@@ -112,6 +115,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    function coacheeAPUpdateOK() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(['status','submittedDate','dueDate','originalDueDate',
+                              'dueDateHistory','dueDateChangeCount','updatedAt','updatedBy'])
+        && !(resource.data.get('status', 'Not Started') in ['Completed','Cancelled'])
+        && (!changed.hasAny(['status'])
+            || request.resource.data.status in ['Not Started','In Progress','For Verification']);
+    }
+
     // ACTION PLANS — same ownership + hierarchy-rollup model as sessions.
     match /actionPlans/{apId} {
       allow get: if isSignedIn() && (
@@ -138,10 +150,14 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)).data.coacheeId == request.auth.uid
             && get(/databases/$(database)/documents/sessions/$(request.resource.data.sessionId)).data.coachId == request.resource.data.coachId)
       );
+      // Leader chain (direct coach, or anyone in coacheeReportsUpTo) has full update rights,
+      // incl. closing items. The employee (coachee) is limited to: status up to
+      // "For Verification", and due-date changes with history. They cannot reopen closed items.
       allow update: if isSignedIn() && (
         isAdmin() ||
         resource.data.coachId == request.auth.uid ||
-        resource.data.coacheeId == request.auth.uid
+        request.auth.uid in resource.data.get('coacheeReportsUpTo', []) ||
+        (resource.data.coacheeId == request.auth.uid && coacheeAPUpdateOK())
       );
       allow delete: if isAdmin();
 
