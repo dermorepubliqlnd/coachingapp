@@ -1088,6 +1088,7 @@
             <button class="btn btn-primary" id="session-finalize-btn" style="display:none" onclick="finalizeCoachLog()">Finalize &amp; Send to Coachee</button>
             <button class="btn btn-primary" id="session-acknowledge-btn" style="display:none" onclick="acknowledgeSession()">Acknowledge &amp; Complete</button>
             <button class="btn btn-ghost" id="session-reject-btn" style="display:none;color:var(--red);border-color:var(--red)" onclick="openRejectModal()">Return for Review</button>
+            <button class="btn btn-ghost" id="session-resched-btn" style="display:none" onclick="openSessionReschedule(currentSessionId)">Reschedule</button>
             <span id="pdf-status" style="font-size:12px;color:var(--muted);margin-left:8px"></span>
           </div>
           </div><!-- /sf-form-body -->
@@ -1781,6 +1782,32 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-ap-due')">Cancel</button>
       <button class="btn btn-primary" id="apdue-save-btn" onclick="saveAPDueChange()">Save New Date</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: RESCHEDULE SESSION (coach, any status before Pending / Acknowledged) -->
+<div id="modal-sess-resched" class="modal-overlay" style="display:none" onclick="overlayClose(event,'modal-sess-resched')">
+  <div class="modal-box sm">
+    <div class="modal-header">
+      <div class="modal-title">Reschedule Session</div>
+      <button class="modal-close" onclick="closeModal('modal-sess-resched')">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="resched-info" style="background:var(--light);border-radius:var(--radius);padding:10px 12px;font-size:12.5px;color:var(--text);margin-bottom:12px;line-height:1.5"></div>
+      <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:130px"><label class="form-label">Current session date</label><div id="resched-current" style="font-size:13px;font-weight:600;padding:7px 0"></div></div>
+        <div style="flex:1;min-width:130px"><label class="form-label">New session date *</label><input type="date" id="resched-new" class="form-control"></div>
+      </div>
+      <div id="resched-orig" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+      <label class="form-label">Reason for rescheduling *</label>
+      <textarea id="resched-reason" class="form-control" rows="3" placeholder="e.g. Coachee on leave; agreed to move to next Tuesday."></textarea>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:6px">The session keeps its code and status. The coachee sees the new date, and the change is kept in the session's reschedule history.</div>
+      <div id="resched-err" style="display:none;color:var(--red);font-size:12px;margin-top:6px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-sess-resched')">Cancel</button>
+      <button class="btn btn-primary" id="resched-save-btn" onclick="saveSessionReschedule()">Save New Date</button>
     </div>
   </div>
 </div>
@@ -6089,6 +6116,9 @@ function renderCoachSessions(sessions) {
           actions += '<button class="icon-btn" onclick="openSessionPdfModal(\''+s.id+'\')" title="View PDF" style="color:var(--red);border-color:var(--red)">'+ICON_PDF+'</button>';
           actions += '<button class="icon-btn" onclick="requestSessionDeletion(\''+s.id+'\',\''+esc(cName)+'\',\''+esc(code)+'\',\''+esc(s.sessionDate||'')+'\',\''+st+'\')" title="Request deletion" style="color:var(--amber);border-color:var(--amber)">'+ICON_FLAG+'</button>';
         }
+        if (canRescheduleSession(s)) {
+          actions += '<button class="icon-btn" onclick="openSessionReschedule(\''+s.id+'\')" title="Reschedule session">'+ICON_RESCHED+'</button>';
+        }
         if (_isAdmin) {
           const aCoach = allUsers.find(u=>u.uid===s.coachId);
           const aCoachName = aCoach ? aCoach.firstName+' '+aCoach.lastName : '';
@@ -6112,7 +6142,7 @@ function renderCoachSessions(sessions) {
           + '<td style="white-space:nowrap;font-size:12.5px">'+esc(coachName)+'</td>'
           + '<td style="white-space:nowrap"><span style="font-size:11.5px;font-weight:600;padding:2px 10px;border-radius:20px;white-space:nowrap;'+(isCoacheeLed?'background:#EDE9FE;color:#5B21B6':'background:var(--blue-lt);color:var(--blue)')+'">'+( isCoacheeLed?'Coachee-Led':'Coach-Led')+'</span></td>'
           + '<td style="font-size:12.5px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(focus)+'">'+esc(focus)+'</td>'
-          + '<td style="font-size:12.5px">'+esc(d)+'</td>'
+          + '<td style="font-size:12.5px;white-space:nowrap">'+esc(d)+sessReschedTrail(s)+'</td>'
           + '<td><span class="badge badge-'+st+'">'+statusLabel(st)+'</span></td>'
           + '<td style="font-size:12px">'+esc(deliv)+'</td>'
           + '<td>'+actions+'</td>'
@@ -6242,6 +6272,7 @@ async function loadSessionForm() {
   document.getElementById('session-reject-btn').disabled = false;
   document.getElementById('session-send-prep-btn').style.display  = 'none';
   document.getElementById('session-finalize-btn').style.display   = 'none';
+  document.getElementById('session-resched-btn').style.display    = 'none';
   document.getElementById('sf-commitment-card').style.display = 'none';
   document.getElementById('sf-commitment-text').value = '';
   document.getElementById('sf-flow-coach-led').checked = true;
@@ -6531,6 +6562,9 @@ async function loadExistingSession(sessionId) {
     setFlowTypeTag(ft);
 
     const isCoachOfSession = currentUser.uid === s.coachId;
+    // Reschedule: coach (or admin) can move the date any time before Pending / Acknowledged
+    document.getElementById('session-resched-btn').style.display =
+      (canRescheduleSession(s) && !_sessionForceViewOnly) ? 'inline-flex' : 'none';
     // Load open AP banner for the coach regardless of flow type
     if (isCoachOfSession) loadOpenAPBanner(s.coacheeId);
 
@@ -6863,6 +6897,93 @@ function getActionPlan() {
 
 
 // ── Build session data ────────────────────────────────────────
+// ── Reschedule session date ──────────────────────────────────────────────
+// Allowed for the session's coach (or an admin) in any status before the log is sent
+// for acknowledgement — both Coach-Led and Coachee-Led flows. Locked from Pending onward.
+const RESCHEDULABLE_STATUSES = ['draft','for-review','prep-requested','coachee-preparing','prep-submitted','coach-review'];
+const ICON_RESCHED = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="10 14 12 16 15 13"/></svg>';
+function canRescheduleSession(s) {
+  if (!s || !currentUser) return false;
+  const isAdmin = !!((currentProfile||{}).permissions||{}).admin;
+  return RESCHEDULABLE_STATUSES.includes(s.status || 'draft') && (s.coachId === currentUser.uid || isAdmin);
+}
+function sessFmtDate(d) {
+  return d ? new Date(d+'T00:00:00').toLocaleDateString('en-PH',{year:'numeric',month:'short',day:'numeric'}) : '—';
+}
+function sessReschedTrail(s) {
+  const hist = Array.isArray(s.sessionDateHistory) ? s.sessionDateHistory : [];
+  if (!hist.length) return '';
+  const tip = 'Original: '+sessFmtDate(s.originalSessionDate) + hist.map((h,i) =>
+    '\n#'+(i+1)+': '+sessFmtDate(h.from)+' → '+sessFmtDate(h.to)+' by '+(h.byName||'—')+(h.at?' ('+h.at.slice(0,10)+')':'')+(h.reason?' — '+h.reason:'')).join('');
+  return '<div class="ap-due-moved" title="'+esc(tip)+'">Moved '+hist.length+'× · Orig '+sessFmtDate(s.originalSessionDate)+'</div>';
+}
+
+let _reschedCtx = null;
+window.openSessionReschedule = async function(sessionId) {
+  if (!sessionId) return;
+  try {
+    const snap = await getDoc(doc(db,'sessions',sessionId));
+    if (!snap.exists()) { toast('Session not found.','error'); return; }
+    const s = snap.data();
+    if (!canRescheduleSession(s)) { toast('This session can no longer be rescheduled (already sent for acknowledgement).','error'); return; }
+    _reschedCtx = { id: sessionId, s };
+    const coachee = allUsers.find(u=>u.uid===s.coacheeId);
+    document.getElementById('resched-info').innerHTML = '<strong>'+esc(s.sessionCode||sessionId)+'</strong> &middot; '
+      + esc(coachee ? coachee.firstName+' '+coachee.lastName : 'Coachee') + ' &middot; ' + esc(statusLabel(s.status||'draft'));
+    document.getElementById('resched-current').textContent = sessFmtDate(s.sessionDate);
+    const n = (s.sessionDateHistory||[]).length;
+    document.getElementById('resched-orig').textContent = n ? ('Original session date: '+sessFmtDate(s.originalSessionDate)+' · already moved '+n+'×') : '';
+    const inp = document.getElementById('resched-new');
+    inp.value = s.sessionDate || '';
+    inp.min   = sessionDateFloorStr();
+    document.getElementById('resched-reason').value = '';
+    document.getElementById('resched-err').style.display = 'none';
+    document.getElementById('resched-save-btn').disabled = false;
+    document.getElementById('modal-sess-resched').style.display = 'flex';
+  } catch(e) { toast('Could not open reschedule: '+e.message,'error'); }
+};
+
+window.saveSessionReschedule = async function() {
+  if (!_reschedCtx) return;
+  const { id, s } = _reschedCtx;
+  const newDate = document.getElementById('resched-new').value;
+  const reason  = document.getElementById('resched-reason').value.trim();
+  const err  = document.getElementById('resched-err');
+  const fail = m => { err.textContent = m; err.style.display = 'block'; };
+  if (!newDate) return fail('Pick the new session date.');
+  if (newDate === (s.sessionDate||'')) return fail('The new date is the same as the current one.');
+  if (isSessionDateTooOld(newDate)) return fail('Session date cannot be more than 1 week in the past.');
+  if (!reason) return fail('Please give a reason — it is kept in the reschedule history.');
+  const btn = document.getElementById('resched-save-btn'); btn.disabled = true;
+  try {
+    // Re-check status in case the coachee/coach moved it on in the meantime
+    const fresh = await getDoc(doc(db,'sessions',id));
+    if (!fresh.exists() || !canRescheduleSession(fresh.data())) { btn.disabled = false; return fail('This session was already sent for acknowledgement — it can no longer be rescheduled.'); }
+    const cur = fresh.data();
+    const byName = (currentProfile.firstName||'')+' '+(currentProfile.lastName||'');
+    const entry = { from: cur.sessionDate || '', to: newDate, reason, byId: currentUser.uid, byName,
+                    status: cur.status || 'draft', at: new Date().toISOString() };
+    const hist = (Array.isArray(cur.sessionDateHistory) ? cur.sessionDateHistory : []).concat([entry]);
+    const originalSessionDate = cur.originalSessionDate || cur.sessionDate || '';
+    await updateDoc(doc(db,'sessions',id), {
+      sessionDate: newDate, originalSessionDate, sessionDateHistory: hist, rescheduleCount: hist.length,
+      updatedAt: serverTimestamp() });
+    try {
+      await addDoc(collection(db,'auditLog'), {
+        action: 'session_rescheduled', sessionId: id, sessionCode: cur.sessionCode || null,
+        fromDate: entry.from, toDate: newDate, sessionStatus: entry.status, reason,
+        performedBy: currentUser.uid, performedByName: byName, timestamp: serverTimestamp() });
+    } catch(e) { console.warn('Reschedule audit log failed', e); }
+    // Keep local caches + open form in sync
+    const local = (typeof allCoachSessions !== 'undefined' && allCoachSessions) ? allCoachSessions.find(x => x.id === id) : null;
+    if (local) Object.assign(local, { sessionDate: newDate, originalSessionDate, sessionDateHistory: hist, rescheduleCount: hist.length });
+    if (currentSessionId === id) { const el = document.getElementById('sf-session-date'); if (el) el.value = newDate; }
+    closeModal('modal-sess-resched');
+    toast('Session rescheduled to '+sessFmtDate(newDate)+'.','success');
+    if (document.getElementById('cs-filter-status')) { try { filterCoachSessions(); } catch(e){} }
+  } catch(e) { btn.disabled = false; fail('Could not save: '+e.message); }
+};
+
 // Session Date may not be backdated more than 7 days — keeps entries close to when the
 // conversation actually happened instead of being logged weeks/months late. (The existing
 // logIfBackdated() audit log still separately flags anything that lands in a prior month,
